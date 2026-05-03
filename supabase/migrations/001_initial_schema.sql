@@ -59,6 +59,22 @@ create table if not exists outfit_items (
 
 create index if not exists idx_outfits_user_id on outfits(user_id);
 
+create table if not exists buy_decisions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  product_image_url text,
+  product_name text,
+  price numeric(10, 2),
+  decision text check (decision in ('AL', 'BEKLEME', 'ALMA')),
+  confidence numeric(3, 2),
+  similar_items jsonb default '[]'::jsonb,
+  combination_count integer,
+  ai_reasoning text,
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_buy_decisions_user_id on buy_decisions(user_id);
+
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
@@ -81,6 +97,7 @@ alter table profiles enable row level security;
 alter table wardrobe_items enable row level security;
 alter table outfits enable row level security;
 alter table outfit_items enable row level security;
+alter table buy_decisions enable row level security;
 
 create policy "Users can read own profile"
   on profiles for select using (auth.uid() = id);
@@ -102,6 +119,9 @@ create policy "Users can manage own outfit items"
       and outfits.user_id = auth.uid()
     )
   );
+
+create policy "Users can manage own buy decisions"
+  on buy_decisions for all using (auth.uid() = user_id);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

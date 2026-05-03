@@ -97,3 +97,36 @@ export interface OutfitRecommendationInput {
   weather: WeatherData | null;
   wardrobe: WardrobeItem[];
 }
+
+export type BuyDecision = "AL" | "BEKLEME" | "ALMA";
+
+export interface BuyDecisionResult {
+  decision: BuyDecision;
+  confidence: number;
+  similar_items_in_wardrobe: string[];
+  combination_count: number;
+  cost_per_wear_suggestion: string;
+  main_reason: string;
+  details: string;
+  discount_advice: string | null;
+}
+
+export interface BuyDecisionInput {
+  imageUri: string;
+  price: number | null;
+  wardrobe: WardrobeItem[];
+}
+
+export interface BuyDecisionRecord {
+  id: string;
+  user_id: string;
+  product_image_url: string | null;
+  product_name: string | null;
+  price: number | null;
+  decision: BuyDecision;
+  confidence: number;
+  similar_items: string[];
+  combination_count: number;
+  ai_reasoning: string;
+  created_at: string;
+}

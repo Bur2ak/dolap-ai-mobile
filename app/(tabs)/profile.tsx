@@ -38,11 +38,21 @@ export default function ProfileScreen() {
       </Card>
 
       <View style={styles.menu}>
-        {["Arkadaslarim", "Fiyat Takibi", "Bildirim Ayarlari", "Aboneligim"].map((item) => (
-          <Card key={item}>
-            <Text variant="label">{item}</Text>
-          </Card>
-        ))}
+        <Card>
+          <Text variant="label">Arkadaslarim</Text>
+        </Card>
+        <Card>
+          <Text variant="label">Fiyat Takibi</Text>
+        </Card>
+        <Card>
+          <Text variant="label">Bildirim Ayarlari</Text>
+        </Card>
+        <Card>
+          <Text variant="label">Aboneligim</Text>
+        </Card>
+        <Card>
+          <Button title="Almali Miyim?" variant="ghost" onPress={() => router.push("/buy-decision")} />
+        </Card>
       </View>
 
       <Button title="Cikis Yap" variant="secondary" onPress={handleSignOut} style={styles.signOut} />
