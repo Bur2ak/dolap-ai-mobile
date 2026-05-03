@@ -154,3 +154,21 @@ export interface EventRecord {
   calendar_event_id: string | null;
   created_at: string;
 }
+
+export interface DistributionPoint {
+  label: string;
+  value: number;
+  color?: string;
+}
+
+export interface WardrobeAnalytics {
+  total_items: number;
+  total_value: number;
+  avg_cost_per_wear: number;
+  monthly_spending: number;
+  most_worn: WardrobeItem[];
+  never_worn: WardrobeItem[];
+  category_distribution: DistributionPoint[];
+  color_distribution: DistributionPoint[];
+  suggestions_to_remove: WardrobeItem[];
+}
