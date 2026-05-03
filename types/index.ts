@@ -46,3 +46,24 @@ export interface WardrobeItem {
   created_at: string;
   updated_at: string;
 }
+
+export interface ClothingAnalysisResult {
+  category: ClothingCategory;
+  subcategory: string;
+  colors: string[];
+  dominant_color_hex: string;
+  season: Season[];
+  brand?: string | null;
+}
+
+export interface CreateWardrobeItemInput {
+  image_url: string;
+  thumbnail_url?: string | null;
+  category: ClothingCategory;
+  subcategory?: string | null;
+  colors?: string[];
+  dominant_color_hex?: string | null;
+  season?: Season[];
+  brand?: string | null;
+  purchase_price?: number | null;
+}

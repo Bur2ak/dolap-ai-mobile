@@ -11,6 +11,21 @@ npm run start
 
 Ortam degiskenleri icin `.env.example` dosyasini referans al.
 
+## Supabase
+
+Ilk migration:
+
+```bash
+supabase db push
+```
+
+Kiyafet analiz fonksiyonu:
+
+```bash
+supabase functions deploy analyze-clothing
+supabase secrets set GOOGLE_GEMINI_API_KEY=your-gemini-key
+```
+
 ## Dokumanlar
 
 - `Dolap_AI_Gelistirme_Spesifikasyonu.md`: teknik gelistirme plani

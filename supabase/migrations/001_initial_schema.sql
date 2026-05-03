@@ -65,3 +65,31 @@ create policy "Users can update own profile"
 
 create policy "Users can manage own wardrobe"
   on wardrobe_items for all using (auth.uid() = user_id);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'wardrobe-images',
+  'wardrobe-images',
+  true,
+  5242880,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do nothing;
+
+drop policy if exists "Users can upload own wardrobe images" on storage.objects;
+create policy "Users can upload own wardrobe images"
+  on storage.objects for insert with check (
+    bucket_id = 'wardrobe-images'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "Public wardrobe images are readable" on storage.objects;
+create policy "Public wardrobe images are readable"
+  on storage.objects for select using (bucket_id = 'wardrobe-images');
+
+drop policy if exists "Users can delete own wardrobe images" on storage.objects;
+create policy "Users can delete own wardrobe images"
+  on storage.objects for delete using (
+    bucket_id = 'wardrobe-images'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
