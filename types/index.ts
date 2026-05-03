@@ -89,6 +89,7 @@ export interface OutfitSuggestion {
   items: string[];
   name: string;
   reason: string;
+  formality_match?: string;
 }
 
 export interface OutfitRecommendationInput {
@@ -128,5 +129,28 @@ export interface BuyDecisionRecord {
   similar_items: string[];
   combination_count: number;
   ai_reasoning: string;
+  created_at: string;
+}
+
+export interface EventPlanInput {
+  title: string;
+  event_type: string;
+  event_date: string;
+  location: string | null;
+  notes: string | null;
+  weather: WeatherData | null;
+  wardrobe: WardrobeItem[];
+}
+
+export interface EventRecord {
+  id: string;
+  user_id: string;
+  outfit_id: string | null;
+  title: string;
+  event_type: string;
+  event_date: string;
+  location: string | null;
+  notes: string | null;
+  calendar_event_id: string | null;
   created_at: string;
 }

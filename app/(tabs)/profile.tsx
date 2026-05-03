@@ -53,6 +53,9 @@ export default function ProfileScreen() {
         <Card>
           <Button title="Almali Miyim?" variant="ghost" onPress={() => router.push("/buy-decision")} />
         </Card>
+        <Card>
+          <Button title="Suraya Gidiyorum" variant="ghost" onPress={() => router.push("/event")} />
+        </Card>
       </View>
 
       <Button title="Cikis Yap" variant="secondary" onPress={handleSignOut} style={styles.signOut} />
