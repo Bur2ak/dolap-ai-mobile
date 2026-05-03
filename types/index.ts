@@ -67,3 +67,33 @@ export interface CreateWardrobeItemInput {
   brand?: string | null;
   purchase_price?: number | null;
 }
+
+export type UpdateWardrobeItemInput = Partial<Omit<CreateWardrobeItemInput, "image_url" | "thumbnail_url">> & {
+  image_url?: string;
+  thumbnail_url?: string | null;
+  wear_count?: number;
+  last_worn?: string | null;
+  is_active?: boolean;
+};
+
+export interface WeatherData {
+  temp: number;
+  feels_like: number;
+  description: string;
+  icon: string;
+  humidity: number;
+  city: string;
+}
+
+export interface OutfitSuggestion {
+  items: string[];
+  name: string;
+  reason: string;
+}
+
+export interface OutfitRecommendationInput {
+  event: string;
+  mood: string;
+  weather: WeatherData | null;
+  wardrobe: WardrobeItem[];
+}

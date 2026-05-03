@@ -2,7 +2,7 @@ import { nanoid } from "nanoid/non-secure";
 
 import { supabase } from "@/lib/supabase";
 import { uploadWardrobeImage } from "@/lib/storage/supabaseStorage";
-import type { CreateWardrobeItemInput, WardrobeItem } from "@/types";
+import type { CreateWardrobeItemInput, UpdateWardrobeItemInput, WardrobeItem } from "@/types";
 
 export async function fetchWardrobeItems(userId: string): Promise<WardrobeItem[]> {
   const { data, error } = await supabase
@@ -17,6 +17,22 @@ export async function fetchWardrobeItems(userId: string): Promise<WardrobeItem[]
   }
 
   return (data ?? []) as WardrobeItem[];
+}
+
+export async function fetchWardrobeItem(userId: string, itemId: string): Promise<WardrobeItem> {
+  const { data, error } = await supabase
+    .from("wardrobe_items")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("id", itemId)
+    .eq("is_active", true)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as WardrobeItem;
 }
 
 export async function createWardrobeItem(userId: string, input: CreateWardrobeItemInput): Promise<WardrobeItem> {
@@ -54,4 +70,39 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
   }
 
   return data as WardrobeItem;
+}
+
+export async function updateWardrobeItem(userId: string, itemId: string, input: UpdateWardrobeItemInput): Promise<WardrobeItem> {
+  const { data, error } = await supabase
+    .from("wardrobe_items")
+    .update(input)
+    .eq("user_id", userId)
+    .eq("id", itemId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as WardrobeItem;
+}
+
+export async function markWardrobeItemWorn(userId: string, item: WardrobeItem): Promise<WardrobeItem> {
+  return updateWardrobeItem(userId, item.id, {
+    wear_count: item.wear_count + 1,
+    last_worn: new Date().toISOString().slice(0, 10),
+  });
+}
+
+export async function deleteWardrobeItem(userId: string, itemId: string): Promise<void> {
+  const { error } = await supabase
+    .from("wardrobe_items")
+    .update({ is_active: false })
+    .eq("user_id", userId)
+    .eq("id", itemId);
+
+  if (error) {
+    throw error;
+  }
 }

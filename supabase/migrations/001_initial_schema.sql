@@ -36,6 +36,29 @@ create table if not exists wardrobe_items (
 create index if not exists idx_wardrobe_items_user_id on wardrobe_items(user_id);
 create index if not exists idx_wardrobe_items_active on wardrobe_items(user_id, is_active);
 
+create table if not exists outfits (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  name text,
+  event_type text,
+  weather_temp integer,
+  weather_description text,
+  mood text,
+  ai_reasoning text,
+  worn_at date,
+  is_favorite boolean default false,
+  created_at timestamptz default now()
+);
+
+create table if not exists outfit_items (
+  outfit_id uuid not null references outfits(id) on delete cascade,
+  item_id uuid not null references wardrobe_items(id) on delete cascade,
+  position integer,
+  primary key (outfit_id, item_id)
+);
+
+create index if not exists idx_outfits_user_id on outfits(user_id);
+
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
@@ -56,6 +79,8 @@ create trigger on_auth_user_created
 
 alter table profiles enable row level security;
 alter table wardrobe_items enable row level security;
+alter table outfits enable row level security;
+alter table outfit_items enable row level security;
 
 create policy "Users can read own profile"
   on profiles for select using (auth.uid() = id);
@@ -65,6 +90,18 @@ create policy "Users can update own profile"
 
 create policy "Users can manage own wardrobe"
   on wardrobe_items for all using (auth.uid() = user_id);
+
+create policy "Users can manage own outfits"
+  on outfits for all using (auth.uid() = user_id);
+
+create policy "Users can manage own outfit items"
+  on outfit_items for all using (
+    exists (
+      select 1 from outfits
+      where outfits.id = outfit_items.outfit_id
+      and outfits.user_id = auth.uid()
+    )
+  );
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

@@ -23,7 +23,9 @@ Kiyafet analiz fonksiyonu:
 
 ```bash
 supabase functions deploy analyze-clothing
+supabase functions deploy recommend-outfit
 supabase secrets set GOOGLE_GEMINI_API_KEY=your-gemini-key
+supabase secrets set ANTHROPIC_API_KEY=your-anthropic-key
 ```
 
 ## Dokumanlar
