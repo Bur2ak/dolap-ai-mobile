@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useState } from "react";
 import { FlatList, Image, Pressable, StyleSheet, View } from "react-native";
 
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { CATEGORIES } from "@/constants/categories";
 import { COLORS } from "@/constants/colors";
@@ -14,7 +16,18 @@ import type { ClothingCategory } from "@/types";
 export default function WardrobeScreen() {
   const { items, isLoading } = useWardrobe();
   const { category, setCategory } = useWardrobeStore();
-  const filteredItems = category === "all" ? items : items.filter((item) => item.category === category);
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredItems = items.filter((item) => {
+    const categoryMatch = category === "all" || item.category === category;
+    const queryMatch =
+      !normalizedQuery ||
+      [item.category, item.subcategory, item.brand, ...item.colors, ...item.season]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+
+    return categoryMatch && queryMatch;
+  });
 
   return (
     <View style={styles.container}>
@@ -51,6 +64,8 @@ export default function WardrobeScreen() {
         }}
       />
 
+      <Input label="Dolapta ara" value={query} onChangeText={setQuery} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" />
+
       {filteredItems.length > 0 ? (
         <FlatList
           data={filteredItems}
@@ -78,7 +93,7 @@ export default function WardrobeScreen() {
         <Card style={styles.empty}>
           <Ionicons name={isLoading ? "sync-outline" : "shirt-outline"} size={44} color={COLORS.primary} />
           <Text variant="h3" style={styles.centerText}>
-            {isLoading ? "Dolap yukleniyor" : items.length > 0 ? "Bu filtrede kiyafet yok" : "Ilk kiyafetini ekle"}
+            {isLoading ? "Dolap yukleniyor" : items.length > 0 ? "Aramana uyan kiyafet yok" : "Ilk kiyafetini ekle"}
           </Text>
           <Text variant="body" color="secondary" style={styles.centerText}>
             Kamera veya galeriden fotograf ekleyince AI metadata formunu hazirlayacak.

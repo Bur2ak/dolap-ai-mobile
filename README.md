@@ -56,6 +56,10 @@ Arkadas arama, istek gonderme, kabul etme, engelleme, davet linki, paylasilan ar
 
 Profil bilgisi, kullanici adi ve gizlilik tercihleri ayarlar ekranlarindan guncellenebilir.
 
+## Dolap
+
+Kiyafetler kategori filtresi ve marka, renk, sezon veya kategori aramasi ile bulunabilir.
+
 ## Auth
 
 Giris, kayit ve Supabase email sifre sifirlama akislari hazir.
