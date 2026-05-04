@@ -15,6 +15,10 @@ create table if not exists profiles (
     "friend_requests": true,
     "outfit_votes": true
   }'::jsonb,
+  privacy_settings jsonb default '{
+    "wardrobe_visible": false,
+    "allow_friend_requests": true
+  }'::jsonb,
   onboarding_completed boolean default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now()

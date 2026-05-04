@@ -42,6 +42,10 @@ Bildirim tercihleri ve Expo push token kaydi uygulama tarafinda hazir. Gercek ci
 
 Arkadas arama, istek gonderme, kabul etme ve engelleme akislari Premium kapisi arkasinda hazir.
 
+## Hesap Ayarlari
+
+Profil bilgisi, kullanici adi ve gizlilik tercihleri ayarlar ekranlarindan guncellenebilir.
+
 ## Dokumanlar
 
 - `Dolap_AI_Gelistirme_Spesifikasyonu.md`: teknik gelistirme plani

@@ -25,6 +25,7 @@ export interface Profile {
   subscription_expires_at: string | null;
   push_token: string | null;
   notification_preferences: NotificationPreferences;
+  privacy_settings: PrivacySettings;
   onboarding_completed: boolean;
   created_at: string;
 }
@@ -34,6 +35,11 @@ export interface NotificationPreferences {
   price_drops: boolean;
   friend_requests: boolean;
   outfit_votes: boolean;
+}
+
+export interface PrivacySettings {
+  wardrobe_visible: boolean;
+  allow_friend_requests: boolean;
 }
 
 export interface WardrobeItem {

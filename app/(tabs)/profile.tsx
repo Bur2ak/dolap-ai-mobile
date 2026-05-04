@@ -53,6 +53,12 @@ export default function ProfileScreen() {
 
       <View style={styles.menu}>
         <Card>
+          <Button title="Hesap Ayarlari" variant="ghost" onPress={() => router.push("/settings/account")} />
+        </Card>
+        <Card>
+          <Button title="Gizlilik" variant="ghost" onPress={() => router.push("/settings/privacy")} />
+        </Card>
+        <Card>
           <Button title="Arkadaslarim" variant="ghost" onPress={() => router.push("/social/friends")} />
         </Card>
         <Card>
