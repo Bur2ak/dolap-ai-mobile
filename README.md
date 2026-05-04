@@ -60,6 +60,10 @@ Arkadas arama, istek gonderme, kabul etme, engelleme, davet linki, paylasilan ar
 
 Profil bilgisi, kullanici adi ve gizlilik tercihleri ayarlar ekranlarindan guncellenebilir.
 
+## Analiz
+
+Dolap analiz ekrani toplam deger, maliyet/giyim, kullanim skoru, 90 gun atil kalan parcalar, kategori/renk/sezon dagilimi ve Premium gelismis temizlik onerilerini gosterir.
+
 ## Dolap
 
 Kiyafetler kategori filtresi ve marka, renk, sezon veya kategori aramasi ile bulunabilir.

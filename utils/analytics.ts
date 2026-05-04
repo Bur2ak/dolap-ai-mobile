@@ -6,25 +6,36 @@ export function calculateWardrobeAnalytics(items: WardrobeItem[]): WardrobeAnaly
   const totalCostPerWear = wornItems.reduce((sum, item) => sum + (item.purchase_price ?? 0) / item.wear_count, 0);
   const avgCostPerWear = wornItems.length > 0 ? totalCostPerWear / wornItems.length : 0;
   const currentMonth = new Date().toISOString().slice(0, 7);
+  const inactiveSince = Date.now() - 90 * 24 * 60 * 60 * 1000;
   const monthlySpending = items
     .filter((item) => item.created_at?.slice(0, 7) === currentMonth)
     .reduce((sum, item) => sum + (item.purchase_price ?? 0), 0);
 
   const neverWorn = items.filter((item) => item.wear_count === 0);
+  const inactiveItems = items.filter((item) => !item.last_worn || new Date(item.last_worn).getTime() < inactiveSince);
   const mostWorn = [...items].sort((a, b) => b.wear_count - a.wear_count).slice(0, 5);
+  const highValueUnused = [...neverWorn]
+    .filter((item) => item.purchase_price)
+    .sort((a, b) => Number(b.purchase_price ?? 0) - Number(a.purchase_price ?? 0))
+    .slice(0, 5);
   const suggestionsToRemove = [...neverWorn]
     .sort((a, b) => Number(b.purchase_price ?? 0) - Number(a.purchase_price ?? 0))
     .slice(0, 5);
+  const utilizationScore = items.length > 0 ? Math.round((items.filter((item) => item.wear_count > 0).length / items.length) * 100) : 0;
 
   return {
     total_items: items.length,
     total_value: totalValue,
     avg_cost_per_wear: avgCostPerWear,
     monthly_spending: monthlySpending,
+    utilization_score: utilizationScore,
+    inactive_items_count: inactiveItems.length,
     most_worn: mostWorn,
     never_worn: neverWorn.slice(0, 5),
     category_distribution: toDistribution(items.map((item) => item.category)),
     color_distribution: toColorDistribution(items),
+    season_distribution: toDistribution(items.flatMap((item) => item.season)),
+    high_value_unused: highValueUnused,
     suggestions_to_remove: suggestionsToRemove,
   };
 }

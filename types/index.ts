@@ -217,10 +217,14 @@ export interface WardrobeAnalytics {
   total_value: number;
   avg_cost_per_wear: number;
   monthly_spending: number;
+  utilization_score: number;
+  inactive_items_count: number;
   most_worn: WardrobeItem[];
   never_worn: WardrobeItem[];
   category_distribution: DistributionPoint[];
   color_distribution: DistributionPoint[];
+  season_distribution: DistributionPoint[];
+  high_value_unused: WardrobeItem[];
   suggestions_to_remove: WardrobeItem[];
 }
 
