@@ -70,6 +70,7 @@ export default function FriendsScreen() {
             <Text variant="h3">Kullanici ara</Text>
             <Input label="Kullanici adi veya ad" value={query} onChangeText={setQuery} autoCapitalize="none" />
             <Button title="Ara" onPress={handleSearch} loading={isSearching} />
+            <Button title="Davet Linki" variant="secondary" onPress={() => router.push("/social/invite")} />
           </Card>
 
           {searchResults.length > 0 ? (

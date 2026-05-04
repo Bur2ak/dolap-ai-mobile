@@ -40,7 +40,7 @@ Bildirim tercihleri ve Expo push token kaydi uygulama tarafinda hazir. Gercek ci
 
 ## Sosyal
 
-Arkadas arama, istek gonderme, kabul etme, engelleme ve paylasilan arkadas dolabi akislari Premium kapisi arkasinda hazir.
+Arkadas arama, istek gonderme, kabul etme, engelleme, davet linki ve paylasilan arkadas dolabi akislari Premium kapisi arkasinda hazir.
 
 ## Hesap Ayarlari
 
