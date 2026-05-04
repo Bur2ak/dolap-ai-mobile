@@ -177,11 +177,46 @@ alter table friendships enable row level security;
 create policy "Users can read own profile"
   on profiles for select using (auth.uid() = id);
 
+create policy "Users can read social profiles"
+  on profiles for select using (
+    auth.uid() is not null
+    and (
+      coalesce((privacy_settings->>'allow_friend_requests')::boolean, true)
+      or exists (
+        select 1 from friendships
+        where friendships.status = 'accepted'
+        and (
+          (friendships.requester_id = auth.uid() and friendships.addressee_id = profiles.id)
+          or (friendships.addressee_id = auth.uid() and friendships.requester_id = profiles.id)
+        )
+      )
+    )
+  );
+
 create policy "Users can update own profile"
   on profiles for update using (auth.uid() = id);
 
 create policy "Users can manage own wardrobe"
   on wardrobe_items for all using (auth.uid() = user_id);
+
+create policy "Accepted friends can read shared wardrobe"
+  on wardrobe_items for select using (
+    is_active = true
+    and is_shareable = true
+    and exists (
+      select 1 from profiles
+      where profiles.id = wardrobe_items.user_id
+      and coalesce((profiles.privacy_settings->>'wardrobe_visible')::boolean, false)
+    )
+    and exists (
+      select 1 from friendships
+      where friendships.status = 'accepted'
+      and (
+        (friendships.requester_id = auth.uid() and friendships.addressee_id = wardrobe_items.user_id)
+        or (friendships.addressee_id = auth.uid() and friendships.requester_id = wardrobe_items.user_id)
+      )
+    )
+  );
 
 create policy "Users can manage own outfits"
   on outfits for all using (auth.uid() = user_id);
@@ -211,7 +246,14 @@ create policy "Users can read own friendships"
   on friendships for select using (auth.uid() = requester_id or auth.uid() = addressee_id);
 
 create policy "Users can send friend requests"
-  on friendships for insert with check (auth.uid() = requester_id);
+  on friendships for insert with check (
+    auth.uid() = requester_id
+    and exists (
+      select 1 from profiles
+      where profiles.id = friendships.addressee_id
+      and coalesce((profiles.privacy_settings->>'allow_friend_requests')::boolean, true)
+    )
+  );
 
 create policy "Users can update own friendships"
   on friendships for update using (auth.uid() = requester_id or auth.uid() = addressee_id);

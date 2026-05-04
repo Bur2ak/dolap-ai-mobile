@@ -56,6 +56,8 @@ export interface WardrobeItem {
   purchase_price: number | null;
   wear_count: number;
   last_worn: string | null;
+  is_shareable: boolean;
+  is_lendable: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -80,6 +82,8 @@ export interface CreateWardrobeItemInput {
   season?: Season[];
   brand?: string | null;
   purchase_price?: number | null;
+  is_shareable?: boolean;
+  is_lendable?: boolean;
 }
 
 export type UpdateWardrobeItemInput = Partial<Omit<CreateWardrobeItemInput, "image_url" | "thumbnail_url">> & {
@@ -241,4 +245,9 @@ export interface UserSearchResult {
   username: string | null;
   full_name: string | null;
   avatar_url: string | null;
+}
+
+export interface FriendWardrobe {
+  profile: Pick<Profile, "id" | "username" | "full_name" | "avatar_url" | "bio" | "privacy_settings">;
+  items: WardrobeItem[];
 }

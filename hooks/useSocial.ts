@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchFriendships, searchUsers, sendFriendRequest, updateFriendshipStatus } from "@/lib/api/social";
+import { fetchFriendWardrobe, fetchFriendships, searchUsers, sendFriendRequest, updateFriendshipStatus } from "@/lib/api/social";
 import { useAuthStore } from "@/stores/authStore";
 
 export function useSocial() {
@@ -43,4 +43,12 @@ export function useSocial() {
     updateFriendshipStatus: updateStatusMutation.mutateAsync,
     isMutating: sendRequestMutation.isPending || updateStatusMutation.isPending,
   };
+}
+
+export function useFriendWardrobe(friendId?: string) {
+  return useQuery({
+    queryKey: ["friend-wardrobe", friendId],
+    queryFn: () => fetchFriendWardrobe(friendId!),
+    enabled: Boolean(friendId),
+  });
 }

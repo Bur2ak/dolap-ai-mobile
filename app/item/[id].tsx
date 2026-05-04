@@ -12,7 +12,7 @@ import { useWardrobeItem } from "@/hooks/useWardrobe";
 
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { item, isLoading, markWorn, deleteItem, isUpdating } = useWardrobeItem(id);
+  const { item, isLoading, updateItem, markWorn, deleteItem, isUpdating } = useWardrobeItem(id);
 
   const categoryLabel = CATEGORIES.find((category) => category.value === item?.category)?.label ?? item?.category;
 
@@ -23,6 +23,30 @@ export default function ItemDetailScreen() {
 
     try {
       await markWorn(item);
+    } catch (error) {
+      Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
+  }
+
+  async function handleShareableToggle() {
+    if (!item) {
+      return;
+    }
+
+    try {
+      await updateItem({ is_shareable: !item.is_shareable });
+    } catch (error) {
+      Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
+  }
+
+  async function handleLendableToggle() {
+    if (!item) {
+      return;
+    }
+
+    try {
+      await updateItem({ is_lendable: !item.is_lendable });
     } catch (error) {
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
@@ -101,6 +125,30 @@ export default function ItemDetailScreen() {
             </Text>
           </Card>
 
+          <Card style={styles.meta}>
+            <Text variant="h3">Paylasim</Text>
+            <Text variant="body" color="secondary">
+              Arkadas dolabinda gorunme: {item.is_shareable ? "Acik" : "Kapali"}
+            </Text>
+            <Text variant="body" color="secondary">
+              Odunc verilebilir: {item.is_lendable ? "Evet" : "Hayir"}
+            </Text>
+            <View style={styles.inlineActions}>
+              <Button
+                title={item.is_shareable ? "Paylasimi Kapat" : "Paylas"}
+                variant="secondary"
+                onPress={() => void handleShareableToggle()}
+                loading={isUpdating}
+              />
+              <Button
+                title={item.is_lendable ? "Odunc Kapat" : "Odunc Verilebilir"}
+                variant="ghost"
+                onPress={() => void handleLendableToggle()}
+                loading={isUpdating}
+              />
+            </View>
+          </Card>
+
           <View style={styles.actions}>
             <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={isUpdating} />
             <Button title="Sil" variant="secondary" onPress={handleDelete} loading={isUpdating} />
@@ -159,6 +207,9 @@ const styles = StyleSheet.create({
   actions: {
     gap: SPACING.sm,
     paddingBottom: SPACING.xl,
+  },
+  inlineActions: {
+    gap: SPACING.sm,
   },
   empty: {
     alignItems: "center",

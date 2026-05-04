@@ -61,6 +61,8 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
       season: input.season ?? [],
       brand: input.brand ?? null,
       purchase_price: input.purchase_price ?? null,
+      is_shareable: input.is_shareable ?? false,
+      is_lendable: input.is_lendable ?? false,
     })
     .select("*")
     .single();

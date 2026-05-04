@@ -136,7 +136,9 @@ function FriendshipRow({
   loading: boolean;
 }) {
   const otherProfile = friendship.requester_id === currentUserId ? friendship.addressee : friendship.requester;
+  const otherUserId = friendship.requester_id === currentUserId ? friendship.addressee_id : friendship.requester_id;
   const incoming = friendship.addressee_id === currentUserId && friendship.status === "pending";
+  const accepted = friendship.status === "accepted";
 
   return (
     <View style={styles.userRow}>
@@ -148,6 +150,7 @@ function FriendshipRow({
         </Text>
       </View>
       {incoming ? <Button title="Kabul" variant="secondary" onPress={onAccept} loading={loading} /> : null}
+      {accepted ? <Button title="Dolap" variant="secondary" onPress={() => router.push(`/social/${otherUserId}`)} /> : null}
       <Button title="Engelle" variant="ghost" onPress={onBlock} loading={loading} />
     </View>
   );

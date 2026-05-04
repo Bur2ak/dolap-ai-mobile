@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Friendship, UserSearchResult } from "@/types";
+import type { FriendWardrobe, Friendship, UserSearchResult } from "@/types";
 
 export async function searchUsers(query: string, currentUserId: string): Promise<UserSearchResult[]> {
   const normalized = query.trim();
@@ -57,4 +57,33 @@ export async function updateFriendshipStatus(userId: string, friendshipId: strin
   if (error) {
     throw error;
   }
+}
+
+export async function fetchFriendWardrobe(friendId: string): Promise<FriendWardrobe> {
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, username, full_name, avatar_url, bio, privacy_settings")
+    .eq("id", friendId)
+    .single();
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  const { data: items, error: itemsError } = await supabase
+    .from("wardrobe_items")
+    .select("*")
+    .eq("user_id", friendId)
+    .eq("is_active", true)
+    .eq("is_shareable", true)
+    .order("created_at", { ascending: false });
+
+  if (itemsError) {
+    throw itemsError;
+  }
+
+  return {
+    profile: profile as FriendWardrobe["profile"],
+    items: (items ?? []) as FriendWardrobe["items"],
+  };
 }
