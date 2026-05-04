@@ -9,6 +9,9 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useAuthStore } from "@/stores/authStore";
+import { isValidUsername, normalizeUsername } from "@/utils/validation";
+
+const maxBioLength = 160;
 
 export default function AccountSettingsScreen() {
   const { profile, updateProfile } = useAuthStore();
@@ -24,12 +27,30 @@ export default function AccountSettingsScreen() {
   }, [profile]);
 
   async function handleSave() {
+    const normalizedUsername = normalizeUsername(username);
+    const trimmedBio = bio.trim();
+
+    if (!fullName.trim()) {
+      Alert.alert("Ad Soyad gerekli", "Profilinde gorunecek adini yaz.");
+      return;
+    }
+
+    if (normalizedUsername && !isValidUsername(normalizedUsername)) {
+      Alert.alert("Kullanici adi gecersiz", "Kullanici adi 3-24 karakter olmali; sadece harf, rakam ve alt cizgi kullan.");
+      return;
+    }
+
+    if (trimmedBio.length > maxBioLength) {
+      Alert.alert("Bio uzun", `Bio en fazla ${maxBioLength} karakter olabilir.`);
+      return;
+    }
+
     try {
       setIsSaving(true);
       await updateProfile({
         full_name: fullName.trim() || null,
-        username: username.trim().toLowerCase() || null,
-        bio: bio.trim() || null,
+        username: normalizedUsername || null,
+        bio: trimmedBio || null,
       });
       Alert.alert("Kaydedildi", "Hesap bilgilerin guncellendi.");
     } catch (error) {
@@ -51,7 +72,13 @@ export default function AccountSettingsScreen() {
         <Text variant="h3">Profil bilgileri</Text>
         <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} />
         <Input label="Kullanici adi" value={username} onChangeText={setUsername} autoCapitalize="none" />
+        <Text variant="caption" color="muted">
+          3-24 karakter; harf, rakam ve alt cizgi kullan.
+        </Text>
         <Input label="Bio" value={bio} onChangeText={setBio} multiline />
+        <Text variant="caption" color={bio.trim().length > maxBioLength ? "danger" : "muted"}>
+          {bio.trim().length}/{maxBioLength}
+        </Text>
         <Button title="Kaydet" onPress={handleSave} loading={isSaving} />
       </Card>
     </ScrollView>

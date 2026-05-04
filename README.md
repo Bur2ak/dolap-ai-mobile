@@ -58,7 +58,7 @@ Arkadas arama, istek gonderme, istek bildirimi, istek iptali, kabul etme, arkada
 
 ## Hesap Ayarlari
 
-Profil bilgisi, kullanici adi ve gizlilik tercihleri ayarlar ekranlarindan guncellenebilir.
+Profil bilgisi, dogrulanmis kullanici adi, bio siniri ve gizlilik tercihleri ayarlar ekranlarindan guncellenebilir.
 
 ## Analiz
 
