@@ -46,7 +46,7 @@ Bildirim tercihleri, bildirim kutusu, okundu/silme akislari ve Expo push token k
 
 ## Fiyat Takibi
 
-Fiyat takip CRUD ekranina ek olarak `price-check` Edge Function aktif takipleri kontrol eder, uygulama icinden manuel tetiklenebilir ve hedef fiyat altinda bildirim kaydi olusturur.
+Fiyat takip CRUD ekranina ek olarak kayitlar duzenlenebilir, `price-check` Edge Function aktif takipleri kontrol eder, uygulama icinden manuel tetiklenebilir ve hedef fiyat altinda bildirim kaydi olusturur.
 
 ## Karar Motoru
 

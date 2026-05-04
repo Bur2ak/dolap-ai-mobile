@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { CreatePriceTrackingInput, PriceTracking } from "@/types";
+import type { CreatePriceTrackingInput, PriceTracking, UpdatePriceTrackingInput } from "@/types";
 
 export interface PriceCheckResult {
   checked: number;
@@ -64,6 +64,22 @@ export async function deletePriceTracking(userId: string, trackingId: string): P
   if (error) {
     throw error;
   }
+}
+
+export async function updatePriceTracking(userId: string, trackingId: string, input: UpdatePriceTrackingInput): Promise<PriceTracking> {
+  const { data, error } = await supabase
+    .from("price_tracking")
+    .update(input)
+    .eq("user_id", userId)
+    .eq("id", trackingId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as PriceTracking;
 }
 
 export async function checkPriceTrackings(): Promise<PriceCheckResult> {

@@ -253,6 +253,8 @@ export interface CreatePriceTrackingInput {
   store?: string | null;
 }
 
+export type UpdatePriceTrackingInput = Partial<CreatePriceTrackingInput>;
+
 export interface NotificationRecord {
   id: string;
   user_id: string;
