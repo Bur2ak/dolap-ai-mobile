@@ -53,7 +53,7 @@ export async function scheduleOutfitReminder(): Promise<string | null> {
   return Notifications.scheduleNotificationAsync({
     content: {
       title: "Bugun ne giyeceksin?",
-      body: "Dolap AI sana hava ve planlarina gore kombin onerebilir.",
+      body: "Shipirio sana hava ve planlarina gore kombin onerebilir.",
       data: { screen: "/(tabs)/outfit" },
     },
     trigger: {

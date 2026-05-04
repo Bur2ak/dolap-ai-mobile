@@ -1,4 +1,4 @@
-# Dolap AI — Uygulama Fizibilite & Teknik Yol Haritası Raporu
+# Shipirio — Uygulama Fizibilite & Teknik Yol Haritası Raporu
 
 > Hazırlayan: Claude Code AI Analiz | Tarih: Mayıs 2026  
 > Kaynak Belge: Dolap_AI_Urun_Raporu v1.0
@@ -24,7 +24,7 @@
 
 ## 1. Yönetici Özeti
 
-Dolap AI ürün raporu, teknik olarak **büyük ölçüde uygulanabilir** bir vizyonu tanımlamaktadır. Kullanılan teknolojilerin (React Native, Supabase, Claude API) tamamı bugün erişilebilir, stabil ve iyi belgelenmiştir. Ancak bazı özellikler (Trendyol entegrasyonu, ayna selfie ile toplu tespit, fiyat geçmişi analizi) resmi API erişimi olmadan kısıtlı kalacaktır.
+Shipirio ürün raporu, teknik olarak **büyük ölçüde uygulanabilir** bir vizyonu tanımlamaktadır. Kullanılan teknolojilerin (React Native, Supabase, Claude API) tamamı bugün erişilebilir, stabil ve iyi belgelenmiştir. Ancak bazı özellikler (Trendyol entegrasyonu, ayna selfie ile toplu tespit, fiyat geçmişi analizi) resmi API erişimi olmadan kısıtlı kalacaktır.
 
 **Genel Değerlendirme:**
 - %80'i mevcut araçlarla doğrudan uygulanabilir
@@ -139,7 +139,7 @@ MVP için bu özelliği basit tutmak önerilir: "Bugün giydiğin kombini kaydet
 # Sadece hava + etkinlik değişir her istekte
 # Bu %70-80 token tasarrufu sağlar
 
-system_prompt = """Sen Dolap AI'sın. Kullanıcının gardrobu:
+system_prompt = """Sen Shipirio'sın. Kullanıcının gardrobu:
 {user_wardrobe_json}  # <-- Bu kısım cache'lenir
 """
 ```
@@ -374,7 +374,7 @@ export async function recommendOutfits(params: {
     system: [
       {
         type: "text",
-        text: `Sen Dolap AI'sın. Kullanıcının gardrobu:\n${wardrobeJson}`,
+        text: `Sen Shipirio'sın. Kullanıcının gardrobu:\n${wardrobeJson}`,
         cache_control: { type: "ephemeral" }, // <-- Dolap verisi cache'lenir!
       },
     ],
@@ -732,7 +732,7 @@ Tek kişi tüm stack'i öğrenerek yapabilir ancak **süre 2x–3x uzar**.
 ### Hafta 1'de Yapılacaklar (Öncelik Sırası)
 
 ```
-1. Expo projesi kur: npx create-expo-app dolap-ai --template
+1. Expo projesi kur: npx create-expo-app shipirio --template
 2. Supabase projesi oluştur (5 dakika)
 3. 3 tablo yarat: users, wardrobe_items, outfits
 4. Tek ekran: fotoğraf çek → Remove.bg → Claude Haiku analiz → kaydet

@@ -29,7 +29,7 @@ export default function PaywallScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Button title="Geri" variant="ghost" onPress={() => router.back()} />
-        <Text variant="h2">Dolap AI Premium</Text>
+        <Text variant="h2">Shipirio Premium</Text>
         <View style={styles.headerSpacer} />
       </View>
 

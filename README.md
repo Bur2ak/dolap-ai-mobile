@@ -1,6 +1,8 @@
-# Dolap AI Mobile
+# Shipirio Mobile
 
-Expo ve React Native ile gelistirilen Dolap AI mobil uygulamasi.
+Expo ve React Native ile gelistirilen Shipirio mobil uygulamasi.
+
+Domain: https://shipirio.com
 
 ## Baslangic
 

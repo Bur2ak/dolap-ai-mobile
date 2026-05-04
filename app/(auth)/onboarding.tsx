@@ -26,7 +26,7 @@ export default function OnboardingScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.hero}>
-        <Text variant="display">Dolap AI</Text>
+        <Text variant="display">Shipirio</Text>
         <Text variant="body" color="secondary" style={styles.subtitle}>
           Gardirobunu anlayan, kombinleyen ve satin alma kararlarini sadelestiren mobil stil asistani.
         </Text>

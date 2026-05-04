@@ -32,7 +32,7 @@ export default function ProfileScreen() {
           </Text>
         </View>
         <View>
-          <Text variant="h3">{profile?.full_name ?? "Dolap AI kullanicisi"}</Text>
+          <Text variant="h3">{profile?.full_name ?? "Shipirio kullanicisi"}</Text>
           <Text variant="body" color="secondary">
             {premium ? "premium plan" : `${profile?.subscription_tier ?? "free"} plan`}
           </Text>

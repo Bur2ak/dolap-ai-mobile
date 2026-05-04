@@ -68,7 +68,7 @@ function ProfileHeader({ data }: { data: FriendWardrobe }) {
         </Text>
       </View>
       <View style={styles.profileCopy}>
-        <Text variant="h3">{data.profile.full_name ?? "Dolap AI kullanicisi"}</Text>
+        <Text variant="h3">{data.profile.full_name ?? "Shipirio kullanicisi"}</Text>
         <Text variant="caption" color="muted">
           @{data.profile.username ?? "username-yok"}
         </Text>

@@ -15,7 +15,7 @@ import { useAuthStore } from "@/stores/authStore";
 export default function InviteScreen() {
   const { premium } = useSubscription();
   const profile = useAuthStore((state) => state.profile);
-  const inviteCode = profile?.username ?? profile?.id ?? "dolap-ai";
+  const inviteCode = profile?.username ?? profile?.id ?? "shipirio";
   const inviteUrl = Linking.createURL("/social/friends", {
     queryParams: {
       invite: inviteCode,
@@ -25,8 +25,8 @@ export default function InviteScreen() {
   async function handleShare() {
     try {
       await Share.share({
-        title: "Dolap AI daveti",
-        message: `Dolap AI'da arkadas olalim: ${inviteUrl}`,
+        title: "Shipirio daveti",
+        message: `Shipirio'da arkadas olalim: ${inviteUrl}`,
         url: inviteUrl,
       });
     } catch (error) {
@@ -53,7 +53,7 @@ export default function InviteScreen() {
             Arkadasini davet et
           </Text>
           <Text variant="body" color="secondary" style={styles.centerText}>
-            Bu linki paylasinca arkadasin Dolap AI'da seni bulup istek gonderebilir.
+            Bu linki paylasinca arkadasin Shipirio'da seni bulup istek gonderebilir.
           </Text>
           <Card style={styles.linkCard}>
             <Text variant="caption" color="muted">

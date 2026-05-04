@@ -59,7 +59,7 @@ export default function OutfitScreen() {
       });
       const shareUrl = Linking.createURL(`/outfit/${outfit.id}`);
       await Share.share({
-        title: "Dolap AI kombini",
+        title: "Shipirio kombini",
         message: `Bu kombine oy verir misin? ${shareUrl}`,
         url: shareUrl,
       });

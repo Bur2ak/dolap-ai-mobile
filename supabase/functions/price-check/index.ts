@@ -149,7 +149,7 @@ async function fetchPrice(url: string) {
   try {
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "DolapAIPriceBot/1.0",
+        "User-Agent": "ShipirioPriceBot/1.0",
       },
     });
 

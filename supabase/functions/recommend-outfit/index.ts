@@ -28,7 +28,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "claude-haiku-4-5",
         max_tokens: 1200,
-        system: `Sen Dolap AI'sin. Turkce konusan pratik bir stilist asistansin.
+        system: `Sen Shipirio'sin. Turkce konusan pratik bir stilist asistansin.
 
 Kullanicinin gardrobu JSON:
 ${JSON.stringify(wardrobe ?? [])}`,

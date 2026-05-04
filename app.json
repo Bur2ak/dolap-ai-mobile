@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Dolap AI",
-    "slug": "dolap-ai-mobile",
+    "name": "Shipirio",
+    "slug": "shipirio-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.dolapai.mobile",
+      "bundleIdentifier": "com.shipirio.mobile",
       "infoPlist": {
         "NSCameraUsageDescription": "Kiyafetlerinizi gardirobunuza eklemek icin kameraniza erismemiz gerekiyor.",
         "NSPhotoLibraryUsageDescription": "Kiyafet fotograflarinizi secmek icin fotograf kitapliginiza erismemiz gerekiyor.",
@@ -22,7 +22,7 @@
       }
     },
     "android": {
-      "package": "com.dolapai.mobile",
+      "package": "com.shipirio.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FAF7F2"
@@ -55,8 +55,9 @@
       "expo-secure-store",
       "expo-web-browser"
     ],
-    "scheme": "dolapai",
+    "scheme": "shipirio",
     "extra": {
+      "siteUrl": "https://shipirio.com",
       "router": {
         "origin": false
       }

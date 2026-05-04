@@ -1,6 +1,6 @@
-# Dolap AI — Tam Geliştirme Spesifikasyonu
+# Shipirio — Tam Geliştirme Spesifikasyonu
 
-> Bu doküman, Dolap AI uygulamasını sıfırdan geliştirmek için gereken her teknik detayı içerir.
+> Bu doküman, Shipirio uygulamasını sıfırdan geliştirmek için gereken her teknik detayı içerir.
 > Marketing, iş modeli ve pazar analizi bu dokümana dahil değildir — yalnızca geliştirme.
 
 ---
@@ -35,7 +35,7 @@
 
 ## 1. Proje Genel Bakış
 
-**Uygulama Adı:** Dolap AI  
+**Uygulama Adı:** Shipirio
 **Platform:** iOS & Android (React Native / Expo)  
 **Dil:** TypeScript (strict mode)  
 **Backend:** Supabase (PostgreSQL + Edge Functions + Storage + Auth + Realtime)  
@@ -57,15 +57,15 @@
 
 ### Proje Başlatma
 ```bash
-npx create-expo-app@latest dolap-ai --template blank-typescript
-cd dolap-ai
+npx create-expo-app@latest shipirio --template blank-typescript
+cd shipirio
 ```
 
 ### package.json — Tüm Bağımlılıklar
 
 ```json
 {
-  "name": "dolap-ai",
+  "name": "shipirio",
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
@@ -152,8 +152,8 @@ cd dolap-ai
 ```json
 {
   "expo": {
-    "name": "Dolap AI",
-    "slug": "dolap-ai",
+    "name": "Shipirio",
+    "slug": "shipirio",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -165,7 +165,7 @@ cd dolap-ai
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.dolapai.app",
+      "bundleIdentifier": "com.shipirio.app",
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Kıyafetlerinizi gardırobunuza eklemek için kameranıza erişmemiz gerekiyor.",
@@ -179,7 +179,7 @@ cd dolap-ai
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0A"
       },
-      "package": "com.dolapai.app",
+      "package": "com.shipirio.app",
       "versionCode": 1,
       "permissions": [
         "CAMERA",
@@ -208,7 +208,7 @@ cd dolap-ai
       ],
       "@sentry/react-native/expo"
     ],
-    "scheme": "dolapai",
+    "scheme": "shipirio",
     "extra": {
       "eas": {
         "projectId": "YOUR_EAS_PROJECT_ID"
@@ -226,7 +226,7 @@ cd dolap-ai
 ## 3. Klasör Yapısı
 
 ```
-dolap-ai/
+shipirio/
 ├── app/                          # Expo Router — ekranlar
 │   ├── (auth)/                   # Auth grubu (tab bar yok)
 │   │   ├── _layout.tsx
@@ -1485,7 +1485,7 @@ Alt butonlar: "Giriş Yap" | "Kayıt Ol"
 
 ### 11.12 Paywall (app/paywall.tsx)
 
-**Başlık:** "Dolap AI Premium"
+**Başlık:** "Shipirio Premium"
 
 **Özellik Listesi:**
 - ✓ Sınırsız kıyafet
@@ -1580,7 +1580,7 @@ serve(async (req) => {
     system: [
       {
         type: 'text',
-        text: `Sen Dolap AI'sın — Türkçe konuşan, moda konusunda uzman bir stilist asistansın.
+        text: `Sen Shipirio'sın — Türkçe konuşan, moda konusunda uzman bir stilist asistansın.
 
 Kullanıcının gardrobu (JSON):
 ${JSON.stringify(wardrobe, null, 0)}
@@ -1645,7 +1645,7 @@ serve(async (req) => {
     system: [
       {
         type: 'text',
-        text: `Sen Dolap AI'sın — kıyafet satın alma kararlarında uzman bir Türkçe danışmansın.
+        text: `Sen Shipirio'sın — kıyafet satın alma kararlarında uzman bir Türkçe danışmansın.
 
 Kullanıcının mevcut dolabı:
 ${JSON.stringify(wardrobe, null, 0)}`,
@@ -1773,7 +1773,7 @@ Bu kıyafeti analiz et. YALNIZCA JSON döndür, açıklama ekleme.
 
 ```
 System (CACHED):
-Sen Dolap AI'sın — Türkçe konuşan stilist.
+Sen Shipirio'sın — Türkçe konuşan stilist.
 Kullanıcı gardrobu: [JSON]
 Son giyilenler: [ID listesi]
 
@@ -2058,7 +2058,7 @@ export async function scheduleOutfitReminder() {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: 'Bugün ne giyeceksin? 👗',
-      body: 'Dolap AI sana harika bir kombin önerisinde bulunmak istiyor!',
+      body: 'Shipirio sana harika bir kombin önerisinde bulunmak istiyor!',
       data: { screen: '/(tabs)/outfit' },
     },
     trigger: {
@@ -2600,4 +2600,4 @@ SELECT cron.schedule(
 
 ---
 
-*Bu doküman Dolap AI v1.0 için hazırlanmıştır. Tüm bölümler eksiksiz implement edildiğinde tam fonksiyonel bir uygulama ortaya çıkar.*
+*Bu doküman Shipirio v1.0 için hazırlanmıştır. Tüm bölümler eksiksiz implement edildiğinde tam fonksiyonel bir uygulama ortaya çıkar.*
