@@ -64,6 +64,10 @@ Giris, kayit ve Supabase email sifre sifirlama akislari hazir.
 
 Etkinlik planlari Supabase'e kaydedilebilir, kayitli etkinlikler listelenebilir ve desteklenen cihazlarda sistem takvimine eklenebilir.
 
+## Kombinler
+
+AI kombin onerileri kaydedilebilir, arkadasa sorulabilir ve kayitli kombinler Kombin ekraninda listelenebilir.
+
 ## Legal
 
 Shipirio gizlilik politikasi ve kullanim sartlari uygulama icinde `/legal/privacy` ve `/legal/terms` ekranlarinda hazir.

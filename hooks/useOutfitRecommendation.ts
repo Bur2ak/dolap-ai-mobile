@@ -1,26 +1,44 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchSharedOutfit, recommendOutfits, saveSharedOutfit, voteOnOutfit } from "@/lib/api/outfits";
+import { fetchSharedOutfit, fetchUserOutfits, recommendOutfits, saveOutfit, saveSharedOutfit, voteOnOutfit } from "@/lib/api/outfits";
 import { useAuthStore } from "@/stores/authStore";
 import type { OutfitRecommendationInput, OutfitSuggestion, OutfitVoteValue } from "@/types";
 
 export function useOutfitRecommendation() {
   const userId = useAuthStore((state) => state.session?.user.id);
+  const queryClient = useQueryClient();
+  const savedOutfitsQuery = useQuery({
+    queryKey: ["saved-outfits", userId],
+    queryFn: () => fetchUserOutfits(userId!),
+    enabled: Boolean(userId),
+  });
   const mutation = useMutation({
     mutationFn: (input: OutfitRecommendationInput) => recommendOutfits(input),
+  });
+  const saveLocalMutation = useMutation({
+    mutationFn: ({ input, suggestion }: { input: OutfitRecommendationInput; suggestion: OutfitSuggestion }) => saveOutfit(userId!, input, suggestion),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["saved-outfits", userId] });
+    },
   });
   const saveMutation = useMutation({
     mutationFn: ({ input, suggestion }: { input: OutfitRecommendationInput; suggestion: OutfitSuggestion }) =>
       saveSharedOutfit(userId!, input, suggestion),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["saved-outfits", userId] });
+    },
   });
 
   return {
     userId,
+    savedOutfits: savedOutfitsQuery.data ?? [],
+    isLoadingSavedOutfits: savedOutfitsQuery.isLoading,
     recommend: mutation.mutateAsync,
     suggestions: mutation.data ?? [],
     isRecommending: mutation.isPending,
+    saveOutfit: saveLocalMutation.mutateAsync,
     saveSharedOutfit: saveMutation.mutateAsync,
-    isSavingSharedOutfit: saveMutation.isPending,
+    isSavingOutfit: saveLocalMutation.isPending || saveMutation.isPending,
     error: mutation.error,
   };
 }

@@ -15,7 +15,7 @@ export async function recommendOutfits(input: OutfitRecommendationInput): Promis
   return data ?? [];
 }
 
-export async function saveSharedOutfit(userId: string, input: OutfitRecommendationInput, suggestion: OutfitSuggestion): Promise<OutfitRecord> {
+export async function saveOutfit(userId: string, input: OutfitRecommendationInput, suggestion: OutfitSuggestion, isShareable = false): Promise<OutfitRecord> {
   const { data: outfit, error } = await supabase
     .from("outfits")
     .insert({
@@ -26,8 +26,8 @@ export async function saveSharedOutfit(userId: string, input: OutfitRecommendati
       weather_description: input.weather?.description ?? null,
       mood: input.mood,
       ai_reasoning: suggestion.reason,
-      is_shareable: true,
-      share_token: nanoid(12),
+      is_shareable: isShareable,
+      share_token: isShareable ? nanoid(12) : null,
     })
     .select("*")
     .single();
@@ -50,6 +50,32 @@ export async function saveSharedOutfit(userId: string, input: OutfitRecommendati
   }
 
   return outfit as OutfitRecord;
+}
+
+export async function saveSharedOutfit(userId: string, input: OutfitRecommendationInput, suggestion: OutfitSuggestion): Promise<OutfitRecord> {
+  return saveOutfit(userId, input, suggestion, true);
+}
+
+export async function fetchUserOutfits(userId: string): Promise<SharedOutfit[]> {
+  const { data: outfits, error } = await supabase
+    .from("outfits")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    throw error;
+  }
+
+  const results = [];
+
+  for (const outfit of (outfits ?? []) as OutfitRecord[]) {
+    const sharedOutfit = await fetchSharedOutfit(outfit.id);
+    results.push(sharedOutfit);
+  }
+
+  return results;
 }
 
 export async function fetchSharedOutfit(outfitId: string): Promise<SharedOutfit> {

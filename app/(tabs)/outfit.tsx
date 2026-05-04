@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
+import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, Pressable, Share } from "react-native";
+import { Alert, Pressable, ScrollView, Share } from "react-native";
 import { StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -20,7 +21,17 @@ const moods = ["Rahat", "Sik", "Dikkat cekici", "Minimal", "Enerjik"];
 export default function OutfitScreen() {
   const { items } = useWardrobe();
   const { weather, isLoading: isWeatherLoading } = useWeather();
-  const { userId, recommend, suggestions, isRecommending, saveSharedOutfit, isSavingSharedOutfit } = useOutfitRecommendation();
+  const {
+    userId,
+    savedOutfits,
+    isLoadingSavedOutfits,
+    recommend,
+    suggestions,
+    isRecommending,
+    saveOutfit,
+    saveSharedOutfit,
+    isSavingOutfit,
+  } = useOutfitRecommendation();
   const [selectedEvent, setSelectedEvent] = useState<string>(EVENT_TYPES[0].value);
   const [selectedMood, setSelectedMood] = useState(moods[0]);
 
@@ -68,8 +79,25 @@ export default function OutfitScreen() {
     }
   }
 
+  async function handleSaveOutfit(suggestion: OutfitSuggestion) {
+    if (!userId) {
+      Alert.alert("Giris gerekli", "Kombini kaydetmek icin once giris yapmalisin.");
+      return;
+    }
+
+    try {
+      await saveOutfit({
+        input: recommendationInput,
+        suggestion,
+      });
+      Alert.alert("Kaydedildi", "Kombin kayitli kombinlerine eklendi.");
+    } catch (error) {
+      Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
+  }
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text variant="h1">Kombin</Text>
       <Text variant="body" color="secondary">
         Hava, etkinlik ve ruh haline gore dolabindan oneriler.
@@ -125,13 +153,47 @@ export default function OutfitScreen() {
             <Text variant="caption" color="muted">
               {suggestion.items.length} parca
             </Text>
-            <Button title="Arkadasa Sor" variant="secondary" onPress={() => void handleAskFriend(suggestion)} loading={isSavingSharedOutfit} />
+            <View style={styles.suggestionActions}>
+              <Button title="Kaydet" variant="secondary" onPress={() => void handleSaveOutfit(suggestion)} loading={isSavingOutfit} />
+              <Button title="Arkadasa Sor" variant="ghost" onPress={() => void handleAskFriend(suggestion)} loading={isSavingOutfit} />
+            </View>
           </Card>
         ))}
       </View>
 
       <Button title="Kombin Oner" onPress={handleRecommend} loading={isRecommending} style={styles.cta} />
-    </View>
+
+      <View style={styles.results}>
+        <Text variant="h3">Kayitli kombinler</Text>
+        {isLoadingSavedOutfits ? (
+          <Card style={styles.suggestion}>
+            <Text variant="body" color="secondary">
+              Kombinler yukleniyor.
+            </Text>
+          </Card>
+        ) : savedOutfits.length > 0 ? (
+          savedOutfits.map((saved) => (
+            <Pressable key={saved.outfit.id} onPress={() => router.push(`/outfit/${saved.outfit.id}`)}>
+              <Card style={styles.suggestion}>
+                <Text variant="h3">{saved.outfit.name ?? "Kayitli kombin"}</Text>
+                <Text variant="body" color="secondary">
+                  {saved.outfit.ai_reasoning ?? "Kaydedilen kombin"}
+                </Text>
+                <Text variant="caption" color="muted">
+                  {saved.items.length} parca - {saved.votes.length} oy
+                </Text>
+              </Card>
+            </Pressable>
+          ))
+        ) : (
+          <Card style={styles.suggestion}>
+            <Text variant="body" color="secondary">
+              Henuz kayitli kombin yok.
+            </Text>
+          </Card>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -139,9 +201,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  content: {
     gap: SPACING.md,
     padding: SPACING.lg,
     paddingTop: 64,
+    paddingBottom: SPACING.xl,
   },
   weather: {
     alignItems: "center",
@@ -171,7 +236,10 @@ const styles = StyleSheet.create({
   suggestion: {
     gap: SPACING.xs,
   },
+  suggestionActions: {
+    gap: SPACING.sm,
+  },
   cta: {
-    marginTop: "auto",
+    marginTop: SPACING.sm,
   },
 });
