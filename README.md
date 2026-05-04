@@ -26,8 +26,10 @@ supabase functions deploy analyze-clothing
 supabase functions deploy recommend-outfit
 supabase functions deploy buy-decision
 supabase functions deploy event-outfit
+supabase functions deploy price-check
 supabase secrets set GOOGLE_GEMINI_API_KEY=your-gemini-key
 supabase secrets set ANTHROPIC_API_KEY=your-anthropic-key
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
 ## Premium
@@ -37,6 +39,10 @@ Paywall, abonelik durumu ekrani ve freemium kapilari hazir. RevenueCat baglanana
 ## Bildirimler
 
 Bildirim tercihleri ve Expo push token kaydi uygulama tarafinda hazir. Gercek cihazda push token icin EAS `projectId` ayarlanmalidir.
+
+## Fiyat Takibi
+
+Fiyat takip CRUD ekranina ek olarak `price-check` Edge Function aktif takipleri kontrol eder ve hedef fiyat altinda bildirim kaydi olusturur.
 
 ## Sosyal
 
