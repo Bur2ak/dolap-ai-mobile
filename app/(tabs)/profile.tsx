@@ -53,7 +53,7 @@ export default function ProfileScreen() {
 
       <View style={styles.menu}>
         <Card>
-          <Text variant="label">Arkadaslarim</Text>
+          <Button title="Arkadaslarim" variant="ghost" onPress={() => router.push("/social/friends")} />
         </Card>
         <Card>
           <Button title="Fiyat Takibi" variant="ghost" onPress={() => router.push("/price-tracking")} />

@@ -38,6 +38,10 @@ Paywall ve freemium kapilari hazir. RevenueCat baglanana kadar paywall butonlari
 
 Bildirim tercihleri ve Expo push token kaydi uygulama tarafinda hazir. Gercek cihazda push token icin EAS `projectId` ayarlanmalidir.
 
+## Sosyal
+
+Arkadas arama, istek gonderme, kabul etme ve engelleme akislari Premium kapisi arkasinda hazir.
+
 ## Dokumanlar
 
 - `Dolap_AI_Gelistirme_Spesifikasyonu.md`: teknik gelistirme plani

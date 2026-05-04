@@ -128,6 +128,20 @@ create table if not exists notifications (
 
 create index if not exists idx_notifications_user_id on notifications(user_id, is_read);
 
+create table if not exists friendships (
+  id uuid primary key default uuid_generate_v4(),
+  requester_id uuid not null references profiles(id) on delete cascade,
+  addressee_id uuid not null references profiles(id) on delete cascade,
+  status text default 'pending' check (status in ('pending', 'accepted', 'blocked')),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique(requester_id, addressee_id),
+  check (requester_id != addressee_id)
+);
+
+create index if not exists idx_friendships_requester on friendships(requester_id);
+create index if not exists idx_friendships_addressee on friendships(addressee_id);
+
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
@@ -154,6 +168,7 @@ alter table buy_decisions enable row level security;
 alter table events enable row level security;
 alter table price_tracking enable row level security;
 alter table notifications enable row level security;
+alter table friendships enable row level security;
 
 create policy "Users can read own profile"
   on profiles for select using (auth.uid() = id);
@@ -187,6 +202,15 @@ create policy "Users can manage own price tracking"
 
 create policy "Users can manage own notifications"
   on notifications for all using (auth.uid() = user_id);
+
+create policy "Users can read own friendships"
+  on friendships for select using (auth.uid() = requester_id or auth.uid() = addressee_id);
+
+create policy "Users can send friend requests"
+  on friendships for insert with check (auth.uid() = requester_id);
+
+create policy "Users can update own friendships"
+  on friendships for update using (auth.uid() = requester_id or auth.uid() = addressee_id);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
