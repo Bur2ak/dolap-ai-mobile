@@ -69,7 +69,7 @@ export async function sendFriendRequest(userId: string, addresseeId: string): Pr
 export async function updateFriendshipStatus(userId: string, friendshipId: string, status: "accepted" | "blocked"): Promise<void> {
   const { error } = await supabase
     .from("friendships")
-    .update({ status })
+    .update({ status, updated_at: new Date().toISOString() })
     .eq("id", friendshipId)
     .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
 

@@ -86,13 +86,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    const { error } = await supabase.from("profiles").update(updates).eq("id", user.id);
+    const nextUpdates = { ...updates, updated_at: new Date().toISOString() };
+    const { error } = await supabase.from("profiles").update(nextUpdates).eq("id", user.id);
     if (error) {
       throw error;
     }
 
     set((state) => ({
-      profile: state.profile ? { ...state.profile, ...updates } : state.profile,
+      profile: state.profile ? { ...state.profile, ...nextUpdates } : state.profile,
     }));
   },
 }));

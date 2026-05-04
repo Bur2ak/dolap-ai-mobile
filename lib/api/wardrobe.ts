@@ -77,7 +77,7 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
 export async function updateWardrobeItem(userId: string, itemId: string, input: UpdateWardrobeItemInput): Promise<WardrobeItem> {
   const { data, error } = await supabase
     .from("wardrobe_items")
-    .update(input)
+    .update({ ...input, updated_at: new Date().toISOString() })
     .eq("user_id", userId)
     .eq("id", itemId)
     .select("*")
