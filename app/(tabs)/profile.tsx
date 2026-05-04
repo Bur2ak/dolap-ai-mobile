@@ -6,10 +6,12 @@ import { Card } from "@/components/ui/Card";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function ProfileScreen() {
   const { profile, signOut } = useAuthStore();
+  const { premium } = useSubscription();
 
   async function handleSignOut() {
     try {
@@ -32,10 +34,22 @@ export default function ProfileScreen() {
         <View>
           <Text variant="h3">{profile?.full_name ?? "Dolap AI kullanicisi"}</Text>
           <Text variant="body" color="secondary">
-            {profile?.subscription_tier ?? "free"} plan
+            {premium ? "premium plan" : `${profile?.subscription_tier ?? "free"} plan`}
           </Text>
         </View>
       </Card>
+
+      {!premium ? (
+        <Card style={styles.premiumBanner}>
+          <View style={styles.premiumCopy}>
+            <Text variant="h3">Premium'a Gec</Text>
+            <Text variant="body" color="secondary">
+              Sinirsiz dolap, etkinlik planlayici ve gelismis analizleri ac.
+            </Text>
+          </View>
+          <Button title="Incele" onPress={() => router.push("/paywall")} />
+        </Card>
+      ) : null}
 
       <View style={styles.menu}>
         <Card>
@@ -48,7 +62,7 @@ export default function ProfileScreen() {
           <Text variant="label">Bildirim Ayarlari</Text>
         </Card>
         <Card>
-          <Text variant="label">Aboneligim</Text>
+          <Button title="Aboneligim" variant="ghost" onPress={() => router.push("/paywall")} />
         </Card>
         <Card>
           <Button title="Almali Miyim?" variant="ghost" onPress={() => router.push("/buy-decision")} />
@@ -86,6 +100,12 @@ const styles = StyleSheet.create({
   },
   menu: {
     gap: SPACING.sm,
+  },
+  premiumBanner: {
+    gap: SPACING.md,
+  },
+  premiumCopy: {
+    gap: SPACING.xs,
   },
   signOut: {
     marginTop: "auto",

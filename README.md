@@ -30,6 +30,10 @@ supabase secrets set GOOGLE_GEMINI_API_KEY=your-gemini-key
 supabase secrets set ANTHROPIC_API_KEY=your-anthropic-key
 ```
 
+## Premium
+
+Paywall ve freemium kapilari hazir. RevenueCat baglanana kadar paywall butonlari yerel premium onizleme modunu acar.
+
 ## Dokumanlar
 
 - `Dolap_AI_Gelistirme_Spesifikasyonu.md`: teknik gelistirme plani

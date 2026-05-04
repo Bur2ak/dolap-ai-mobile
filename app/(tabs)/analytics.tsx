@@ -3,14 +3,17 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Card } from "@/components/ui/Card";
 import { Text } from "@/components/ui/Text";
+import { PremiumGate } from "@/components/shared/PremiumGate";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
 import type { DistributionPoint, WardrobeItem } from "@/types";
 import { formatCurrency, formatNumber } from "@/utils/formatters";
 
 export default function AnalyticsScreen() {
   const { analytics, isLoading } = useWardrobeAnalytics();
+  const { checkGate } = useSubscription();
   const stats = [
     ["Toplam kiyafet", formatNumber(analytics.total_items)],
     ["Gardrop degeri", formatCurrency(analytics.total_value)],
@@ -40,7 +43,14 @@ export default function AnalyticsScreen() {
       <DistributionCard title="Renk dagilimi" points={analytics.color_distribution} showSwatch />
       <ItemList title="En cok giyilenler" items={analytics.most_worn} empty="Henuz giyilme verisi yok." />
       <ItemList title="Hic giyilmeyenler" items={analytics.never_worn} empty="Harika, her sey kullanilmis gorunuyor." />
-      <ItemList title="Sat veya bagisla adaylari" items={analytics.suggestions_to_remove} empty="Simdilik aday yok." />
+      {checkGate("ANALYTICS_FULL") ? (
+        <ItemList title="Sat veya bagisla adaylari" items={analytics.suggestions_to_remove} empty="Simdilik aday yok." />
+      ) : (
+        <PremiumGate
+          title="Gelismis analiz Premium"
+          body="Sat veya bagisla onerileri, verimsiz parcalari ve dolap temizleme yardimi Premium ile acilir."
+        />
+      )}
     </ScrollView>
   );
 }

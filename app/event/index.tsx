@@ -11,6 +11,7 @@ import { COLORS } from "@/constants/colors";
 import { EVENT_TYPES } from "@/constants/events";
 import { SPACING } from "@/constants/spacing";
 import { useEventPlanner } from "@/hooks/useEventPlanner";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
 import type { EventPlanInput } from "@/types";
@@ -19,6 +20,7 @@ export default function EventPlannerScreen() {
   const { items } = useWardrobe();
   const { weather, isLoading: isWeatherLoading } = useWeather();
   const { recommend, suggestions, isRecommending, saveEvent, isSaving, canSave } = useEventPlanner();
+  const { checkGate } = useSubscription();
   const [title, setTitle] = useState("");
   const [eventType, setEventType] = useState<string>(EVENT_TYPES[0].value);
   const [eventDate, setEventDate] = useState(new Date().toISOString().slice(0, 16));
@@ -36,6 +38,11 @@ export default function EventPlannerScreen() {
   };
 
   async function handleRecommend() {
+    if (!checkGate("EVENT_PLANNING")) {
+      router.push("/paywall");
+      return;
+    }
+
     if (items.length < 2) {
       Alert.alert("Dolap bos", "Etkinlik kombini icin once en az iki kiyafet eklemelisin.");
       return;
@@ -49,6 +56,11 @@ export default function EventPlannerScreen() {
   }
 
   async function handleSave() {
+    if (!checkGate("EVENT_PLANNING")) {
+      router.push("/paywall");
+      return;
+    }
+
     if (!canSave) {
       Alert.alert("Giris gerekli", "Etkinligi kaydetmek icin once giris yapmalisin.");
       return;

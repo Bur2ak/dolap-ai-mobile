@@ -12,6 +12,7 @@ import { COLORS } from "@/constants/colors";
 import { SEASONS } from "@/constants/seasons";
 import { SPACING } from "@/constants/spacing";
 import { useImagePicker } from "@/hooks/useImagePicker";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { analyzeClothingImage, fallbackClothingAnalysis } from "@/lib/ai/analyzeClothing";
 import type { ClothingAnalysisResult, ClothingCategory, Season } from "@/types";
@@ -21,7 +22,8 @@ type Step = "select" | "metadata";
 
 export default function AddItemScreen() {
   const { pickFromLibrary, takePhoto, isPicking } = useImagePicker();
-  const { createItem, isCreating, canCreate } = useWardrobe();
+  const { createItem, isCreating, canCreate, items } = useWardrobe();
+  const { isLimitReached } = useSubscription();
   const [step, setStep] = useState<Step>("select");
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
@@ -82,6 +84,11 @@ export default function AddItemScreen() {
 
     if (!canCreate) {
       Alert.alert("Giris gerekli", "Kiyafeti dolaba eklemek icin once giris yapmalisin.");
+      return;
+    }
+
+    if (isLimitReached("MAX_WARDROBE_ITEMS", items.length)) {
+      router.push("/paywall");
       return;
     }
 
