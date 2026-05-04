@@ -8,6 +8,7 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useAuthStore } from "@/stores/authStore";
+import { isValidEmail, normalizeEmail } from "@/utils/validation";
 
 export default function LoginScreen() {
   const { signIn } = useAuthStore();
@@ -16,9 +17,21 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!isValidEmail(normalizedEmail)) {
+      Alert.alert("Email gecersiz", "Gecerli bir email adresi gir.");
+      return;
+    }
+
+    if (!password) {
+      Alert.alert("Sifre gerekli", "Giris yapmak icin sifreni yaz.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      await signIn(email.trim(), password);
+      await signIn(normalizedEmail, password);
       router.replace("/(tabs)");
     } catch (error) {
       Alert.alert("Giris basarisiz", error instanceof Error ? error.message : "Tekrar dene.");

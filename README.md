@@ -70,7 +70,7 @@ Kiyafetler kategori filtresi ve marka, renk, sezon veya kategori aramasi ile bul
 
 ## Auth
 
-Giris, kayit ve Supabase email sifre sifirlama akislari hazir.
+Giris, kayit, temel form dogrulamasi, legal linkler ve Supabase email sifre sifirlama akislari hazir.
 
 ## Etkinlik
 

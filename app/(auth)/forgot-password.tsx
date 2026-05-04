@@ -9,6 +9,7 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useAuthStore } from "@/stores/authStore";
+import { isValidEmail, normalizeEmail } from "@/utils/validation";
 
 export default function ForgotPasswordScreen() {
   const { resetPassword } = useAuthStore();
@@ -16,10 +17,10 @@ export default function ForgotPasswordScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!normalizedEmail) {
-      Alert.alert("Email gerekli", "Sifre sifirlama linki icin email adresini gir.");
+    if (!isValidEmail(normalizedEmail)) {
+      Alert.alert("Email gecersiz", "Sifre sifirlama linki icin gecerli bir email adresi gir.");
       return;
     }
 

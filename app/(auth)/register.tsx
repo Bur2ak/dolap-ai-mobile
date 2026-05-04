@@ -8,6 +8,7 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useAuthStore } from "@/stores/authStore";
+import { isValidEmail, normalizeEmail } from "@/utils/validation";
 
 export default function RegisterScreen() {
   const { signUp } = useAuthStore();
@@ -17,9 +18,26 @@ export default function RegisterScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!fullName.trim()) {
+      Alert.alert("Ad Soyad gerekli", "Hesabini olusturmak icin adini yaz.");
+      return;
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      Alert.alert("Email gecersiz", "Gecerli bir email adresi gir.");
+      return;
+    }
+
+    if (password.length < 8) {
+      Alert.alert("Sifre kisa", "Sifre en az 8 karakter olmali.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      await signUp(email.trim(), password, fullName.trim());
+      await signUp(normalizedEmail, password, fullName.trim());
       Alert.alert("Kayit olusturuldu", "Email dogrulama ayarina gore giris yapabilirsin.");
       router.replace("/(auth)/login");
     } catch (error) {
@@ -41,6 +59,13 @@ export default function RegisterScreen() {
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
         <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry />
         <Button title="Kayit Ol" onPress={handleSubmit} loading={isSubmitting} />
+        <Text variant="caption" color="muted" style={styles.legalText}>
+          Kayit olarak Shipirio gizlilik politikasi ve kullanim sartlarini kabul edersin.
+        </Text>
+        <View style={styles.legalLinks}>
+          <Button title="Gizlilik" variant="ghost" onPress={() => router.push("/legal/privacy")} style={styles.linkButton} />
+          <Button title="Sartlar" variant="ghost" onPress={() => router.push("/legal/terms")} style={styles.linkButton} />
+        </View>
         <Button title="Zaten hesabim var" variant="ghost" onPress={() => router.push("/(auth)/login")} />
       </View>
     </View>
@@ -58,5 +83,16 @@ const styles = StyleSheet.create({
   form: {
     gap: SPACING.md,
     marginTop: SPACING.xl,
+  },
+  legalText: {
+    textAlign: "center",
+  },
+  legalLinks: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  linkButton: {
+    flex: 1,
+    minHeight: 40,
   },
 });
