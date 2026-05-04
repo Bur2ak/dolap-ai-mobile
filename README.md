@@ -46,6 +46,10 @@ Arkadas arama, istek gonderme, kabul etme, engelleme, davet linki ve paylasilan 
 
 Profil bilgisi, kullanici adi ve gizlilik tercihleri ayarlar ekranlarindan guncellenebilir.
 
+## Auth
+
+Giris, kayit ve Supabase email sifre sifirlama akislari hazir.
+
 ## Dokumanlar
 
 - `Dolap_AI_Gelistirme_Spesifikasyonu.md`: teknik gelistirme plani

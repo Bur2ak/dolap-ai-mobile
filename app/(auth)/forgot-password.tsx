@@ -1,3 +1,4 @@
+import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
@@ -9,19 +10,26 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useAuthStore } from "@/stores/authStore";
 
-export default function LoginScreen() {
-  const { signIn } = useAuthStore();
+export default function ForgotPasswordScreen() {
+  const { resetPassword } = useAuthStore();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      Alert.alert("Email gerekli", "Sifre sifirlama linki icin email adresini gir.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      await signIn(email.trim(), password);
-      router.replace("/(tabs)");
+      await resetPassword(normalizedEmail, Linking.createURL("/(auth)/login"));
+      Alert.alert("Email gonderildi", "Sifre sifirlama linki email adresine gonderildi.");
+      router.replace("/(auth)/login");
     } catch (error) {
-      Alert.alert("Giris basarisiz", error instanceof Error ? error.message : "Tekrar dene.");
+      Alert.alert("Gonderilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSubmitting(false);
     }
@@ -29,17 +37,15 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text variant="h1">Tekrar hos geldin</Text>
+      <Text variant="h1">Sifreni sifirla</Text>
       <Text variant="body" color="secondary">
-        Dolabina kaldigin yerden devam et.
+        Email adresini yaz, sana sifre yenileme linki gonderelim.
       </Text>
 
       <View style={styles.form}>
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-        <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry />
-        <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} />
-        <Button title="Sifremi unuttum" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} />
-        <Button title="Hesabin yok mu? Kayit ol" variant="ghost" onPress={() => router.push("/(auth)/register")} />
+        <Button title="Link Gonder" onPress={handleSubmit} loading={isSubmitting} />
+        <Button title="Giris ekranina don" variant="ghost" onPress={() => router.back()} />
       </View>
     </View>
   );
@@ -47,11 +53,11 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: COLORS.background,
+    flex: 1,
+    gap: SPACING.sm,
     justifyContent: "center",
     padding: SPACING.lg,
-    gap: SPACING.sm,
   },
   form: {
     gap: SPACING.md,
