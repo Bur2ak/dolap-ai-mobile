@@ -46,7 +46,7 @@ Bildirim tercihleri, bildirim kutusu ve Expo push token kaydi uygulama tarafinda
 
 ## Fiyat Takibi
 
-Fiyat takip CRUD ekranina ek olarak `price-check` Edge Function aktif takipleri kontrol eder ve hedef fiyat altinda bildirim kaydi olusturur.
+Fiyat takip CRUD ekranina ek olarak `price-check` Edge Function aktif takipleri kontrol eder, uygulama icinden manuel tetiklenebilir ve hedef fiyat altinda bildirim kaydi olusturur.
 
 ## Sosyal
 

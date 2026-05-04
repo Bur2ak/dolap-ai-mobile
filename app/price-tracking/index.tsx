@@ -14,7 +14,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { formatCurrency } from "@/utils/formatters";
 
 export default function PriceTrackingScreen() {
-  const { trackings, createTracking, deleteTracking, isCreating, isDeleting, canUse } = usePriceTracking();
+  const { trackings, createTracking, deleteTracking, checkPrices, isCreating, isDeleting, isChecking, canUse } = usePriceTracking();
   const { isLimitReached } = useSubscription();
   const [productName, setProductName] = useState("");
   const [productUrl, setProductUrl] = useState("");
@@ -64,6 +64,20 @@ export default function PriceTrackingScreen() {
     }
   }
 
+  async function handleCheckPrices() {
+    if (!canUse) {
+      Alert.alert("Giris gerekli", "Fiyatlari kontrol etmek icin once giris yapmalisin.");
+      return;
+    }
+
+    try {
+      const result = await checkPrices();
+      Alert.alert("Kontrol tamam", `${result.checked} urun kontrol edildi, ${result.updated} fiyat guncellendi.`);
+    } catch (error) {
+      Alert.alert("Kontrol edilemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -83,7 +97,10 @@ export default function PriceTrackingScreen() {
       </Card>
 
       <View style={styles.list}>
-        <Text variant="h3">Takip listesi</Text>
+        <View style={styles.listHeader}>
+          <Text variant="h3">Takip listesi</Text>
+          <Button title="Kontrol Et" variant="secondary" onPress={handleCheckPrices} loading={isChecking} />
+        </View>
         {trackings.length > 0 ? (
           trackings.map((tracking) => (
             <Card key={tracking.id} style={styles.trackingCard}>
@@ -145,6 +162,12 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: SPACING.sm,
+  },
+  listHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
+    justifyContent: "space-between",
   },
   trackingCard: {
     gap: SPACING.md,
