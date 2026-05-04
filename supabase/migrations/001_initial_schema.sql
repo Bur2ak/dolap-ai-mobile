@@ -8,6 +8,7 @@ create table if not exists profiles (
   bio text,
   subscription_tier text default 'free' check (subscription_tier in ('free', 'premium', 'family')),
   subscription_expires_at timestamptz,
+  revenuecat_customer_id text,
   push_token text,
   notification_preferences jsonb default '{
     "outfit_reminder": true,

@@ -23,6 +23,7 @@ export interface Profile {
   bio: string | null;
   subscription_tier: SubscriptionTier;
   subscription_expires_at: string | null;
+  revenuecat_customer_id: string | null;
   push_token: string | null;
   notification_preferences: NotificationPreferences;
   privacy_settings: PrivacySettings;

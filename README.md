@@ -27,14 +27,16 @@ supabase functions deploy recommend-outfit
 supabase functions deploy buy-decision
 supabase functions deploy event-outfit
 supabase functions deploy price-check
+supabase functions deploy revenuecat-webhook
 supabase secrets set GOOGLE_GEMINI_API_KEY=your-gemini-key
 supabase secrets set ANTHROPIC_API_KEY=your-anthropic-key
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+supabase secrets set REVENUECAT_WEBHOOK_SECRET=your-webhook-secret
 ```
 
 ## Premium
 
-Paywall, abonelik durumu ekrani ve freemium kapilari hazir. RevenueCat baglanana kadar paywall butonlari yerel premium onizleme modunu acar.
+Paywall, abonelik durumu ekrani, RevenueCat webhook ve freemium kapilari hazir. RevenueCat baglanana kadar paywall butonlari yerel premium onizleme modunu acar.
 
 ## Bildirimler
 
