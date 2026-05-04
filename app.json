@@ -33,7 +33,9 @@
         "CAMERA",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
       ]
     },
     "web": {
@@ -44,6 +46,12 @@
       "expo-camera",
       "expo-image-picker",
       "expo-location",
+      [
+        "expo-notifications",
+        {
+          "color": "#12312B"
+        }
+      ],
       "expo-secure-store",
       "expo-web-browser"
     ],

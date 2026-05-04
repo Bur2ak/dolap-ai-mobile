@@ -34,6 +34,10 @@ supabase secrets set ANTHROPIC_API_KEY=your-anthropic-key
 
 Paywall ve freemium kapilari hazir. RevenueCat baglanana kadar paywall butonlari yerel premium onizleme modunu acar.
 
+## Bildirimler
+
+Bildirim tercihleri ve Expo push token kaydi uygulama tarafinda hazir. Gercek cihazda push token icin EAS `projectId` ayarlanmalidir.
+
 ## Dokumanlar
 
 - `Dolap_AI_Gelistirme_Spesifikasyonu.md`: teknik gelistirme plani

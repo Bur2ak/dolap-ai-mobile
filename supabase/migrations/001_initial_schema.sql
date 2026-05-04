@@ -9,6 +9,12 @@ create table if not exists profiles (
   subscription_tier text default 'free' check (subscription_tier in ('free', 'premium', 'family')),
   subscription_expires_at timestamptz,
   push_token text,
+  notification_preferences jsonb default '{
+    "outfit_reminder": true,
+    "price_drops": true,
+    "friend_requests": true,
+    "outfit_votes": true
+  }'::jsonb,
   onboarding_completed boolean default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -109,6 +115,19 @@ create table if not exists price_tracking (
 
 create index if not exists idx_price_tracking_user_id on price_tracking(user_id);
 
+create table if not exists notifications (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  type text not null check (type in ('friend_request', 'outfit_vote', 'price_drop', 'outfit_reminder', 'lend_request', 'system')),
+  title text not null,
+  body text,
+  data jsonb default '{}'::jsonb,
+  is_read boolean default false,
+  sent_at timestamptz default now()
+);
+
+create index if not exists idx_notifications_user_id on notifications(user_id, is_read);
+
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
@@ -134,6 +153,7 @@ alter table outfit_items enable row level security;
 alter table buy_decisions enable row level security;
 alter table events enable row level security;
 alter table price_tracking enable row level security;
+alter table notifications enable row level security;
 
 create policy "Users can read own profile"
   on profiles for select using (auth.uid() = id);
@@ -164,6 +184,9 @@ create policy "Users can manage own events"
 
 create policy "Users can manage own price tracking"
   on price_tracking for all using (auth.uid() = user_id);
+
+create policy "Users can manage own notifications"
+  on notifications for all using (auth.uid() = user_id);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

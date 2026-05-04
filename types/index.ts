@@ -24,8 +24,16 @@ export interface Profile {
   subscription_tier: SubscriptionTier;
   subscription_expires_at: string | null;
   push_token: string | null;
+  notification_preferences: NotificationPreferences;
   onboarding_completed: boolean;
   created_at: string;
+}
+
+export interface NotificationPreferences {
+  outfit_reminder: boolean;
+  price_drops: boolean;
+  friend_requests: boolean;
+  outfit_votes: boolean;
 }
 
 export interface WardrobeItem {
@@ -196,4 +204,15 @@ export interface CreatePriceTrackingInput {
   current_price?: number | null;
   target_price?: number | null;
   store?: string | null;
+}
+
+export interface NotificationRecord {
+  id: string;
+  user_id: string;
+  type: "friend_request" | "outfit_vote" | "price_drop" | "outfit_reminder" | "lend_request" | "system";
+  title: string;
+  body: string | null;
+  data: Record<string, unknown>;
+  is_read: boolean;
+  sent_at: string;
 }

@@ -59,7 +59,7 @@ export default function ProfileScreen() {
           <Button title="Fiyat Takibi" variant="ghost" onPress={() => router.push("/price-tracking")} />
         </Card>
         <Card>
-          <Text variant="label">Bildirim Ayarlari</Text>
+          <Button title="Bildirim Ayarlari" variant="ghost" onPress={() => router.push("/settings/notifications")} />
         </Card>
         <Card>
           <Button title="Aboneligim" variant="ghost" onPress={() => router.push("/paywall")} />
