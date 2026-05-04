@@ -54,7 +54,7 @@ Almali Miyim ekrani urun fotografi, fiyat ve mevcut dolap verisiyle AI karari ur
 
 ## Sosyal
 
-Arkadas arama, istek gonderme, istek iptali, kabul etme, arkadasliktan cikarma, engelleme, davet linki, paylasilan arkadas dolabi ve kombine oy verme akislari Premium kapisi arkasinda hazir.
+Arkadas arama, istek gonderme, istek bildirimi, istek iptali, kabul etme, arkadasliktan cikarma, engelleme, davet linki, paylasilan arkadas dolabi ve kombine oy verme akislari Premium kapisi arkasinda hazir.
 
 ## Hesap Ayarlari
 

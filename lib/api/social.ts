@@ -36,14 +36,33 @@ export async function fetchFriendships(userId: string): Promise<Friendship[]> {
 }
 
 export async function sendFriendRequest(userId: string, addresseeId: string): Promise<void> {
-  const { error } = await supabase.from("friendships").insert({
-    requester_id: userId,
-    addressee_id: addresseeId,
-    status: "pending",
-  });
+  const { data, error } = await supabase
+    .from("friendships")
+    .insert({
+      requester_id: userId,
+      addressee_id: addresseeId,
+      status: "pending",
+    })
+    .select("id")
+    .single();
 
   if (error) {
     throw error;
+  }
+
+  const { error: notificationError } = await supabase.from("notifications").insert({
+    user_id: addresseeId,
+    type: "friend_request",
+    title: "Yeni arkadaslik istegi",
+    body: "Bir Shipirio kullanicisi sana arkadaslik istegi gonderdi.",
+    data: {
+      friendship_id: data.id,
+      requester_id: userId,
+    },
+  });
+
+  if (notificationError) {
+    throw notificationError;
   }
 }
 

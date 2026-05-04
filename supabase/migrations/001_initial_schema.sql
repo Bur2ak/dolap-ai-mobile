@@ -318,6 +318,19 @@ create policy "Friends can create outfit vote notifications"
     )
   );
 
+create policy "Users can create friend request notifications"
+  on notifications for insert with check (
+    type = 'friend_request'
+    and user_id != auth.uid()
+    and exists (
+      select 1 from friendships
+      where friendships.status = 'pending'
+      and friendships.requester_id = auth.uid()
+      and friendships.addressee_id = notifications.user_id
+      and friendships.id = (notifications.data->>'friendship_id')::uuid
+    )
+  );
+
 create policy "Users can read own friendships"
   on friendships for select using (auth.uid() = requester_id or auth.uid() = addressee_id);
 
