@@ -14,6 +14,7 @@ import { useEventPlanner } from "@/hooks/useEventPlanner";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
+import { createCalendarEvent } from "@/lib/calendar";
 import type { EventPlanInput } from "@/types";
 
 export default function EventPlannerScreen() {
@@ -80,6 +81,39 @@ export default function EventPlannerScreen() {
     }
   }
 
+  async function handleSaveToCalendar() {
+    if (!checkGate("EVENT_PLANNING")) {
+      router.push("/paywall");
+      return;
+    }
+
+    if (!canSave) {
+      Alert.alert("Giris gerekli", "Etkinligi takvime eklemek icin once giris yapmalisin.");
+      return;
+    }
+
+    try {
+      const calendarEventId = await createCalendarEvent({
+        title: eventInput.title,
+        event_type: eventInput.event_type,
+        event_date: eventInput.event_date,
+        location: eventInput.location,
+        notes: eventInput.notes,
+      });
+      await saveEvent({
+        title: eventInput.title,
+        event_type: eventInput.event_type,
+        event_date: eventInput.event_date,
+        location: eventInput.location,
+        notes: eventInput.notes,
+        calendar_event_id: calendarEventId,
+      });
+      Alert.alert(calendarEventId ? "Takvime eklendi" : "Etkinlik kaydedildi", calendarEventId ? "Cihaz takvimine ve Shipirio planina eklendi." : "Cihaz takvimi uygun degil; Shipirio planina kaydedildi.");
+    } catch (error) {
+      Alert.alert("Takvime eklenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -121,6 +155,7 @@ export default function EventPlannerScreen() {
       <View style={styles.actions}>
         <Button title="Kombin Bul" onPress={handleRecommend} loading={isRecommending} />
         <Button title="Etkinligi Kaydet" variant="secondary" onPress={handleSave} loading={isSaving} />
+        <Button title="Takvime Ekle" variant="secondary" onPress={handleSaveToCalendar} loading={isSaving} />
       </View>
 
       {suggestions.length > 0 ? (

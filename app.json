@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Kiyafetlerinizi gardirobunuza eklemek icin kameraniza erismemiz gerekiyor.",
         "NSPhotoLibraryUsageDescription": "Kiyafet fotograflarinizi secmek icin fotograf kitapliginiza erismemiz gerekiyor.",
-        "NSLocationWhenInUseUsageDescription": "Hava durumuna gore kombin onerisi sunmak icin konumunuza erismemiz gerekiyor."
+        "NSLocationWhenInUseUsageDescription": "Hava durumuna gore kombin onerisi sunmak icin konumunuza erismemiz gerekiyor.",
+        "NSCalendarsUsageDescription": "Etkinlik planlarini takviminize eklemek icin takvim erisimi gerekiyor."
       }
     },
     "android": {
@@ -35,7 +36,9 @@
         "ACCESS_COARSE_LOCATION",
         "READ_MEDIA_IMAGES",
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "READ_CALENDAR",
+        "WRITE_CALENDAR"
       ]
     },
     "web": {
@@ -43,6 +46,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-calendar",
       "expo-camera",
       "expo-image-picker",
       "expo-location",

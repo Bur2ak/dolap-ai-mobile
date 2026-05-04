@@ -12,7 +12,7 @@ export function useEventPlanner() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (input: Omit<EventPlanInput, "weather" | "wardrobe">) => saveEventPlan(userId!, input),
+    mutationFn: (input: Omit<EventPlanInput, "weather" | "wardrobe"> & { calendar_event_id?: string | null }) => saveEventPlan(userId!, input),
   });
 
   return {

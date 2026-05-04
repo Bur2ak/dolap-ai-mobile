@@ -60,6 +60,10 @@ Profil bilgisi, kullanici adi ve gizlilik tercihleri ayarlar ekranlarindan gunce
 
 Giris, kayit ve Supabase email sifre sifirlama akislari hazir.
 
+## Etkinlik
+
+Etkinlik planlari Supabase'e kaydedilebilir ve desteklenen cihazlarda sistem takvimine eklenebilir.
+
 ## Legal
 
 Shipirio gizlilik politikasi ve kullanim sartlari uygulama icinde `/legal/privacy` ve `/legal/terms` ekranlarinda hazir.
