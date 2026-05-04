@@ -62,7 +62,7 @@ Giris, kayit ve Supabase email sifre sifirlama akislari hazir.
 
 ## Etkinlik
 
-Etkinlik planlari Supabase'e kaydedilebilir ve desteklenen cihazlarda sistem takvimine eklenebilir.
+Etkinlik planlari Supabase'e kaydedilebilir, kayitli etkinlikler listelenebilir ve desteklenen cihazlarda sistem takvimine eklenebilir.
 
 ## Legal
 

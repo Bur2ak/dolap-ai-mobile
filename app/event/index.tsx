@@ -20,7 +20,7 @@ import type { EventPlanInput } from "@/types";
 export default function EventPlannerScreen() {
   const { items } = useWardrobe();
   const { weather, isLoading: isWeatherLoading } = useWeather();
-  const { recommend, suggestions, isRecommending, saveEvent, isSaving, canSave } = useEventPlanner();
+  const { events, isLoadingEvents, recommend, suggestions, isRecommending, saveEvent, isSaving, canSave } = useEventPlanner();
   const { checkGate } = useSubscription();
   const [title, setTitle] = useState("");
   const [eventType, setEventType] = useState<string>(EVENT_TYPES[0].value);
@@ -179,8 +179,50 @@ export default function EventPlannerScreen() {
           ))}
         </View>
       ) : null}
+
+      <View style={styles.results}>
+        <Text variant="h3">Kayitli etkinlikler</Text>
+        {isLoadingEvents ? (
+          <Card style={styles.suggestion}>
+            <Text variant="body" color="secondary">
+              Etkinlikler yukleniyor.
+            </Text>
+          </Card>
+        ) : events.length > 0 ? (
+          events.map((event) => (
+            <Card key={event.id} style={styles.suggestion}>
+              <Text variant="h3">{event.title}</Text>
+              <Text variant="body" color="secondary">
+                {event.event_type} - {formatEventDate(event.event_date)}
+              </Text>
+              {event.location ? (
+                <Text variant="caption" color="muted">
+                  {event.location}
+                </Text>
+              ) : null}
+              <Text variant="caption" color="muted">
+                {event.calendar_event_id ? "Takvime eklendi" : "Sadece Shipirio plani"}
+              </Text>
+            </Card>
+          ))
+        ) : (
+          <Card style={styles.suggestion}>
+            <Text variant="body" color="secondary">
+              Henuz kayitli etkinlik yok.
+            </Text>
+          </Card>
+        )}
+      </View>
     </ScrollView>
   );
+}
+
+function formatEventDate(value: string) {
+  return new Date(value).toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 const styles = StyleSheet.create({
