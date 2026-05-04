@@ -180,6 +180,7 @@ export default function OutfitScreen() {
                   {saved.outfit.ai_reasoning ?? "Kaydedilen kombin"}
                 </Text>
                 <Text variant="caption" color="muted">
+                  {saved.outfit.is_favorite ? "Favori - " : ""}
                   {saved.items.length} parca - {saved.votes.length} oy
                 </Text>
               </Card>

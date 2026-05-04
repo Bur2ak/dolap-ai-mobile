@@ -19,7 +19,21 @@ const voteOptions: Array<{ value: OutfitVoteValue; label: string }> = [
 
 export default function SharedOutfitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { userId, sharedOutfit, isLoading, error, vote, markWorn, isVoting, isMarkingWorn, canVote, canMarkWorn } = useSharedOutfit(id);
+  const {
+    userId,
+    sharedOutfit,
+    isLoading,
+    error,
+    vote,
+    markWorn,
+    toggleFavorite,
+    isVoting,
+    isMarkingWorn,
+    isTogglingFavorite,
+    canVote,
+    canMarkWorn,
+    canToggleFavorite,
+  } = useSharedOutfit(id);
   const myVote = sharedOutfit?.votes.find((item) => item.voter_id === userId)?.vote;
   const voteCounts = voteOptions.map((option) => ({
     ...option,
@@ -40,6 +54,14 @@ export default function SharedOutfitScreen() {
       Alert.alert("Guncellendi", "Kombin ve parcalar bugun giyildi olarak islendi.");
     } catch (wornError) {
       Alert.alert("Guncellenemedi", wornError instanceof Error ? wornError.message : "Tekrar dene.");
+    }
+  }
+
+  async function handleToggleFavorite() {
+    try {
+      await toggleFavorite();
+    } catch (favoriteError) {
+      Alert.alert("Guncellenemedi", favoriteError instanceof Error ? favoriteError.message : "Tekrar dene.");
     }
   }
 
@@ -85,6 +107,14 @@ export default function SharedOutfitScreen() {
                   </Text>
                 ) : null}
                 {canMarkWorn ? <Button title="Bugun Giydim" variant="secondary" onPress={handleMarkWorn} loading={isMarkingWorn} /> : null}
+                {canToggleFavorite ? (
+                  <Button
+                    title={sharedOutfit.outfit.is_favorite ? "Favoriden Cikar" : "Favori Yap"}
+                    variant="ghost"
+                    onPress={handleToggleFavorite}
+                    loading={isTogglingFavorite}
+                  />
+                ) : null}
               </Card>
 
               <Card style={styles.votes}>

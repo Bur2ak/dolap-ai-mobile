@@ -166,3 +166,19 @@ export async function markOutfitWorn(userId: string, sharedOutfit: SharedOutfit)
     throw itemError;
   }
 }
+
+export async function toggleOutfitFavorite(userId: string, outfit: OutfitRecord): Promise<OutfitRecord> {
+  const { data, error } = await supabase
+    .from("outfits")
+    .update({ is_favorite: !outfit.is_favorite })
+    .eq("id", outfit.id)
+    .eq("user_id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as OutfitRecord;
+}
