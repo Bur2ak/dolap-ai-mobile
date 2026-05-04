@@ -1,20 +1,72 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import { Alert, Image, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { CATEGORIES } from "@/constants/categories";
 import { COLORS } from "@/constants/colors";
+import { SEASONS } from "@/constants/seasons";
 import { SPACING } from "@/constants/spacing";
 import { useWardrobeItem } from "@/hooks/useWardrobe";
+import type { ClothingCategory, Season } from "@/types";
 
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { item, isLoading, updateItem, markWorn, deleteItem, isUpdating } = useWardrobeItem(id);
+  const [isEditing, setIsEditing] = useState(false);
+  const [category, setCategory] = useState<ClothingCategory>("ust");
+  const [subcategory, setSubcategory] = useState("");
+  const [colors, setColors] = useState("");
+  const [brand, setBrand] = useState("");
+  const [price, setPrice] = useState("");
+  const [seasons, setSeasons] = useState<Season[]>([]);
 
   const categoryLabel = CATEGORIES.find((category) => category.value === item?.category)?.label ?? item?.category;
+
+  useEffect(() => {
+    if (!item) {
+      return;
+    }
+
+    setCategory(item.category);
+    setSubcategory(item.subcategory ?? "");
+    setColors(item.colors.join(", "));
+    setBrand(item.brand ?? "");
+    setPrice(item.purchase_price ? String(item.purchase_price) : "");
+    setSeasons(item.season);
+  }, [item]);
+
+  function toggleSeason(season: Season) {
+    setSeasons((current) => (current.includes(season) ? current.filter((item) => item !== season) : [...current, season]));
+  }
+
+  async function handleSaveEdits() {
+    if (!item) {
+      return;
+    }
+
+    try {
+      await updateItem({
+        brand: brand.trim() || null,
+        category,
+        colors: colors
+          .split(",")
+          .map((color) => color.trim())
+          .filter(Boolean),
+        purchase_price: price.trim() ? Number(price.replace(",", ".")) : null,
+        season: seasons,
+        subcategory: subcategory.trim() || null,
+      });
+      setIsEditing(false);
+      Alert.alert("Kaydedildi", "Kiyafet bilgileri guncellendi.");
+    } catch (error) {
+      Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
+  }
 
   async function handleMarkWorn() {
     if (!item) {
@@ -95,7 +147,52 @@ export default function ItemDetailScreen() {
             <Text variant="body" color="secondary">
               {item.brand ? `${item.brand} markasi` : "Marka bilgisi eklenmemis"}
             </Text>
+            <Button title={isEditing ? "Duzenlemeyi Kapat" : "Bilgileri Duzenle"} variant="secondary" onPress={() => setIsEditing((value) => !value)} />
           </Card>
+
+          {isEditing ? (
+            <Card style={styles.editCard}>
+              <Text variant="h3">Bilgileri duzenle</Text>
+
+              <Text variant="label">Kategori</Text>
+              <View style={styles.wrap}>
+                {CATEGORIES.map((itemCategory) => {
+                  const active = itemCategory.value === category;
+                  return (
+                    <Button
+                      key={itemCategory.value}
+                      title={itemCategory.label}
+                      variant={active ? "primary" : "secondary"}
+                      onPress={() => setCategory(itemCategory.value)}
+                      style={styles.chipButton}
+                    />
+                  );
+                })}
+              </View>
+
+              <Text variant="label">Sezon</Text>
+              <View style={styles.wrap}>
+                {SEASONS.map((season) => {
+                  const active = seasons.includes(season.value);
+                  return (
+                    <Button
+                      key={season.value}
+                      title={season.label}
+                      variant={active ? "primary" : "secondary"}
+                      onPress={() => toggleSeason(season.value)}
+                      style={styles.chipButton}
+                    />
+                  );
+                })}
+              </View>
+
+              <Input label="Alt kategori" value={subcategory} onChangeText={setSubcategory} />
+              <Input label="Renkler" value={colors} onChangeText={setColors} />
+              <Input label="Marka" value={brand} onChangeText={setBrand} />
+              <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+              <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={isUpdating} />
+            </Card>
+          ) : null}
 
           <View style={styles.stats}>
             <Card style={styles.statCard}>
@@ -193,6 +290,9 @@ const styles = StyleSheet.create({
   summary: {
     gap: SPACING.xs,
   },
+  editCard: {
+    gap: SPACING.md,
+  },
   stats: {
     flexDirection: "row",
     gap: SPACING.md,
@@ -210,6 +310,15 @@ const styles = StyleSheet.create({
   },
   inlineActions: {
     gap: SPACING.sm,
+  },
+  wrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+  },
+  chipButton: {
+    minHeight: 40,
+    paddingHorizontal: SPACING.md,
   },
   empty: {
     alignItems: "center",

@@ -66,7 +66,7 @@ Dolap analiz ekrani toplam deger, maliyet/giyim, kullanim skoru, 90 gun atil kal
 
 ## Dolap
 
-Kiyafetler kategori filtresi ve marka, renk, sezon veya kategori aramasi ile bulunabilir.
+Kiyafetler kategori filtresi ve marka, renk, sezon veya kategori aramasi ile bulunabilir; detay ekraninda kategori, sezon, renk, marka ve fiyat bilgileri duzenlenebilir.
 
 ## Auth
 
