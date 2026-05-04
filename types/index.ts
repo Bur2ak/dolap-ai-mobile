@@ -172,3 +172,28 @@ export interface WardrobeAnalytics {
   color_distribution: DistributionPoint[];
   suggestions_to_remove: WardrobeItem[];
 }
+
+export interface PriceTracking {
+  id: string;
+  user_id: string;
+  product_name: string;
+  product_url: string | null;
+  product_image_url: string | null;
+  current_price: number | null;
+  target_price: number | null;
+  initial_price: number | null;
+  price_history: Array<{ price: number; date: string }>;
+  store: string | null;
+  is_active: boolean;
+  last_checked: string | null;
+  notified_at: string | null;
+  created_at: string;
+}
+
+export interface CreatePriceTrackingInput {
+  product_name: string;
+  product_url?: string | null;
+  current_price?: number | null;
+  target_price?: number | null;
+  store?: string | null;
+}

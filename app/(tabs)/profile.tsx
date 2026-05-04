@@ -56,7 +56,7 @@ export default function ProfileScreen() {
           <Text variant="label">Arkadaslarim</Text>
         </Card>
         <Card>
-          <Text variant="label">Fiyat Takibi</Text>
+          <Button title="Fiyat Takibi" variant="ghost" onPress={() => router.push("/price-tracking")} />
         </Card>
         <Card>
           <Text variant="label">Bildirim Ayarlari</Text>

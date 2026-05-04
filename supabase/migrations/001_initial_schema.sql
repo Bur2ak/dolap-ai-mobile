@@ -90,6 +90,25 @@ create table if not exists events (
 
 create index if not exists idx_events_user_id on events(user_id);
 
+create table if not exists price_tracking (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  product_name text not null,
+  product_url text,
+  product_image_url text,
+  current_price numeric(10, 2),
+  target_price numeric(10, 2),
+  initial_price numeric(10, 2),
+  price_history jsonb default '[]'::jsonb,
+  store text,
+  is_active boolean default true,
+  last_checked timestamptz,
+  notified_at timestamptz,
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_price_tracking_user_id on price_tracking(user_id);
+
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
@@ -114,6 +133,7 @@ alter table outfits enable row level security;
 alter table outfit_items enable row level security;
 alter table buy_decisions enable row level security;
 alter table events enable row level security;
+alter table price_tracking enable row level security;
 
 create policy "Users can read own profile"
   on profiles for select using (auth.uid() = id);
@@ -141,6 +161,9 @@ create policy "Users can manage own buy decisions"
 
 create policy "Users can manage own events"
   on events for all using (auth.uid() = user_id);
+
+create policy "Users can manage own price tracking"
+  on price_tracking for all using (auth.uid() = user_id);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
