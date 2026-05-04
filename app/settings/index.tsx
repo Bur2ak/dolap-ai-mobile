@@ -33,6 +33,18 @@ const settingsRoutes = [
     body: "Plan durumunu ve freemium limitlerini gor.",
     route: "/settings/subscription" as const,
   },
+  {
+    icon: "document-text-outline" as const,
+    title: "Gizlilik Politikasi",
+    body: "Shipirio'nun veri ve gizlilik notlarini incele.",
+    route: "/legal/privacy" as const,
+  },
+  {
+    icon: "reader-outline" as const,
+    title: "Kullanim Sartlari",
+    body: "Uygulama kullanim kosullarini gor.",
+    route: "/legal/terms" as const,
+  },
 ];
 
 export default function SettingsScreen() {

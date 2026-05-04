@@ -72,6 +72,10 @@ export default function PaywallScreen() {
 
       <Button title="RevenueCat Baglaninca Satin Al" onPress={activatePreview} />
       <Button title="Aboneligi Geri Yukle" variant="secondary" onPress={activatePreview} />
+      <View style={styles.legalLinks}>
+        <Button title="Gizlilik Politikasi" variant="ghost" onPress={() => router.push("/legal/privacy")} />
+        <Button title="Kullanim Sartlari" variant="ghost" onPress={() => router.push("/legal/terms")} />
+      </View>
     </ScrollView>
   );
 }
@@ -123,5 +127,8 @@ const styles = StyleSheet.create({
   featuredPlan: {
     borderColor: COLORS.accent,
     borderWidth: 2,
+  },
+  legalLinks: {
+    gap: SPACING.xs,
   },
 });

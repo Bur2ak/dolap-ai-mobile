@@ -60,6 +60,10 @@ Profil bilgisi, kullanici adi ve gizlilik tercihleri ayarlar ekranlarindan gunce
 
 Giris, kayit ve Supabase email sifre sifirlama akislari hazir.
 
+## Legal
+
+Shipirio gizlilik politikasi ve kullanim sartlari uygulama icinde `/legal/privacy` ve `/legal/terms` ekranlarinda hazir.
+
 ## Dokumanlar
 
 - `Dolap_AI_Gelistirme_Spesifikasyonu.md`: teknik gelistirme plani
