@@ -20,7 +20,7 @@ const notificationLabels: Record<NotificationRecord["type"], string> = {
 };
 
 export default function NotificationsScreen() {
-  const { notifications, unreadCount, isLoading, markRead, markAllRead, isUpdating, canUse } = useNotificationInbox();
+  const { notifications, unreadCount, readCount, isLoading, markRead, markAllRead, deleteOne, deleteRead, isUpdating, canUse } = useNotificationInbox();
 
   async function handleMarkAllRead() {
     try {
@@ -28,6 +28,40 @@ export default function NotificationsScreen() {
     } catch (error) {
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
+  }
+
+  function handleDeleteRead() {
+    Alert.alert("Okunanlari temizle", "Okunmus bildirimler kalici olarak silinecek.", [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: "Temizle",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteRead();
+          } catch (error) {
+            Alert.alert("Temizlenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          }
+        },
+      },
+    ]);
+  }
+
+  function handleDeleteOne(notificationId: string) {
+    Alert.alert("Bildirimi sil", "Bu bildirim kalici olarak silinecek.", [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: "Sil",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteOne(notificationId);
+          } catch (error) {
+            Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          }
+        },
+      },
+    ]);
   }
 
   async function handlePress(notification: NotificationRecord) {
@@ -56,7 +90,10 @@ export default function NotificationsScreen() {
             Fiyat dususleri, arkadaslik istekleri ve kombin oylarini burada takip et.
           </Text>
         </View>
-        <Button title="Tumunu Oku" variant="secondary" onPress={handleMarkAllRead} loading={isUpdating} disabled={unreadCount === 0} />
+        <View style={styles.summaryActions}>
+          <Button title="Tumunu Oku" variant="secondary" onPress={handleMarkAllRead} loading={isUpdating} disabled={unreadCount === 0} />
+          <Button title="Temizle" variant="ghost" onPress={handleDeleteRead} loading={isUpdating} disabled={readCount === 0} />
+        </View>
       </Card>
 
       {!canUse ? (
@@ -66,8 +103,8 @@ export default function NotificationsScreen() {
       ) : notifications.length > 0 ? (
         <View style={styles.list}>
           {notifications.map((notification) => (
-            <Pressable key={notification.id} onPress={() => void handlePress(notification)} disabled={isUpdating}>
-              <Card style={[styles.notificationCard, !notification.is_read && styles.unreadCard]}>
+            <Card key={notification.id} style={[styles.notificationCard, !notification.is_read && styles.unreadCard]}>
+              <Pressable style={styles.notificationMain} onPress={() => void handlePress(notification)} disabled={isUpdating}>
                 <View style={styles.iconWrap}>
                   <Ionicons name={iconForNotification(notification.type)} size={22} color={COLORS.primary} />
                 </View>
@@ -85,9 +122,12 @@ export default function NotificationsScreen() {
                     {formatDate(notification.sent_at)}
                   </Text>
                 </View>
+              </Pressable>
+              <View style={styles.trailingActions}>
                 {!notification.is_read ? <View style={styles.unreadDot} /> : null}
-              </Card>
-            </Pressable>
+                <Button title="Sil" variant="ghost" onPress={() => handleDeleteOne(notification.id)} disabled={isUpdating} style={styles.deleteButton} />
+              </View>
+            </Card>
           ))}
         </View>
       ) : (
@@ -180,11 +220,21 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: SPACING.xs,
   },
+  summaryActions: {
+    gap: SPACING.xs,
+    width: 132,
+  },
   list: {
     gap: SPACING.sm,
   },
   notificationCard: {
     alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
+  },
+  notificationMain: {
+    alignItems: "center",
+    flex: 1,
     flexDirection: "row",
     gap: SPACING.md,
   },
@@ -208,6 +258,14 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     height: 10,
     width: 10,
+  },
+  trailingActions: {
+    alignItems: "center",
+    gap: SPACING.xs,
+  },
+  deleteButton: {
+    minHeight: 36,
+    paddingHorizontal: SPACING.sm,
   },
   empty: {
     alignItems: "center",
