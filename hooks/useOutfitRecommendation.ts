@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchSharedOutfit, fetchUserOutfits, recommendOutfits, saveOutfit, saveSharedOutfit, voteOnOutfit } from "@/lib/api/outfits";
+import { fetchSharedOutfit, fetchUserOutfits, markOutfitWorn, recommendOutfits, saveOutfit, saveSharedOutfit, voteOnOutfit } from "@/lib/api/outfits";
 import { useAuthStore } from "@/stores/authStore";
 import type { OutfitRecommendationInput, OutfitSuggestion, OutfitVoteValue } from "@/types";
 
@@ -57,6 +57,14 @@ export function useSharedOutfit(outfitId?: string) {
       void queryClient.invalidateQueries({ queryKey: ["shared-outfit", outfitId] });
     },
   });
+  const markWornMutation = useMutation({
+    mutationFn: () => markOutfitWorn(userId!, outfitQuery.data!),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["shared-outfit", outfitId] });
+      void queryClient.invalidateQueries({ queryKey: ["saved-outfits", userId] });
+      void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });
+    },
+  });
 
   return {
     userId,
@@ -64,7 +72,10 @@ export function useSharedOutfit(outfitId?: string) {
     isLoading: outfitQuery.isLoading,
     error: outfitQuery.error,
     vote: voteMutation.mutateAsync,
+    markWorn: markWornMutation.mutateAsync,
     isVoting: voteMutation.isPending,
+    isMarkingWorn: markWornMutation.isPending,
     canVote: Boolean(userId && outfitQuery.data && outfitQuery.data.outfit.user_id !== userId),
+    canMarkWorn: Boolean(userId && outfitQuery.data && outfitQuery.data.outfit.user_id === userId),
   };
 }

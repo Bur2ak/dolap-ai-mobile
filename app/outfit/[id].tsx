@@ -19,7 +19,7 @@ const voteOptions: Array<{ value: OutfitVoteValue; label: string }> = [
 
 export default function SharedOutfitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { userId, sharedOutfit, isLoading, error, vote, isVoting, canVote } = useSharedOutfit(id);
+  const { userId, sharedOutfit, isLoading, error, vote, markWorn, isVoting, isMarkingWorn, canVote, canMarkWorn } = useSharedOutfit(id);
   const myVote = sharedOutfit?.votes.find((item) => item.voter_id === userId)?.vote;
   const voteCounts = voteOptions.map((option) => ({
     ...option,
@@ -31,6 +31,15 @@ export default function SharedOutfitScreen() {
       await vote(value);
     } catch (voteError) {
       Alert.alert("Oy verilemedi", voteError instanceof Error ? voteError.message : "Tekrar dene.");
+    }
+  }
+
+  async function handleMarkWorn() {
+    try {
+      await markWorn();
+      Alert.alert("Guncellendi", "Kombin ve parcalar bugun giyildi olarak islendi.");
+    } catch (wornError) {
+      Alert.alert("Guncellenemedi", wornError instanceof Error ? wornError.message : "Tekrar dene.");
     }
   }
 
@@ -70,6 +79,12 @@ export default function SharedOutfitScreen() {
                 <Text variant="body" color="secondary">
                   {sharedOutfit.outfit.ai_reasoning ?? "Arkadasin bu kombine fikrini istiyor."}
                 </Text>
+                {sharedOutfit.outfit.worn_at ? (
+                  <Text variant="caption" color="muted">
+                    Son giyilme: {sharedOutfit.outfit.worn_at}
+                  </Text>
+                ) : null}
+                {canMarkWorn ? <Button title="Bugun Giydim" variant="secondary" onPress={handleMarkWorn} loading={isMarkingWorn} /> : null}
               </Card>
 
               <Card style={styles.votes}>

@@ -135,3 +135,34 @@ export async function voteOnOutfit(userId: string, outfit: OutfitRecord, vote: O
     });
   }
 }
+
+export async function markOutfitWorn(userId: string, sharedOutfit: SharedOutfit): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { error } = await supabase
+    .from("outfits")
+    .update({ worn_at: today })
+    .eq("id", sharedOutfit.outfit.id)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw error;
+  }
+
+  const itemUpdates = await Promise.all(
+    sharedOutfit.items.map((item) =>
+      supabase
+        .from("wardrobe_items")
+        .update({
+          wear_count: item.wear_count + 1,
+          last_worn: today,
+        })
+        .eq("id", item.id)
+        .eq("user_id", userId),
+    ),
+  );
+
+  const itemError = itemUpdates.find((result) => result.error)?.error;
+  if (itemError) {
+    throw itemError;
+  }
+}
