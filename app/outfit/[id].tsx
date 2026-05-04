@@ -27,12 +27,15 @@ export default function SharedOutfitScreen() {
     vote,
     markWorn,
     toggleFavorite,
+    deleteOutfit,
     isVoting,
     isMarkingWorn,
     isTogglingFavorite,
+    isDeletingOutfit,
     canVote,
     canMarkWorn,
     canToggleFavorite,
+    canDeleteOutfit,
   } = useSharedOutfit(id);
   const myVote = sharedOutfit?.votes.find((item) => item.voter_id === userId)?.vote;
   const voteCounts = voteOptions.map((option) => ({
@@ -63,6 +66,24 @@ export default function SharedOutfitScreen() {
     } catch (favoriteError) {
       Alert.alert("Guncellenemedi", favoriteError instanceof Error ? favoriteError.message : "Tekrar dene.");
     }
+  }
+
+  function handleDeleteOutfit() {
+    Alert.alert("Kombini sil", "Bu kombin kayitli kombinlerinden kaldirilacak.", [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: "Sil",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteOutfit();
+            router.replace("/(tabs)/outfit");
+          } catch (deleteError) {
+            Alert.alert("Silinemedi", deleteError instanceof Error ? deleteError.message : "Tekrar dene.");
+          }
+        },
+      },
+    ]);
   }
 
   return (
@@ -114,6 +135,9 @@ export default function SharedOutfitScreen() {
                     onPress={handleToggleFavorite}
                     loading={isTogglingFavorite}
                   />
+                ) : null}
+                {canDeleteOutfit ? (
+                  <Button title="Kombini Sil" variant="ghost" onPress={handleDeleteOutfit} loading={isDeletingOutfit} />
                 ) : null}
               </Card>
 

@@ -182,3 +182,11 @@ export async function toggleOutfitFavorite(userId: string, outfit: OutfitRecord)
 
   return data as OutfitRecord;
 }
+
+export async function deleteOutfit(userId: string, outfitId: string): Promise<void> {
+  const { error } = await supabase.from("outfits").delete().eq("id", outfitId).eq("user_id", userId);
+
+  if (error) {
+    throw error;
+  }
+}

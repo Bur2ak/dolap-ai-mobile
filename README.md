@@ -78,7 +78,7 @@ Etkinlik planlari Supabase'e kaydedilebilir, kayitli etkinlikler listelenebilir 
 
 ## Kombinler
 
-AI kombin onerileri kaydedilebilir, arkadasa sorulabilir, kayitli kombinler listelenebilir, favoriye alinabilir ve kombin giyildi olarak isaretlenebilir.
+AI kombin onerileri kaydedilebilir, arkadasa sorulabilir, kayitli kombinler listelenebilir, favoriye alinabilir, giyildi olarak isaretlenebilir ve silinebilir.
 
 ## Legal
 

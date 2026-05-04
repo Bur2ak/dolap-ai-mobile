@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  deleteOutfit,
   fetchSharedOutfit,
   fetchUserOutfits,
   markOutfitWorn,
@@ -81,6 +82,13 @@ export function useSharedOutfit(outfitId?: string) {
       void queryClient.invalidateQueries({ queryKey: ["saved-outfits", userId] });
     },
   });
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteOutfit(userId!, outfitId!),
+    onSuccess: () => {
+      void queryClient.removeQueries({ queryKey: ["shared-outfit", outfitId] });
+      void queryClient.invalidateQueries({ queryKey: ["saved-outfits", userId] });
+    },
+  });
 
   return {
     userId,
@@ -90,11 +98,14 @@ export function useSharedOutfit(outfitId?: string) {
     vote: voteMutation.mutateAsync,
     markWorn: markWornMutation.mutateAsync,
     toggleFavorite: favoriteMutation.mutateAsync,
+    deleteOutfit: deleteMutation.mutateAsync,
     isVoting: voteMutation.isPending,
     isMarkingWorn: markWornMutation.isPending,
     isTogglingFavorite: favoriteMutation.isPending,
+    isDeletingOutfit: deleteMutation.isPending,
     canVote: Boolean(userId && outfitQuery.data && outfitQuery.data.outfit.user_id !== userId),
     canMarkWorn: Boolean(userId && outfitQuery.data && outfitQuery.data.outfit.user_id === userId),
     canToggleFavorite: Boolean(userId && outfitQuery.data && outfitQuery.data.outfit.user_id === userId),
+    canDeleteOutfit: Boolean(userId && outfitQuery.data && outfitQuery.data.outfit.user_id === userId),
   };
 }
