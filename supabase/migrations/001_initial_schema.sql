@@ -334,6 +334,9 @@ create policy "Users can send friend requests"
 create policy "Users can update own friendships"
   on friendships for update using (auth.uid() = requester_id or auth.uid() = addressee_id);
 
+create policy "Users can delete own friendships"
+  on friendships for delete using (auth.uid() = requester_id or auth.uid() = addressee_id);
+
 create policy "Users can read related outfit votes"
   on outfit_votes for select using (
     voter_id = auth.uid()

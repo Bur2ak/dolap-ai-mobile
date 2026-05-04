@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchFriendWardrobe, fetchFriendships, searchUsers, sendFriendRequest, updateFriendshipStatus } from "@/lib/api/social";
+import { deleteFriendship, fetchFriendWardrobe, fetchFriendships, searchUsers, sendFriendRequest, updateFriendshipStatus } from "@/lib/api/social";
 import { useAuthStore } from "@/stores/authStore";
 
 export function useSocial() {
@@ -31,6 +31,12 @@ export function useSocial() {
       void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
     },
   });
+  const deleteMutation = useMutation({
+    mutationFn: (friendshipId: string) => deleteFriendship(userId!, friendshipId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
+    },
+  });
 
   return {
     userId,
@@ -41,7 +47,8 @@ export function useSocial() {
     isSearching: searchMutation.isPending,
     sendFriendRequest: sendRequestMutation.mutateAsync,
     updateFriendshipStatus: updateStatusMutation.mutateAsync,
-    isMutating: sendRequestMutation.isPending || updateStatusMutation.isPending,
+    deleteFriendship: deleteMutation.mutateAsync,
+    isMutating: sendRequestMutation.isPending || updateStatusMutation.isPending || deleteMutation.isPending,
   };
 }
 

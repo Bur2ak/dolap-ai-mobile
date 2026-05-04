@@ -59,6 +59,18 @@ export async function updateFriendshipStatus(userId: string, friendshipId: strin
   }
 }
 
+export async function deleteFriendship(userId: string, friendshipId: string): Promise<void> {
+  const { error } = await supabase
+    .from("friendships")
+    .delete()
+    .eq("id", friendshipId)
+    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function fetchFriendWardrobe(friendId: string): Promise<FriendWardrobe> {
   const { data: profile, error: profileError } = await supabase
     .from("profiles")

@@ -25,6 +25,7 @@ export default function FriendsScreen() {
     isSearching,
     sendFriendRequest,
     updateFriendshipStatus,
+    deleteFriendship,
     isMutating,
   } = useSocial();
   const [query, setQuery] = useState("");
@@ -52,6 +53,24 @@ export default function FriendsScreen() {
     } catch (error) {
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
+  }
+
+  function handleDelete(friendship: Friendship) {
+    const accepted = friendship.status === "accepted";
+    Alert.alert(accepted ? "Arkadasliktan cikar" : "Istegi iptal et", accepted ? "Bu kullanici arkadas listenden kaldirilacak." : "Bekleyen arkadaslik istegi iptal edilecek.", [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: accepted ? "Cikar" : "Iptal Et",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteFriendship(friendship.id);
+          } catch (error) {
+            Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          }
+        },
+      },
+    ]);
   }
 
   return (
@@ -105,6 +124,7 @@ export default function FriendsScreen() {
                   currentUserId={userId}
                   onAccept={() => void handleStatus(friendship.id, "accepted")}
                   onBlock={() => void handleStatus(friendship.id, "blocked")}
+                  onDelete={() => handleDelete(friendship)}
                   loading={isMutating}
                 />
               ))
@@ -128,12 +148,14 @@ function FriendshipRow({
   currentUserId,
   onAccept,
   onBlock,
+  onDelete,
   loading,
 }: {
   friendship: Friendship;
   currentUserId?: string;
   onAccept: () => void;
   onBlock: () => void;
+  onDelete: () => void;
   loading: boolean;
 }) {
   const otherProfile = friendship.requester_id === currentUserId ? friendship.addressee : friendship.requester;
@@ -152,6 +174,9 @@ function FriendshipRow({
       </View>
       {incoming ? <Button title="Kabul" variant="secondary" onPress={onAccept} loading={loading} /> : null}
       {accepted ? <Button title="Dolap" variant="secondary" onPress={() => router.push(`/social/${otherUserId}`)} /> : null}
+      {friendship.status !== "blocked" ? (
+        <Button title={accepted ? "Cikar" : "Iptal"} variant="ghost" onPress={onDelete} loading={loading} />
+      ) : null}
       <Button title="Engelle" variant="ghost" onPress={onBlock} loading={loading} />
     </View>
   );
