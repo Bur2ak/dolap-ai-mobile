@@ -180,6 +180,29 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+create or replace function public.set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists set_profiles_updated_at on profiles;
+create trigger set_profiles_updated_at
+  before update on profiles
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists set_wardrobe_items_updated_at on wardrobe_items;
+create trigger set_wardrobe_items_updated_at
+  before update on wardrobe_items
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists set_friendships_updated_at on friendships;
+create trigger set_friendships_updated_at
+  before update on friendships
+  for each row execute function public.set_updated_at();
+
 alter table profiles enable row level security;
 alter table wardrobe_items enable row level security;
 alter table outfits enable row level security;

@@ -21,6 +21,8 @@ Ilk migration:
 supabase db push
 ```
 
+Migration `profiles`, `wardrobe_items` ve `friendships` icin `updated_at` trigger'larini kurar.
+
 Kiyafet analiz fonksiyonu:
 
 ```bash
