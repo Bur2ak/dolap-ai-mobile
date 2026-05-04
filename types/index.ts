@@ -206,6 +206,8 @@ export interface EventRecord {
   created_at: string;
 }
 
+export type UpdateEventInput = Partial<Pick<EventRecord, "title" | "event_type" | "event_date" | "location" | "notes" | "calendar_event_id">>;
+
 export interface DistributionPoint {
   label: string;
   value: number;

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -15,12 +15,12 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
 import { createCalendarEvent } from "@/lib/calendar";
-import type { EventPlanInput } from "@/types";
+import type { EventPlanInput, EventRecord } from "@/types";
 
 export default function EventPlannerScreen() {
   const { items } = useWardrobe();
   const { weather, isLoading: isWeatherLoading } = useWeather();
-  const { events, isLoadingEvents, recommend, suggestions, isRecommending, saveEvent, isSaving, canSave } = useEventPlanner();
+  const { events, isLoadingEvents, recommend, suggestions, isRecommending, saveEvent, updateEvent, deleteEvent, isSaving, canSave } = useEventPlanner();
   const { checkGate } = useSubscription();
   const [title, setTitle] = useState("");
   const [eventType, setEventType] = useState<string>(EVENT_TYPES[0].value);
@@ -190,20 +190,13 @@ export default function EventPlannerScreen() {
           </Card>
         ) : events.length > 0 ? (
           events.map((event) => (
-            <Card key={event.id} style={styles.suggestion}>
-              <Text variant="h3">{event.title}</Text>
-              <Text variant="body" color="secondary">
-                {event.event_type} - {formatEventDate(event.event_date)}
-              </Text>
-              {event.location ? (
-                <Text variant="caption" color="muted">
-                  {event.location}
-                </Text>
-              ) : null}
-              <Text variant="caption" color="muted">
-                {event.calendar_event_id ? "Takvime eklendi" : "Sadece Shipirio plani"}
-              </Text>
-            </Card>
+            <EventPlanCard
+              key={event.id}
+              event={event}
+              onUpdate={updateEvent}
+              onDelete={deleteEvent}
+              isSaving={isSaving}
+            />
           ))
         ) : (
           <Card style={styles.suggestion}>
@@ -214,6 +207,133 @@ export default function EventPlannerScreen() {
         )}
       </View>
     </ScrollView>
+  );
+}
+
+function EventPlanCard({
+  event,
+  onUpdate,
+  onDelete,
+  isSaving,
+}: {
+  event: EventRecord;
+  onUpdate: ReturnType<typeof useEventPlanner>["updateEvent"];
+  onDelete: ReturnType<typeof useEventPlanner>["deleteEvent"];
+  isSaving: boolean;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(event.title);
+  const [eventType, setEventType] = useState(event.event_type);
+  const [eventDate, setEventDate] = useState(event.event_date.slice(0, 16));
+  const [location, setLocation] = useState(event.location ?? "");
+  const [notes, setNotes] = useState(event.notes ?? "");
+
+  useEffect(() => {
+    setTitle(event.title);
+    setEventType(event.event_type);
+    setEventDate(event.event_date.slice(0, 16));
+    setLocation(event.location ?? "");
+    setNotes(event.notes ?? "");
+  }, [event]);
+
+  async function handleSave() {
+    if (!title.trim()) {
+      Alert.alert("Etkinlik adi gerekli", "Plan icin etkinlik adi bos olamaz.");
+      return;
+    }
+
+    try {
+      await onUpdate({
+        eventId: event.id,
+        input: {
+          event_date: eventDate,
+          event_type: eventType,
+          location: location.trim() || null,
+          notes: notes.trim() || null,
+          title: title.trim(),
+        },
+      });
+      setIsEditing(false);
+    } catch (error) {
+      Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
+  }
+
+  function handleDelete() {
+    Alert.alert("Etkinligi sil", "Bu plan kayitli etkinliklerinden kaldirilacak.", [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: "Sil",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await onDelete(event.id);
+          } catch (error) {
+            Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          }
+        },
+      },
+    ]);
+  }
+
+  return (
+    <Card style={styles.suggestion}>
+      <View style={styles.eventHeader}>
+        <View style={styles.eventCopy}>
+          <Text variant="h3">{event.title}</Text>
+          <Text variant="body" color="secondary">
+            {event.event_type} - {formatEventDate(event.event_date)}
+          </Text>
+        </View>
+        <View style={styles.eventActions}>
+          <Pressable style={styles.iconButton} onPress={() => setIsEditing((value) => !value)} disabled={isSaving}>
+            <Ionicons name={isEditing ? "close-outline" : "create-outline"} size={20} color={COLORS.primary} />
+          </Pressable>
+          <Pressable style={styles.iconButton} onPress={handleDelete} disabled={isSaving}>
+            <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+          </Pressable>
+        </View>
+      </View>
+
+      {isEditing ? (
+        <View style={styles.editForm}>
+          <Input label="Etkinlik adi" value={title} onChangeText={setTitle} />
+          <Text variant="label">Etkinlik tipi</Text>
+          <View style={styles.wrap}>
+            {EVENT_TYPES.map((option) => {
+              const active = option.value === eventType;
+              return (
+                <Pressable key={option.value} style={[styles.chip, active && styles.activeChip]} onPress={() => setEventType(option.value)}>
+                  <Text variant="label" color={active ? "inverse" : "secondary"}>
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Input label="Tarih ve saat" value={eventDate} onChangeText={setEventDate} />
+          <Input label="Lokasyon" value={location} onChangeText={setLocation} />
+          <Input label="Not" value={notes} onChangeText={setNotes} />
+          <Button title="Degisiklikleri Kaydet" onPress={handleSave} loading={isSaving} />
+        </View>
+      ) : (
+        <>
+          {event.location ? (
+            <Text variant="caption" color="muted">
+              {event.location}
+            </Text>
+          ) : null}
+          {event.notes ? (
+            <Text variant="body" color="secondary">
+              {event.notes}
+            </Text>
+          ) : null}
+          <Text variant="caption" color="muted">
+            {event.calendar_event_id ? "Takvime eklendi" : "Sadece Shipirio plani"}
+          </Text>
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -277,5 +397,29 @@ const styles = StyleSheet.create({
   },
   suggestion: {
     gap: SPACING.xs,
+  },
+  eventHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
+    justifyContent: "space-between",
+  },
+  eventCopy: {
+    flex: 1,
+  },
+  eventActions: {
+    flexDirection: "row",
+    gap: SPACING.xs,
+  },
+  iconButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  editForm: {
+    gap: SPACING.sm,
   },
 });
