@@ -32,7 +32,7 @@ supabase secrets set ANTHROPIC_API_KEY=your-anthropic-key
 
 ## Premium
 
-Paywall ve freemium kapilari hazir. RevenueCat baglanana kadar paywall butonlari yerel premium onizleme modunu acar.
+Paywall, abonelik durumu ekrani ve freemium kapilari hazir. RevenueCat baglanana kadar paywall butonlari yerel premium onizleme modunu acar.
 
 ## Bildirimler
 

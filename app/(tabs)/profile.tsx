@@ -53,6 +53,9 @@ export default function ProfileScreen() {
 
       <View style={styles.menu}>
         <Card>
+          <Button title="Ayarlar" variant="ghost" onPress={() => router.push("/settings")} />
+        </Card>
+        <Card>
           <Button title="Hesap Ayarlari" variant="ghost" onPress={() => router.push("/settings/account")} />
         </Card>
         <Card>
@@ -68,7 +71,7 @@ export default function ProfileScreen() {
           <Button title="Bildirim Ayarlari" variant="ghost" onPress={() => router.push("/settings/notifications")} />
         </Card>
         <Card>
-          <Button title="Aboneligim" variant="ghost" onPress={() => router.push("/paywall")} />
+          <Button title="Aboneligim" variant="ghost" onPress={() => router.push("/settings/subscription")} />
         </Card>
         <Card>
           <Button title="Almali Miyim?" variant="ghost" onPress={() => router.push("/buy-decision")} />

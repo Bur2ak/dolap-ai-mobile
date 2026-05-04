@@ -29,6 +29,7 @@ export function useSubscription() {
 
   return {
     premium,
+    localPremiumOverride,
     limits,
     checkGate,
     isLimitReached,
