@@ -1,7 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 
 import { supabase } from "@/lib/supabase";
-import type { BuyDecisionInput, BuyDecisionResult } from "@/types";
+import type { BuyDecisionInput, BuyDecisionRecord, BuyDecisionResult } from "@/types";
 
 export async function requestBuyDecision(input: BuyDecisionInput): Promise<BuyDecisionResult> {
   const imageBase64 = await FileSystem.readAsStringAsync(input.imageUri, {
@@ -43,4 +43,19 @@ export async function saveBuyDecisionResult(userId: string, result: BuyDecisionR
   if (error) {
     throw error;
   }
+}
+
+export async function fetchBuyDecisionHistory(userId: string): Promise<BuyDecisionRecord[]> {
+  const { data, error } = await supabase
+    .from("buy_decisions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as BuyDecisionRecord[];
 }

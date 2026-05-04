@@ -48,6 +48,10 @@ Bildirim tercihleri, bildirim kutusu ve Expo push token kaydi uygulama tarafinda
 
 Fiyat takip CRUD ekranina ek olarak `price-check` Edge Function aktif takipleri kontrol eder, uygulama icinden manuel tetiklenebilir ve hedef fiyat altinda bildirim kaydi olusturur.
 
+## Karar Motoru
+
+Almali Miyim ekrani urun fotografi, fiyat ve mevcut dolap verisiyle AI karari uretir; kaydedilen kararlar son 20 kayit olarak gecmiste listelenir.
+
 ## Sosyal
 
 Arkadas arama, istek gonderme, kabul etme, engelleme, davet linki, paylasilan arkadas dolabi ve kombine oy verme akislari Premium kapisi arkasinda hazir.

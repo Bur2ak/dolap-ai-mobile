@@ -12,12 +12,21 @@ import { SPACING } from "@/constants/spacing";
 import { useBuyDecision } from "@/hooks/useBuyDecision";
 import { useImagePicker } from "@/hooks/useImagePicker";
 import { useWardrobe } from "@/hooks/useWardrobe";
+import type { BuyDecisionRecord } from "@/types";
 import { optimizeImage } from "@/utils/imageUtils";
+
+function formatDecisionDate(value: string) {
+  return new Date(value).toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export default function BuyDecisionScreen() {
   const { items } = useWardrobe();
   const { pickFromLibrary, takePhoto, isPicking } = useImagePicker();
-  const { decide, result, isDeciding, saveResult, isSaving, canSave } = useBuyDecision();
+  const { decide, result, isDeciding, saveResult, isSaving, canSave, history, isLoadingHistory } = useBuyDecision();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [price, setPrice] = useState("");
 
@@ -143,7 +152,65 @@ export default function BuyDecisionScreen() {
           <Button title="Karari Kaydet" variant="secondary" onPress={handleSave} loading={isSaving} />
         </Card>
       ) : null}
+
+      <View style={styles.sectionHeader}>
+        <Text variant="h3">Karar gecmisi</Text>
+        <Text variant="caption" color="muted">
+          SON 20
+        </Text>
+      </View>
+
+      {isLoadingHistory ? (
+        <Card>
+          <Text variant="body" color="secondary">
+            Gecmis yukleniyor...
+          </Text>
+        </Card>
+      ) : history.length ? (
+        history.map((decision) => <DecisionHistoryCard key={decision.id} decision={decision} />)
+      ) : (
+        <Card>
+          <Text variant="body" color="secondary">
+            Kayitli karar henuz yok. Analiz sonucunu kaydettiginde burada gorunecek.
+          </Text>
+        </Card>
+      )}
     </ScrollView>
+  );
+}
+
+function DecisionHistoryCard({ decision }: { decision: BuyDecisionRecord }) {
+  return (
+    <Card style={styles.historyCard}>
+      <View style={styles.historyTopRow}>
+        <View style={[styles.historyBadge, styles[`decision${decision.decision}`]]}>
+          <Text variant="label" color="inverse">
+            {decision.decision}
+          </Text>
+        </View>
+        <Text variant="caption" color="muted">
+          {formatDecisionDate(decision.created_at)}
+        </Text>
+      </View>
+
+      <Text variant="body" color="secondary" numberOfLines={2}>
+        {decision.ai_reasoning}
+      </Text>
+
+      <View style={styles.historyMetaRow}>
+        <Text variant="caption" color="muted">
+          GUVEN %{Math.round(decision.confidence * 100)}
+        </Text>
+        <Text variant="caption" color="muted">
+          {decision.combination_count} KOMBIN
+        </Text>
+        {decision.price ? (
+          <Text variant="caption" color="muted">
+            {decision.price} TL
+          </Text>
+        ) : null}
+      </View>
+    </Card>
   );
 }
 
@@ -186,6 +253,12 @@ const styles = StyleSheet.create({
   resultCard: {
     gap: SPACING.md,
   },
+  sectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: SPACING.sm,
+  },
   decisionBadge: {
     alignItems: "center",
     alignSelf: "flex-start",
@@ -203,5 +276,26 @@ const styles = StyleSheet.create({
   },
   decisionALMA: {
     backgroundColor: COLORS.danger,
+  },
+  historyCard: {
+    gap: SPACING.sm,
+  },
+  historyTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  historyBadge: {
+    alignItems: "center",
+    borderRadius: 8,
+    justifyContent: "center",
+    minWidth: 72,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  historyMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
   },
 });
