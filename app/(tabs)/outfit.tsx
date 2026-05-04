@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
 import { useState } from "react";
-import { Alert, Pressable } from "react-native";
+import { Alert, Pressable, Share } from "react-native";
 import { StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -12,15 +13,23 @@ import { SPACING } from "@/constants/spacing";
 import { useOutfitRecommendation } from "@/hooks/useOutfitRecommendation";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
+import type { OutfitRecommendationInput, OutfitSuggestion } from "@/types";
 
 const moods = ["Rahat", "Sik", "Dikkat cekici", "Minimal", "Enerjik"];
 
 export default function OutfitScreen() {
   const { items } = useWardrobe();
   const { weather, isLoading: isWeatherLoading } = useWeather();
-  const { recommend, suggestions, isRecommending } = useOutfitRecommendation();
+  const { userId, recommend, suggestions, isRecommending, saveSharedOutfit, isSavingSharedOutfit } = useOutfitRecommendation();
   const [selectedEvent, setSelectedEvent] = useState<string>(EVENT_TYPES[0].value);
   const [selectedMood, setSelectedMood] = useState(moods[0]);
+
+  const recommendationInput: OutfitRecommendationInput = {
+    event: selectedEvent,
+    mood: selectedMood,
+    weather,
+    wardrobe: items,
+  };
 
   async function handleRecommend() {
     if (items.length < 2) {
@@ -30,13 +39,32 @@ export default function OutfitScreen() {
 
     try {
       await recommend({
-        event: selectedEvent,
-        mood: selectedMood,
-        weather,
-        wardrobe: items,
+        ...recommendationInput,
       });
     } catch (error) {
       Alert.alert("Kombin onerilemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
+  }
+
+  async function handleAskFriend(suggestion: OutfitSuggestion) {
+    if (!userId) {
+      Alert.alert("Giris gerekli", "Kombini paylasmak icin once giris yapmalisin.");
+      return;
+    }
+
+    try {
+      const outfit = await saveSharedOutfit({
+        input: recommendationInput,
+        suggestion,
+      });
+      const shareUrl = Linking.createURL(`/outfit/${outfit.id}`);
+      await Share.share({
+        title: "Dolap AI kombini",
+        message: `Bu kombine oy verir misin? ${shareUrl}`,
+        url: shareUrl,
+      });
+    } catch (error) {
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
 
@@ -97,6 +125,7 @@ export default function OutfitScreen() {
             <Text variant="caption" color="muted">
               {suggestion.items.length} parca
             </Text>
+            <Button title="Arkadasa Sor" variant="secondary" onPress={() => void handleAskFriend(suggestion)} loading={isSavingSharedOutfit} />
           </Card>
         ))}
       </View>

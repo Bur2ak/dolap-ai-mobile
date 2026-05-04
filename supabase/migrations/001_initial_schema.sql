@@ -39,6 +39,8 @@ create table if not exists wardrobe_items (
   wear_count integer default 0,
   last_worn date,
   is_active boolean default true,
+  is_shareable boolean default false,
+  is_lendable boolean default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -57,6 +59,8 @@ create table if not exists outfits (
   ai_reasoning text,
   worn_at date,
   is_favorite boolean default false,
+  is_shareable boolean default false,
+  share_token text unique,
   created_at timestamptz default now()
 );
 
@@ -146,6 +150,17 @@ create table if not exists friendships (
 create index if not exists idx_friendships_requester on friendships(requester_id);
 create index if not exists idx_friendships_addressee on friendships(addressee_id);
 
+create table if not exists outfit_votes (
+  id uuid primary key default uuid_generate_v4(),
+  outfit_id uuid not null references outfits(id) on delete cascade,
+  voter_id uuid not null references profiles(id) on delete cascade,
+  vote text not null check (vote in ('yes', 'no', 'love')),
+  created_at timestamptz default now(),
+  unique(outfit_id, voter_id)
+);
+
+create index if not exists idx_outfit_votes_outfit_id on outfit_votes(outfit_id);
+
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
@@ -173,6 +188,7 @@ alter table events enable row level security;
 alter table price_tracking enable row level security;
 alter table notifications enable row level security;
 alter table friendships enable row level security;
+alter table outfit_votes enable row level security;
 
 create policy "Users can read own profile"
   on profiles for select using (auth.uid() = id);
@@ -218,8 +234,37 @@ create policy "Accepted friends can read shared wardrobe"
     )
   );
 
+create policy "Accepted friends can read shared outfit wardrobe"
+  on wardrobe_items for select using (
+    is_active = true
+    and exists (
+      select 1 from outfit_items
+      join outfits on outfits.id = outfit_items.outfit_id
+      join friendships on friendships.status = 'accepted'
+      where outfit_items.item_id = wardrobe_items.id
+      and outfits.is_shareable = true
+      and (
+        (friendships.requester_id = auth.uid() and friendships.addressee_id = outfits.user_id)
+        or (friendships.addressee_id = auth.uid() and friendships.requester_id = outfits.user_id)
+      )
+    )
+  );
+
 create policy "Users can manage own outfits"
   on outfits for all using (auth.uid() = user_id);
+
+create policy "Accepted friends can read shared outfits"
+  on outfits for select using (
+    is_shareable = true
+    and exists (
+      select 1 from friendships
+      where friendships.status = 'accepted'
+      and (
+        (friendships.requester_id = auth.uid() and friendships.addressee_id = outfits.user_id)
+        or (friendships.addressee_id = auth.uid() and friendships.requester_id = outfits.user_id)
+      )
+    )
+  );
 
 create policy "Users can manage own outfit items"
   on outfit_items for all using (
@@ -227,6 +272,20 @@ create policy "Users can manage own outfit items"
       select 1 from outfits
       where outfits.id = outfit_items.outfit_id
       and outfits.user_id = auth.uid()
+    )
+  );
+
+create policy "Accepted friends can read shared outfit items"
+  on outfit_items for select using (
+    exists (
+      select 1 from outfits
+      join friendships on friendships.status = 'accepted'
+      where outfits.id = outfit_items.outfit_id
+      and outfits.is_shareable = true
+      and (
+        (friendships.requester_id = auth.uid() and friendships.addressee_id = outfits.user_id)
+        or (friendships.addressee_id = auth.uid() and friendships.requester_id = outfits.user_id)
+      )
     )
   );
 
@@ -241,6 +300,22 @@ create policy "Users can manage own price tracking"
 
 create policy "Users can manage own notifications"
   on notifications for all using (auth.uid() = user_id);
+
+create policy "Friends can create outfit vote notifications"
+  on notifications for insert with check (
+    type = 'outfit_vote'
+    and exists (
+      select 1 from outfits
+      join friendships on friendships.status = 'accepted'
+      where outfits.id = (notifications.data->>'outfit_id')::uuid
+      and notifications.user_id = outfits.user_id
+      and outfits.user_id != auth.uid()
+      and (
+        (friendships.requester_id = auth.uid() and friendships.addressee_id = outfits.user_id)
+        or (friendships.addressee_id = auth.uid() and friendships.requester_id = outfits.user_id)
+      )
+    )
+  );
 
 create policy "Users can read own friendships"
   on friendships for select using (auth.uid() = requester_id or auth.uid() = addressee_id);
@@ -257,6 +332,45 @@ create policy "Users can send friend requests"
 
 create policy "Users can update own friendships"
   on friendships for update using (auth.uid() = requester_id or auth.uid() = addressee_id);
+
+create policy "Users can read related outfit votes"
+  on outfit_votes for select using (
+    voter_id = auth.uid()
+    or exists (
+      select 1 from outfits
+      where outfits.id = outfit_votes.outfit_id
+      and outfits.user_id = auth.uid()
+    )
+    or exists (
+      select 1 from outfits
+      join friendships on friendships.status = 'accepted'
+      where outfits.id = outfit_votes.outfit_id
+      and outfits.is_shareable = true
+      and (
+        (friendships.requester_id = auth.uid() and friendships.addressee_id = outfits.user_id)
+        or (friendships.addressee_id = auth.uid() and friendships.requester_id = outfits.user_id)
+      )
+    )
+  );
+
+create policy "Friends can vote on shared outfits"
+  on outfit_votes for insert with check (
+    voter_id = auth.uid()
+    and exists (
+      select 1 from outfits
+      join friendships on friendships.status = 'accepted'
+      where outfits.id = outfit_votes.outfit_id
+      and outfits.is_shareable = true
+      and outfits.user_id != auth.uid()
+      and (
+        (friendships.requester_id = auth.uid() and friendships.addressee_id = outfits.user_id)
+        or (friendships.addressee_id = auth.uid() and friendships.requester_id = outfits.user_id)
+      )
+    )
+  );
+
+create policy "Friends can update own outfit votes"
+  on outfit_votes for update using (voter_id = auth.uid()) with check (voter_id = auth.uid());
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

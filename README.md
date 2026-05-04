@@ -46,7 +46,7 @@ Fiyat takip CRUD ekranina ek olarak `price-check` Edge Function aktif takipleri 
 
 ## Sosyal
 
-Arkadas arama, istek gonderme, kabul etme, engelleme, davet linki ve paylasilan arkadas dolabi akislari Premium kapisi arkasinda hazir.
+Arkadas arama, istek gonderme, kabul etme, engelleme, davet linki, paylasilan arkadas dolabi ve kombine oy verme akislari Premium kapisi arkasinda hazir.
 
 ## Hesap Ayarlari
 

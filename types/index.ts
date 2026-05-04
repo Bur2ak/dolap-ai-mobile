@@ -110,6 +110,38 @@ export interface OutfitSuggestion {
   formality_match?: string;
 }
 
+export interface OutfitRecord {
+  id: string;
+  user_id: string;
+  name: string | null;
+  event_type: string | null;
+  weather_temp: number | null;
+  weather_description: string | null;
+  mood: string | null;
+  ai_reasoning: string | null;
+  worn_at: string | null;
+  is_favorite: boolean;
+  is_shareable: boolean;
+  share_token: string | null;
+  created_at: string;
+}
+
+export type OutfitVoteValue = "yes" | "no" | "love";
+
+export interface OutfitVote {
+  id: string;
+  outfit_id: string;
+  voter_id: string;
+  vote: OutfitVoteValue;
+  created_at: string;
+}
+
+export interface SharedOutfit {
+  outfit: OutfitRecord;
+  items: WardrobeItem[];
+  votes: OutfitVote[];
+}
+
 export interface OutfitRecommendationInput {
   event: string;
   mood: string;
