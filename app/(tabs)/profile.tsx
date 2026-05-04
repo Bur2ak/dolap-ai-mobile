@@ -71,6 +71,9 @@ export default function ProfileScreen() {
           <Button title="Bildirim Ayarlari" variant="ghost" onPress={() => router.push("/settings/notifications")} />
         </Card>
         <Card>
+          <Button title="Bildirim Kutusu" variant="ghost" onPress={() => router.push("/notifications")} />
+        </Card>
+        <Card>
           <Button title="Aboneligim" variant="ghost" onPress={() => router.push("/settings/subscription")} />
         </Card>
         <Card>

@@ -28,6 +28,12 @@ const settingsRoutes = [
     route: "/settings/notifications" as const,
   },
   {
+    icon: "mail-unread-outline" as const,
+    title: "Bildirim Kutusu",
+    body: "Fiyat dususleri, arkadas istekleri ve kombin oylarini gor.",
+    route: "/notifications" as const,
+  },
+  {
     icon: "card-outline" as const,
     title: "Abonelik",
     body: "Plan durumunu ve freemium limitlerini gor.",

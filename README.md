@@ -42,7 +42,7 @@ Paywall, abonelik durumu ekrani, RevenueCat webhook ve freemium kapilari hazir. 
 
 ## Bildirimler
 
-Bildirim tercihleri ve Expo push token kaydi uygulama tarafinda hazir. Gercek cihazda push token icin EAS `projectId` ayarlanmalidir.
+Bildirim tercihleri, bildirim kutusu ve Expo push token kaydi uygulama tarafinda hazir. Gercek cihazda push token icin EAS `projectId` ayarlanmalidir.
 
 ## Fiyat Takibi
 
