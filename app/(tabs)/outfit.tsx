@@ -205,6 +205,19 @@ export default function OutfitScreen() {
                   {saved.outfit.is_favorite ? "Favori - " : ""}
                   {saved.items.length} parca - {saved.votes.length} oy
                 </Text>
+                {saved.items.length > 0 ? (
+                  <View style={styles.suggestionItems}>
+                    {saved.items.slice(0, 4).map((item) => (
+                      <View key={item.id} style={styles.suggestionItem}>
+                        {item.thumbnail_url || item.image_url ? (
+                          <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.suggestionImage} />
+                        ) : (
+                          <View style={[styles.suggestionColorBlock, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
               </Card>
             </Pressable>
           ))
