@@ -40,7 +40,7 @@ Hava: ${weather ? `${weather.temp} C, ${weather.description}` : "bilinmiyor"}
     const response = await callGemini(apiKey, [{ text: prompt }], 1200);
 
     if (!response.ok) {
-      return json({ error: "Gemini request failed", status: response.status }, response.status);
+      return json(fallbackOutfits(wardrobe, title));
     }
 
     const data = await response.json();
@@ -48,14 +48,39 @@ Hava: ${weather ? `${weather.temp} C, ${weather.description}` : "bilinmiyor"}
     const match = text.match(/\[[\s\S]*\]/);
 
     if (!match) {
-      return json({ error: "Gemini response did not include JSON" }, 502);
+      return json(fallbackOutfits(wardrobe, title));
     }
 
     return json(JSON.parse(match[0]));
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
+    return json(fallbackOutfits([], "Etkinlik"));
   }
 });
+
+function fallbackOutfits(wardrobe: unknown, title: unknown) {
+  const items = Array.isArray(wardrobe) ? wardrobe : [];
+  const ids = items
+    .map((item) => (isRecord(item) && typeof item.id === "string" ? item.id : null))
+    .filter((id): id is string => Boolean(id))
+    .slice(0, 4);
+
+  if (ids.length < 2) {
+    return [];
+  }
+
+  return [
+    {
+      items: ids.slice(0, Math.min(ids.length, 3)),
+      name: "Etkinlik Kombini",
+      reason: `${String(title ?? "Etkinlik")} icin dolabindaki uyumlu parcalardan pratik bir oneridir.`,
+      formality_match: "Temel uyum",
+    },
+  ];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function callGemini(apiKey: string, parts: unknown[], maxOutputTokens: number) {
   return fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {

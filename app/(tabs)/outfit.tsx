@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, Share } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Share } from "react-native";
 import { StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -14,7 +14,7 @@ import { SPACING } from "@/constants/spacing";
 import { useOutfitRecommendation } from "@/hooks/useOutfitRecommendation";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
-import type { OutfitRecommendationInput, OutfitSuggestion } from "@/types";
+import type { OutfitRecommendationInput, OutfitSuggestion, WardrobeItem } from "@/types";
 
 const moods = ["Rahat", "Sik", "Dikkat cekici", "Minimal", "Enerjik"];
 
@@ -144,21 +144,43 @@ export default function OutfitScreen() {
       </View>
 
       <View style={styles.results}>
-        {suggestions.map((suggestion) => (
-          <Card key={suggestion.name} style={styles.suggestion}>
-            <Text variant="h3">{suggestion.name}</Text>
-            <Text variant="body" color="secondary">
-              {suggestion.reason}
-            </Text>
-            <Text variant="caption" color="muted">
-              {suggestion.items.length} parca
-            </Text>
-            <View style={styles.suggestionActions}>
-              <Button title="Kaydet" variant="secondary" onPress={() => void handleSaveOutfit(suggestion)} loading={isSavingOutfit} />
-              <Button title="Arkadasa Sor" variant="ghost" onPress={() => void handleAskFriend(suggestion)} loading={isSavingOutfit} />
-            </View>
-          </Card>
-        ))}
+        {suggestions.map((suggestion) => {
+          const suggestionItems = suggestion.items
+            .map((itemId) => items.find((wardrobeItem) => wardrobeItem.id === itemId))
+            .filter((item): item is WardrobeItem => Boolean(item));
+
+          return (
+            <Card key={suggestion.name} style={styles.suggestion}>
+              <Text variant="h3">{suggestion.name}</Text>
+              <Text variant="body" color="secondary">
+                {suggestion.reason}
+              </Text>
+              <Text variant="caption" color="muted">
+                {suggestion.items.length} parca
+              </Text>
+              {suggestionItems.length > 0 ? (
+                <View style={styles.suggestionItems}>
+                  {suggestionItems.map((item) => (
+                    <View key={item.id} style={styles.suggestionItem}>
+                      {item.thumbnail_url || item.image_url ? (
+                        <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.suggestionImage} />
+                      ) : (
+                        <View style={[styles.suggestionColorBlock, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
+                      )}
+                      <Text variant="caption" color="secondary" style={styles.suggestionItemLabel}>
+                        {item.subcategory ?? item.category}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <View style={styles.suggestionActions}>
+                <Button title="Kaydet" variant="secondary" onPress={() => void handleSaveOutfit(suggestion)} loading={isSavingOutfit} />
+                <Button title="Arkadasa Sor" variant="ghost" onPress={() => void handleAskFriend(suggestion)} loading={isSavingOutfit} />
+              </View>
+            </Card>
+          );
+        })}
       </View>
 
       <Button title="Kombin Oner" onPress={handleRecommend} loading={isRecommending} style={styles.cta} />
@@ -236,6 +258,30 @@ const styles = StyleSheet.create({
   },
   suggestion: {
     gap: SPACING.xs,
+  },
+  suggestionItems: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    paddingTop: SPACING.xs,
+  },
+  suggestionItem: {
+    flex: 1,
+    gap: SPACING.xs,
+    minWidth: 0,
+  },
+  suggestionImage: {
+    aspectRatio: 4 / 5,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    width: "100%",
+  },
+  suggestionColorBlock: {
+    aspectRatio: 4 / 5,
+    borderRadius: 8,
+    width: "100%",
+  },
+  suggestionItemLabel: {
+    textAlign: "center",
   },
   suggestionActions: {
     gap: SPACING.sm,

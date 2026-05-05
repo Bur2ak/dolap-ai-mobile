@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -15,7 +15,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
 import { createCalendarEvent } from "@/lib/calendar";
-import type { EventPlanInput, EventRecord } from "@/types";
+import type { EventPlanInput, EventRecord, WardrobeItem } from "@/types";
 
 export default function EventPlannerScreen() {
   const { items } = useWardrobe();
@@ -161,22 +161,44 @@ export default function EventPlannerScreen() {
       {suggestions.length > 0 ? (
         <View style={styles.results}>
           <Text variant="h3">Oneriler</Text>
-          {suggestions.map((suggestion) => (
-            <Card key={suggestion.name} style={styles.suggestion}>
-              <Text variant="h3">{suggestion.name}</Text>
-              <Text variant="body" color="secondary">
-                {suggestion.reason}
-              </Text>
-              {suggestion.formality_match ? (
-                <Text variant="caption" color="muted">
-                  {suggestion.formality_match}
+          {suggestions.map((suggestion) => {
+            const suggestionItems = suggestion.items
+              .map((itemId) => items.find((wardrobeItem) => wardrobeItem.id === itemId))
+              .filter((item): item is WardrobeItem => Boolean(item));
+
+            return (
+              <Card key={suggestion.name} style={styles.suggestion}>
+                <Text variant="h3">{suggestion.name}</Text>
+                <Text variant="body" color="secondary">
+                  {suggestion.reason}
                 </Text>
-              ) : null}
-              <Text variant="caption" color="muted">
-                {suggestion.items.length} parca
-              </Text>
-            </Card>
-          ))}
+                {suggestion.formality_match ? (
+                  <Text variant="caption" color="muted">
+                    {suggestion.formality_match}
+                  </Text>
+                ) : null}
+                <Text variant="caption" color="muted">
+                  {suggestion.items.length} parca
+                </Text>
+                {suggestionItems.length > 0 ? (
+                  <View style={styles.suggestionItems}>
+                    {suggestionItems.map((item) => (
+                      <View key={item.id} style={styles.suggestionItem}>
+                        {item.thumbnail_url || item.image_url ? (
+                          <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.suggestionImage} />
+                        ) : (
+                          <View style={[styles.suggestionColorBlock, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
+                        )}
+                        <Text variant="caption" color="secondary" style={styles.suggestionItemLabel}>
+                          {item.subcategory ?? item.category}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </Card>
+            );
+          })}
         </View>
       ) : null}
 
@@ -397,6 +419,30 @@ const styles = StyleSheet.create({
   },
   suggestion: {
     gap: SPACING.xs,
+  },
+  suggestionItems: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    paddingTop: SPACING.xs,
+  },
+  suggestionItem: {
+    flex: 1,
+    gap: SPACING.xs,
+    minWidth: 0,
+  },
+  suggestionImage: {
+    aspectRatio: 4 / 5,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    width: "100%",
+  },
+  suggestionColorBlock: {
+    aspectRatio: 4 / 5,
+    borderRadius: 8,
+    width: "100%",
+  },
+  suggestionItemLabel: {
+    textAlign: "center",
   },
   eventHeader: {
     alignItems: "center",
