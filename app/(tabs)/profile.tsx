@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -13,14 +14,35 @@ import { formatDate } from "@/utils/formatters";
 export default function ProfileScreen() {
   const { profile, signOut } = useAuthStore();
   const { premium } = useSubscription();
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const profileIncomplete = Boolean(profile && (!profile.username || !profile.onboarding_completed));
 
-  async function handleSignOut() {
+  function handleSignOut() {
+    Alert.alert("Cikis yap", "Shipirio hesabindan cikis yapmak istiyor musun?", [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: "Cikis Yap",
+        style: "destructive",
+        onPress: () => {
+          void performSignOut();
+        },
+      },
+    ]);
+  }
+
+  async function performSignOut() {
+    if (isSigningOut) {
+      return;
+    }
+
     try {
+      setIsSigningOut(true);
       await signOut();
       router.replace("/(auth)/onboarding");
     } catch (error) {
       Alert.alert("Cikis yapilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSigningOut(false);
     }
   }
 
@@ -115,7 +137,7 @@ export default function ProfileScreen() {
         </Card>
       </View>
 
-      <Button title="Cikis Yap" variant="secondary" onPress={handleSignOut} style={styles.signOut} />
+      <Button title="Cikis Yap" variant="secondary" onPress={handleSignOut} loading={isSigningOut} disabled={isSigningOut} style={styles.signOut} />
     </ScrollView>
   );
 }

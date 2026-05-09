@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import type { PurchasesPackage } from "react-native-purchases";
 
@@ -40,41 +40,33 @@ export default function PaywallScreen() {
   const [isRestoring, setIsRestoring] = useState(false);
   const planCards = packages.length > 0 ? packages.map(getPackagePlanCard) : fallbackPlanCards;
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadPackages() {
+  const loadPackages = useCallback(async () => {
       try {
+        setIsLoadingPackages(true);
         const readiness = getRevenueCatReadiness();
         if (!readiness.configured) {
           setPackageLoadReason(readiness.reason ?? "RevenueCat hazir degil.");
           setPackages([]);
+          captureEvent("paywall_packages_unavailable", { reason: readiness.reason ?? "not_configured" });
           return;
         }
 
         const nextPackages = await getRevenueCatPackages();
-        if (mounted) {
-          setPackages(nextPackages);
-          setPackageLoadReason(nextPackages.length > 0 ? null : "RevenueCat teklifleri bos dondu.");
-        }
+        setPackages(nextPackages);
+        setPackageLoadReason(nextPackages.length > 0 ? null : "RevenueCat teklifleri bos dondu.");
+        captureEvent("paywall_packages_loaded", { package_count: nextPackages.length });
       } catch (error) {
-        if (mounted) {
-          setPackages([]);
-          setPackageLoadReason(error instanceof Error ? error.message : "RevenueCat teklifleri yuklenemedi.");
-        }
+        setPackages([]);
+        setPackageLoadReason(error instanceof Error ? error.message : "RevenueCat teklifleri yuklenemedi.");
+        captureError(error, { area: "paywall_packages" });
       } finally {
-        if (mounted) {
-          setIsLoadingPackages(false);
-        }
+        setIsLoadingPackages(false);
       }
-    }
-
-    void loadPackages();
-
-    return () => {
-      mounted = false;
-    };
   }, []);
+
+  useEffect(() => {
+    void loadPackages();
+  }, [loadPackages]);
 
   function activatePreview() {
     captureEvent("premium_preview_activated");
@@ -193,6 +185,7 @@ export default function PaywallScreen() {
             <Text variant="body" color="secondary">
               {packageLoadReason ?? "RevenueCat teklifleri henuz hazir degil. App Store / Google Play urunleri baglandiginda burada gercek planlar gorunecek."}
             </Text>
+            <Button title="Tekrar Dene" variant="secondary" onPress={() => void loadPackages()} disabled={isPurchasing || isRestoring} />
             {__DEV__ ? <Button title="Gelistirme Icin Premium Ac" variant="secondary" onPress={activatePreview} disabled={isPurchasing || isRestoring} /> : null}
           </>
         )}

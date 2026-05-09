@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -8,6 +9,8 @@ import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { createPublicAppLink } from "@/lib/links";
+import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import { formatDate, formatDateOnly } from "@/utils/formatters";
 import { isValidUsername, normalizeUsername } from "@/utils/validation";
@@ -24,6 +27,7 @@ export default function AccountSettingsScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isUpdatingDeletion, setIsUpdatingDeletion] = useState(false);
+  const deletionInfoUrl = createPublicAppLink("/delete-account.html");
 
   useEffect(() => {
     setFullName(profile?.full_name ?? "");
@@ -130,11 +134,24 @@ export default function AccountSettingsScreen() {
         deletion_requested_at: requestedAt?.toISOString() ?? null,
         deletion_scheduled_for: scheduledFor ? formatDateOnly(scheduledFor) : null,
       });
+      captureEvent(requested ? "account_deletion_requested" : "account_deletion_cancelled", {
+        scheduled_for: scheduledFor ? formatDateOnly(scheduledFor) : null,
+      });
       Alert.alert(requested ? "Talep alindi" : "Talep iptal edildi", requested ? "Hesabin 30 gunluk bekleme surecine alindi." : "Hesap silme talebin iptal edildi.");
     } catch (error) {
+      captureError(error, { area: "account_deletion_request", requested });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsUpdatingDeletion(false);
+    }
+  }
+
+  async function openDeletionInfo() {
+    try {
+      await WebBrowser.openBrowserAsync(deletionInfoUrl);
+    } catch (error) {
+      captureError(error, { area: "account_deletion_info" });
+      Alert.alert("Acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
 
@@ -177,6 +194,7 @@ export default function AccountSettingsScreen() {
             <Text variant="body" color="secondary">
               Hesap silme talebin alindi. Planlanan silme tarihi: {profile.deletion_scheduled_for ? formatDate(profile.deletion_scheduled_for) : "30 gun icinde"}.
             </Text>
+            <Button title="Hesap Silme Bilgisi" variant="ghost" onPress={() => void openDeletionInfo()} />
             <Button title="Silme Talebini Iptal Et" variant="secondary" onPress={handleCancelDeletion} loading={isUpdatingDeletion} />
           </>
         ) : (
@@ -184,6 +202,7 @@ export default function AccountSettingsScreen() {
             <Text variant="body" color="secondary">
               Talep olusturdugunda hesabinin ve iliskili verilerinin kalici silinmesi icin 30 gunluk sure baslar.
             </Text>
+            <Button title="Hesap Silme Bilgisi" variant="secondary" onPress={() => void openDeletionInfo()} />
             <Button title="Hesap Silme Talebi Olustur" variant="ghost" onPress={handleRequestDeletion} loading={isUpdatingDeletion} />
           </>
         )}
