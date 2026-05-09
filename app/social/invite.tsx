@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useState } from "react";
 import { Alert, Share, StyleSheet, View } from "react-native";
 
 import { PremiumGate } from "@/components/shared/PremiumGate";
@@ -12,6 +13,7 @@ import { SPACING } from "@/constants/spacing";
 import { useReferralRewards } from "@/hooks/useSocial";
 import { useSubscription } from "@/hooks/useSubscription";
 import { createPublicAppLink } from "@/lib/links";
+import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import type { ReferralReward } from "@/types";
 import { formatDate } from "@/utils/formatters";
@@ -23,16 +25,26 @@ export default function InviteScreen() {
   const inviteCode = profile?.username ?? profile?.id ?? "shipirio";
   const totalRewardDays = rewards.reduce((total, reward) => total + reward.reward_days, 0);
   const inviteUrl = createPublicAppLink("/social/friends", { invite: inviteCode });
+  const [isSharing, setIsSharing] = useState(false);
 
   async function handleShare() {
+    if (isSharing) {
+      return;
+    }
+
     try {
-      await Share.share({
+      setIsSharing(true);
+      const result = await Share.share({
         title: "Shipirio daveti",
         message: `Shipirio'da arkadas olalim: ${inviteUrl}`,
         url: inviteUrl,
       });
+      captureEvent("invite_link_shared", { completed: result.action === Share.sharedAction });
     } catch (error) {
+      captureError(error, { area: "invite_share" });
       Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharing(false);
     }
   }
 
@@ -66,7 +78,7 @@ export default function InviteScreen() {
                 {inviteUrl}
               </Text>
             </Card>
-            <Button title="Paylas" onPress={handleShare} />
+            <Button title="Paylas" onPress={handleShare} loading={isSharing} disabled={isSharing} />
           </Card>
 
           <Card style={styles.rewardCard}>

@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -9,7 +10,8 @@ import { SPACING } from "@/constants/spacing";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
-import { scheduleOutfitReminder } from "@/lib/notifications";
+import { cancelOutfitReminders, scheduleOutfitReminder } from "@/lib/notifications";
+import { captureError, captureEvent } from "@/lib/observability";
 import type { NotificationPreferences } from "@/types";
 import { buildSmartOutfitNotification } from "@/utils/smartNotifications";
 
@@ -45,6 +47,7 @@ export default function NotificationSettingsScreen() {
   const { preferences, registerForPush, isRegistering, updatePreferences, isUpdating } = useNotifications();
   const { items } = useWardrobe();
   const { weather, isLoading: isWeatherLoading, refetch } = useWeather();
+  const [isSchedulingReminder, setIsSchedulingReminder] = useState(false);
   const smartPlan = buildSmartOutfitNotification(weather, items);
 
   async function handleEnablePush() {
@@ -66,12 +69,35 @@ export default function NotificationSettingsScreen() {
 
   async function handleScheduleSmartReminder() {
     try {
+      setIsSchedulingReminder(true);
       const latestWeather = weather ?? (await refetch()).data ?? null;
       const plan = buildSmartOutfitNotification(latestWeather, items);
       const identifier = await scheduleOutfitReminder(plan);
+      if (identifier && !preferences.outfit_reminder) {
+        await updatePreferences({ outfit_reminder: true });
+      }
+      captureEvent("smart_outfit_reminder_scheduled", { success: Boolean(identifier), weather_available: Boolean(latestWeather) });
       Alert.alert(identifier ? "Akilli hatirlatici kuruldu" : "Kurulamadi", identifier ? "Sabah bildirimi hava durumuna gore hazir." : "Bu cihazda lokal bildirim uygun degil.");
     } catch (error) {
+      captureError(error, { area: "smart_outfit_reminder_schedule" });
       Alert.alert("Kurulamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSchedulingReminder(false);
+    }
+  }
+
+  async function handleCancelSmartReminder() {
+    try {
+      setIsSchedulingReminder(true);
+      await cancelOutfitReminders();
+      await updatePreferences({ outfit_reminder: false });
+      captureEvent("smart_outfit_reminder_cancelled");
+      Alert.alert("Hatirlatici kapatildi", "Sabah kombin hatirlaticisi iptal edildi.");
+    } catch (error) {
+      captureError(error, { area: "smart_outfit_reminder_cancel" });
+      Alert.alert("Kapatilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSchedulingReminder(false);
     }
   }
 
@@ -88,7 +114,7 @@ export default function NotificationSettingsScreen() {
         <Text variant="body" color="secondary">
           Hatirlaticilar ve fiyat dususleri icin cihaz bildirimi izni gerekir.
         </Text>
-        <Button title="Bildirimleri Etkinlestir" onPress={handleEnablePush} loading={isRegistering} />
+        <Button title="Bildirimleri Etkinlestir" onPress={handleEnablePush} loading={isRegistering} disabled={isRegistering || isUpdating || isSchedulingReminder} />
       </Card>
 
       <Card style={styles.intro}>
@@ -102,7 +128,16 @@ export default function NotificationSettingsScreen() {
         <Text variant="caption" color="muted">
           {smartPlan.reason}
         </Text>
-        <Button title="Akilli Hatirlaticiyi Kur" variant="secondary" onPress={handleScheduleSmartReminder} loading={isWeatherLoading} />
+        <Button
+          title="Akilli Hatirlaticiyi Kur"
+          variant="secondary"
+          onPress={handleScheduleSmartReminder}
+          loading={isWeatherLoading || isSchedulingReminder}
+          disabled={isUpdating || isRegistering || isSchedulingReminder}
+        />
+        {preferences.outfit_reminder ? (
+          <Button title="Hatirlaticiyi Kapat" variant="ghost" onPress={handleCancelSmartReminder} loading={isSchedulingReminder} disabled={isUpdating || isSchedulingReminder} />
+        ) : null}
       </Card>
 
       {rows.map((row) => {

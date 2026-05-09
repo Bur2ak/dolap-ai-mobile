@@ -13,6 +13,7 @@ export interface PriceCheckResult {
     price?: number;
     updated: boolean;
     notified: boolean;
+    push_sent?: boolean;
     reason?: string;
   }>;
 }

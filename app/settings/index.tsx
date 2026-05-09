@@ -52,6 +52,12 @@ const settingsRoutes = [
     route: "/settings/diagnostics" as const,
   },
   {
+    icon: "help-circle-outline" as const,
+    title: "Destek",
+    body: "Iletisim, destek ve store URL bilgilerini gor.",
+    route: "/settings/support" as const,
+  },
+  {
     icon: "document-text-outline" as const,
     title: "KVKK Aydinlatma Metni",
     body: "Kisisel verilerin islenme kapsamlarini incele.",

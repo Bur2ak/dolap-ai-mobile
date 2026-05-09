@@ -143,7 +143,12 @@ export default function PriceTrackingScreen() {
 
     try {
       const result = await checkPrices();
-      Alert.alert("Kontrol tamam", `${result.checked} urun kontrol edildi, ${result.updated} fiyat guncellendi.`);
+      const undetected = result.results.filter((item) => item.reason === "price_not_detected").length;
+      const pushSent = result.results.filter((item) => item.push_sent).length;
+      Alert.alert(
+        "Kontrol tamam",
+        `${result.checked} urun kontrol edildi, ${result.updated} fiyat guncellendi, ${result.notified} bildirim olustu.${pushSent > 0 ? ` ${pushSent} push gonderildi.` : ""}${undetected > 0 ? ` ${undetected} urunde fiyat bulunamadi.` : ""}`,
+      );
     } catch (error) {
       Alert.alert("Kontrol edilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }

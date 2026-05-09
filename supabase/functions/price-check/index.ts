@@ -179,7 +179,16 @@ async function checkTracking(
       throw notificationError;
     }
 
-    await sendPriceDropPush(tracking, detectedPrice, targetPrice);
+    const pushSent = await sendPriceDropPush(tracking, detectedPrice, targetPrice);
+
+    return {
+      id: tracking.id,
+      product_name: tracking.product_name,
+      price: detectedPrice,
+      updated: changed,
+      notified: true,
+      push_sent: pushSent,
+    };
   }
 
   return {
@@ -187,7 +196,8 @@ async function checkTracking(
     product_name: tracking.product_name,
     price: detectedPrice,
     updated: changed,
-    notified: shouldNotify && notificationsEnabled,
+    notified: false,
+    reason: shouldNotify && !notificationsEnabled ? "notifications_disabled" : undefined,
   };
 }
 
@@ -199,11 +209,11 @@ async function sendPriceDropPush(tracking: PriceTrackingRow, currentPrice: numbe
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!pushEnabled || !pushToken || !supabaseUrl || !serviceRoleKey) {
-    return;
+    return false;
   }
 
   try {
-    await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${serviceRoleKey}`,
@@ -223,8 +233,10 @@ async function sendPriceDropPush(tracking: PriceTrackingRow, currentPrice: numbe
         },
       }),
     });
+    return response.ok;
   } catch (_error) {
     // Inbox notification is already stored; push delivery can fail independently.
+    return false;
   }
 }
 

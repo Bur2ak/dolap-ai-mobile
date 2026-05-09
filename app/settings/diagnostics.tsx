@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { router } from "expo-router";
 import { ScrollView, StyleSheet, View } from "react-native";
 
@@ -49,6 +50,9 @@ const checks = [
 
 export default function DiagnosticsScreen() {
   const warnings = getPublicEnvWarnings();
+  const appVersion = Constants.expoConfig?.version ?? "Bilinmiyor";
+  const iosBuildNumber = Constants.expoConfig?.ios?.buildNumber ?? "Bilinmiyor";
+  const androidVersionCode = Constants.expoConfig?.android?.versionCode ?? "Bilinmiyor";
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -62,6 +66,13 @@ export default function DiagnosticsScreen() {
         <Text variant="h3">{warnings.length === 0 ? "Temel ayarlar hazir" : `${warnings.length} uyari var`}</Text>
         <Text variant="body" color="secondary">
           Bu ekran sadece public app ayarlarini kontrol eder; gizli Supabase Edge Function secret degerlerini gostermez.
+        </Text>
+      </Card>
+
+      <Card style={styles.summary}>
+        <Text variant="h3">Uygulama</Text>
+        <Text variant="body" color="secondary">
+          Surum {appVersion} · iOS build {iosBuildNumber} · Android code {androidVersionCode}
         </Text>
       </Card>
 

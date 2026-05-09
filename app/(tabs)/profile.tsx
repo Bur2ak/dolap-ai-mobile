@@ -102,6 +102,9 @@ export default function ProfileScreen() {
           <Button title="Sistem Durumu" variant="ghost" onPress={() => router.push("/settings/diagnostics")} />
         </Card>
         <Card>
+          <Button title="Destek" variant="ghost" onPress={() => router.push("/settings/support")} />
+        </Card>
+        <Card>
           <Button title="Aboneligim" variant="ghost" onPress={() => router.push("/settings/subscription")} />
         </Card>
         <Card>

@@ -90,6 +90,8 @@ supabase secrets set ACCOUNT_DELETION_CRON_SECRET=your-cron-secret
 
 Paywall, abonelik durumu ekrani, RevenueCat webhook ve freemium kapilari hazir. Yerel premium onizleme sadece gelistirme modunda acilir; preview/production build'lerde premium durumu RevenueCat entitlement'i veya Supabase profil tier'i ile belirlenir.
 
+RevenueCat webhook `REVENUECAT_WEBHOOK_SECRET` ile korunur ve `premium` / `family` entitlement veya product event'lerini `profiles.subscription_tier` alanina yazar. `CANCELLATION` ve `BILLING_ISSUE` event'leri kullaniciyi hemen free'ye dusurmez; entitlement suresi dolana kadar premium erisim korunur. `EXPIRATION` geldikten sonra profil free'ye cekilir.
+
 ## Bildirimler
 
 Bildirim tercihleri, bildirim kutusu, okundu/silme akislari, Expo push token kaydi ve `send-notification` Edge Function hazir. Fiyat dususu, arkadas istegi, kombin oyu ve odunc istegi bildirimleri kullanici tercihine gore olusturulur. Gercek cihazda push token icin EAS `projectId` ayarlanmalidir.
@@ -135,6 +137,14 @@ Son 30 kiyafet ve son 3 kombin onerisi lokal cache'lenir; ag hatasinda kullanici
 ## Auth
 
 Giris, kayit, temel form dogrulamasi, legal linkler ve Supabase email sifre sifirlama akislari hazir.
+
+## Deep Link ve Domain
+
+`app.json` icinde iOS associated domains ve Android app links `shipirio.com` / `www.shipirio.com` icin hazir. Domain hosting tarafinda `.well-known` dosyalarini yayinlamak icin `public/.well-known/apple-app-site-association.example` ve `public/.well-known/assetlinks.json.example` sablonlarini gercek Apple Team ID ve Android SHA-256 sertifika parmak iziyle doldur.
+
+Store hazirlik URL'leri icin statik `public/privacy.html`, `public/support.html` ve `public/delete-account.html` dosyalari hazir. App Store / Play Console alanlarinda `https://shipirio.com/privacy.html`, `https://shipirio.com/support.html` ve `https://shipirio.com/delete-account.html` kullanilabilir. Detayli kontrol listesi `docs/store-readiness.md`, magaza aciklama taslagi `docs/store-listing.md` icindedir.
+
+Release oncesi `docs/store-readiness.md` icindeki Supabase function, secret, cron ve domain maddelerini tamamla.
 
 ## Etkinlik
 

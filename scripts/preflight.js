@@ -4,6 +4,7 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const env = readEnvFile(path.join(root, ".env"));
 const envExample = readEnvFile(path.join(root, ".env.example"));
+const appConfig = readJsonFile(path.join(root, "app.json"))?.expo ?? {};
 
 const requiredPublicEnv = ["EXPO_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_ANON_KEY"];
 const recommendedPublicEnv = [
@@ -36,6 +37,14 @@ const requiredFiles = [
   "supabase/functions/process-account-deletions/index.ts",
   "supabase/cron/price_check_cron.sql.example",
   "supabase/cron/account_deletion_cron.sql.example",
+  "public/.well-known/apple-app-site-association.example",
+  "public/.well-known/assetlinks.json.example",
+  "public/privacy.html",
+  "public/support.html",
+  "public/delete-account.html",
+  "docs/store-readiness.md",
+  "docs/store-listing.md",
+  "app/settings/support.tsx",
   "app/legal/kvkk.tsx",
   "app/legal/privacy.tsx",
   "app/legal/terms.tsx",
@@ -75,14 +84,16 @@ for (const file of requiredFiles) {
   }
 }
 
+validateAppConfig(appConfig, failures, warnings);
+
 const migrationDir = path.join(root, "supabase/migrations");
 const migrations = fs.existsSync(migrationDir) ? fs.readdirSync(migrationDir).filter((file) => file.endsWith(".sql")).sort() : [];
 if (migrations.length === 0) {
   failures.push("supabase/migrations icinde migration bulunamadi.");
 }
 
-if (!migrations.some((file) => file.startsWith("017_"))) {
-  warnings.push("017 events/buy decisions realtime migration gorunmuyor; remote/local migration durumunu kontrol et.");
+if (!migrations.some((file) => file.startsWith("018_"))) {
+  warnings.push("018 revenuecat customer index migration gorunmuyor; remote/local migration durumunu kontrol et.");
 }
 
 if (!migrations.some((file) => file.includes("usage_counters"))) {
@@ -119,6 +130,56 @@ function readEnvFile(filePath) {
         return [key, value];
       }),
   );
+}
+
+function readJsonFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    failures.push(`${path.relative(root, filePath)} okunamadi: ${error.message}`);
+    return null;
+  }
+}
+
+function validateAppConfig(config, failures, warnings) {
+  const iosBundleId = config.ios?.bundleIdentifier;
+  const androidPackage = config.android?.package;
+  const scheme = config.scheme;
+  const androidPermissions = config.android?.permissions ?? [];
+  const associatedDomains = config.ios?.associatedDomains ?? [];
+  const intentFilters = config.android?.intentFilters ?? [];
+
+  if (iosBundleId !== "com.shipirio.mobile") {
+    failures.push("iOS bundleIdentifier com.shipirio.mobile olmali.");
+  }
+
+  if (androidPackage !== "com.shipirio.mobile") {
+    failures.push("Android package com.shipirio.mobile olmali.");
+  }
+
+  if (scheme !== "shipirio") {
+    failures.push("Expo scheme shipirio olmali.");
+  }
+
+  if (!androidPermissions.includes("POST_NOTIFICATIONS")) {
+    warnings.push("Android POST_NOTIFICATIONS izni app.json icinde yok; Android 13+ push izni sorunlu olabilir.");
+  }
+
+  if (!associatedDomains.includes("applinks:shipirio.com")) {
+    warnings.push("iOS associatedDomains icinde applinks:shipirio.com yok.");
+  }
+
+  const androidHosts = intentFilters
+    .flatMap((filter) => (Array.isArray(filter.data) ? filter.data : []))
+    .map((entry) => entry.host)
+    .filter(Boolean);
+  if (!androidHosts.includes("shipirio.com")) {
+    warnings.push("Android intentFilters icinde shipirio.com yok.");
+  }
 }
 
 function hasRealValue(value) {

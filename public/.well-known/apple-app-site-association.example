@@ -1,0 +1,26 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "YOUR_APPLE_TEAM_ID.com.shipirio.mobile"
+        ],
+        "components": [
+          {
+            "/": "/outfit/share/*",
+            "comment": "Public outfit share links"
+          },
+          {
+            "/": "/social/friends",
+            "comment": "Invite and friend request links"
+          },
+          {
+            "/": "/*",
+            "comment": "Fallback Shipirio app links"
+          }
+        ]
+      }
+    ]
+  }
+}
