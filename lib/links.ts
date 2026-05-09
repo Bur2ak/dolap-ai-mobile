@@ -1,5 +1,6 @@
-import Constants from "expo-constants";
 import * as Linking from "expo-linking";
+
+import { publicEnv } from "@/lib/env";
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -22,8 +23,7 @@ export function createPublicAppLink(path: string, queryParams?: Record<string, Q
 }
 
 function getConfiguredSiteUrl() {
-  const siteUrl = Constants.expoConfig?.extra?.siteUrl;
-  return typeof siteUrl === "string" && siteUrl.trim() ? siteUrl.replace(/\/+$/, "") : null;
+  return publicEnv.siteUrl;
 }
 
 function normalizeQueryParams(queryParams?: Record<string, QueryValue>) {

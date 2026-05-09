@@ -2,9 +2,10 @@ module.exports = ({ config }) => {
   const easProjectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID ?? config.extra?.eas?.projectId;
   const sentryOrganization = process.env.SENTRY_ORG;
   const sentryProject = process.env.SENTRY_PROJECT;
+  const siteUrl = normalizeUrl(process.env.EXPO_PUBLIC_SITE_URL) ?? normalizeUrl(config.extra?.siteUrl) ?? "https://shipirio.com";
   const extra = {
     ...config.extra,
-    siteUrl: process.env.EXPO_PUBLIC_SITE_URL ?? config.extra?.siteUrl ?? "https://shipirio.com",
+    siteUrl,
   };
 
   if (easProjectId) {
@@ -47,4 +48,17 @@ function configureSentryPlugin(plugins = [], organization, project) {
       options,
     ];
   });
+}
+
+function normalizeUrl(value) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  if (!trimmed || trimmed.includes("your-") || trimmed.includes("placeholder") || trimmed.includes("YOUR_")) {
+    return null;
+  }
+
+  try {
+    return new URL(trimmed).toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
 }
