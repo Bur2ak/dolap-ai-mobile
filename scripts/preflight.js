@@ -5,6 +5,7 @@ const root = path.resolve(__dirname, "..");
 const env = readEnvFile(path.join(root, ".env"));
 const envExample = readEnvFile(path.join(root, ".env.example"));
 const appConfig = readJsonFile(path.join(root, "app.json"))?.expo ?? {};
+const packageJson = readJsonFile(path.join(root, "package.json")) ?? {};
 
 const requiredPublicEnv = ["EXPO_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_ANON_KEY"];
 const recommendedPublicEnv = [
@@ -85,6 +86,7 @@ for (const file of requiredFiles) {
 }
 
 validateAppConfig(appConfig, failures, warnings);
+validatePackageJson(packageJson, warnings);
 
 const migrationDir = path.join(root, "supabase/migrations");
 const migrations = fs.existsSync(migrationDir) ? fs.readdirSync(migrationDir).filter((file) => file.endsWith(".sql")).sort() : [];
@@ -179,6 +181,13 @@ function validateAppConfig(config, failures, warnings) {
     .filter(Boolean);
   if (!androidHosts.includes("shipirio.com")) {
     warnings.push("Android intentFilters icinde shipirio.com yok.");
+  }
+}
+
+function validatePackageJson(pkg, warnings) {
+  const dependencies = pkg.dependencies ?? {};
+  if (!dependencies["expo-image"]) {
+    warnings.push("expo-image dependency yok; cache'li gorsel render beklenen kaliteyi vermeyebilir.");
   }
 }
 

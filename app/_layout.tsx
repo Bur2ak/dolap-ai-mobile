@@ -14,7 +14,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { COLORS } from "@/constants/colors";
 import { syncSupabaseSessionFromUrl } from "@/lib/authLinks";
 import { getNotificationRoute } from "@/lib/notifications";
-import { captureError, identifyUser, initializeObservability, resetUser } from "@/lib/observability";
+import { captureError, captureEvent, identifyUser, initializeObservability, resetUser } from "@/lib/observability";
 import { configureRevenueCat, getRevenueCatCustomerInfo, hasPremiumEntitlement } from "@/lib/revenuecat";
 import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
@@ -109,6 +109,7 @@ export default function RootLayout() {
 
       handledNotificationResponseIds.current.add(responseId);
       const route = getNotificationRoute(response.notification.request.content.data);
+      captureEvent("notification_opened", { route });
       router.push(route as Href);
     };
 

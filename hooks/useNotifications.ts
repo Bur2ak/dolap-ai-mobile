@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 
 import { cancelOutfitReminders, registerForPushNotifications, scheduleOutfitReminder } from "@/lib/notifications";
-import { captureEvent } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import type { NotificationPreferences } from "@/types";
 
@@ -23,6 +23,10 @@ export function useNotifications() {
       if (token) {
         void updateProfile({ push_token: token });
       }
+    },
+    onError: (error) => {
+      captureError(error, { area: "push_registration" });
+      captureEvent("push_registration_completed", { success: false });
     },
   });
 

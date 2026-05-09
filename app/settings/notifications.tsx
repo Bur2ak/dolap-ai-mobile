@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -10,7 +10,7 @@ import { SPACING } from "@/constants/spacing";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
-import { cancelOutfitReminders, scheduleOutfitReminder } from "@/lib/notifications";
+import { cancelOutfitReminders, getPushNotificationReadiness, scheduleOutfitReminder, type PushNotificationReadiness } from "@/lib/notifications";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { NotificationPreferences } from "@/types";
 import { buildSmartOutfitNotification } from "@/utils/smartNotifications";
@@ -48,11 +48,29 @@ export default function NotificationSettingsScreen() {
   const { items } = useWardrobe();
   const { weather, isLoading: isWeatherLoading, refetch } = useWeather();
   const [isSchedulingReminder, setIsSchedulingReminder] = useState(false);
+  const [pushReadiness, setPushReadiness] = useState<PushNotificationReadiness | null>(null);
+  const [isCheckingPush, setIsCheckingPush] = useState(false);
   const smartPlan = buildSmartOutfitNotification(weather, items);
+
+  useEffect(() => {
+    void refreshPushReadiness();
+  }, []);
+
+  async function refreshPushReadiness() {
+    try {
+      setIsCheckingPush(true);
+      setPushReadiness(await getPushNotificationReadiness());
+    } catch (error) {
+      captureError(error, { area: "push_readiness" });
+    } finally {
+      setIsCheckingPush(false);
+    }
+  }
 
   async function handleEnablePush() {
     try {
       const token = await registerForPush();
+      await refreshPushReadiness();
       Alert.alert(token ? "Bildirimler hazir" : "Bildirim acilamadi", token ? "Push token kaydedildi." : "Cihaz veya izin uygun degil.");
     } catch (error) {
       Alert.alert("Bildirim acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
@@ -119,6 +137,24 @@ export default function NotificationSettingsScreen() {
 
       <Card style={styles.intro}>
         <Text variant="caption" color="muted">
+          PUSH DURUMU
+        </Text>
+        <Text variant="h3">{pushReadiness?.granted ? "Izin verilmis" : pushReadiness?.available ? "Izin alinabilir" : "Hazir degil"}</Text>
+        <Text variant="body" color="secondary">
+          {pushReadiness?.reason ?? "Cihaz ve bildirim durumu kontrol ediliyor."}
+        </Text>
+        {pushReadiness ? (
+          <View style={styles.statusGrid}>
+            <StatusPill label="Cihaz" ok={pushReadiness.deviceReady} />
+            <StatusPill label="EAS" ok={pushReadiness.easProjectReady} />
+            <StatusPill label="Izin" ok={pushReadiness.granted} />
+          </View>
+        ) : null}
+        <Button title="Durumu Yenile" variant="secondary" onPress={() => void refreshPushReadiness()} loading={isCheckingPush} disabled={isCheckingPush || isRegistering} />
+      </Card>
+
+      <Card style={styles.intro}>
+        <Text variant="caption" color="muted">
           AKILLI HAVA BILDIRIMI
         </Text>
         <Text variant="h3">{smartPlan.title}</Text>
@@ -162,6 +198,16 @@ export default function NotificationSettingsScreen() {
   );
 }
 
+function StatusPill({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <View style={[styles.statusPill, ok ? styles.statusPillOk : styles.statusPillWarn]}>
+      <Text variant="caption" color={ok ? "inverse" : "secondary"}>
+        {label}: {ok ? "OK" : "Eksik"}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -192,6 +238,22 @@ const styles = StyleSheet.create({
   rowCopy: {
     flex: 1,
     gap: SPACING.xs,
+  },
+  statusGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  statusPillOk: {
+    backgroundColor: COLORS.success,
+  },
+  statusPillWarn: {
+    backgroundColor: COLORS.surfaceMuted,
   },
   toggle: {
     backgroundColor: COLORS.surfaceMuted,

@@ -7,6 +7,16 @@ import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import type { EventRecord, SmartNotificationPlan } from "@/types";
 
+export interface PushNotificationReadiness {
+  available: boolean;
+  canRequest: boolean;
+  deviceReady: boolean;
+  easProjectReady: boolean;
+  granted: boolean;
+  reason: string;
+  status: string;
+}
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldPlaySound: true,
@@ -15,6 +25,36 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
+
+export async function getPushNotificationReadiness(): Promise<PushNotificationReadiness> {
+  if (Platform.OS === "web") {
+    return {
+      available: false,
+      canRequest: false,
+      deviceReady: false,
+      easProjectReady: false,
+      granted: false,
+      reason: "Web ortaminda Expo push bildirimi kullanilmaz.",
+      status: "web",
+    };
+  }
+
+  const deviceReady = Device.isDevice;
+  const easProjectReady = Boolean(getEasProjectId());
+  const permissions = await Notifications.getPermissionsAsync();
+  const granted = permissions.status === "granted";
+  const canRequest = permissions.canAskAgain && !granted;
+
+  return {
+    available: deviceReady && easProjectReady && (granted || canRequest),
+    canRequest,
+    deviceReady,
+    easProjectReady,
+    granted,
+    reason: getPushReadinessReason({ canRequest, deviceReady, easProjectReady, granted, status: permissions.status }),
+    status: permissions.status,
+  };
+}
 
 export async function registerForPushNotifications(): Promise<string | null> {
   if (Platform.OS === "web" || !Device.isDevice) {
@@ -49,6 +89,26 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   return token;
+}
+
+function getPushReadinessReason(input: { canRequest: boolean; deviceReady: boolean; easProjectReady: boolean; granted: boolean; status: string }) {
+  if (!input.deviceReady) {
+    return "Push token sadece fiziksel cihazda alinabilir.";
+  }
+
+  if (!input.easProjectReady) {
+    return "EAS projectId eksik; production push icin EAS projesi baglanmali.";
+  }
+
+  if (input.granted) {
+    return "Bildirim izni verilmis ve cihaz push icin hazir.";
+  }
+
+  if (input.canRequest) {
+    return "Bildirim izni henuz verilmemis; kullanicidan izin istenebilir.";
+  }
+
+  return `Bildirim izni ${input.status}; sistem ayarlarindan degistirilmesi gerekebilir.`;
 }
 
 function getEasProjectId() {

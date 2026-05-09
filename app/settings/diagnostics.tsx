@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -9,6 +10,8 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { getPublicEnvWarnings, publicEnv } from "@/lib/env";
+import { getPushNotificationReadiness, type PushNotificationReadiness } from "@/lib/notifications";
+import { captureError } from "@/lib/observability";
 
 const checks = [
   {
@@ -50,9 +53,26 @@ const checks = [
 
 export default function DiagnosticsScreen() {
   const warnings = getPublicEnvWarnings();
+  const [pushReadiness, setPushReadiness] = useState<PushNotificationReadiness | null>(null);
+  const [isCheckingPush, setIsCheckingPush] = useState(false);
   const appVersion = Constants.expoConfig?.version ?? "Bilinmiyor";
   const iosBuildNumber = Constants.expoConfig?.ios?.buildNumber ?? "Bilinmiyor";
   const androidVersionCode = Constants.expoConfig?.android?.versionCode ?? "Bilinmiyor";
+
+  useEffect(() => {
+    void refreshPushReadiness();
+  }, []);
+
+  async function refreshPushReadiness() {
+    try {
+      setIsCheckingPush(true);
+      setPushReadiness(await getPushNotificationReadiness());
+    } catch (error) {
+      captureError(error, { area: "diagnostics_push_readiness" });
+    } finally {
+      setIsCheckingPush(false);
+    }
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -74,6 +94,21 @@ export default function DiagnosticsScreen() {
         <Text variant="body" color="secondary">
           Surum {appVersion} · iOS build {iosBuildNumber} · Android code {androidVersionCode}
         </Text>
+      </Card>
+
+      <Card style={styles.summary}>
+        <Text variant="h3">Push Bildirim Hazirligi</Text>
+        <Text variant="body" color="secondary">
+          {pushReadiness?.reason ?? "Cihaz, izin ve EAS durumu kontrol ediliyor."}
+        </Text>
+        {pushReadiness ? (
+          <View style={styles.statusPills}>
+            <StatusPill label="Cihaz" ok={pushReadiness.deviceReady} />
+            <StatusPill label="EAS" ok={pushReadiness.easProjectReady} />
+            <StatusPill label="Izin" ok={pushReadiness.granted} />
+          </View>
+        ) : null}
+        <Button title="Push Durumunu Yenile" variant="secondary" onPress={() => void refreshPushReadiness()} loading={isCheckingPush} />
       </Card>
 
       <View style={styles.list}>
@@ -109,6 +144,16 @@ export default function DiagnosticsScreen() {
         </Card>
       ) : null}
     </ScrollView>
+  );
+}
+
+function StatusPill({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <View style={[styles.statusPill, ok ? styles.statusPillReady : styles.statusPillMissing]}>
+      <Text variant="caption" color={ok ? "inverse" : "secondary"}>
+        {label}: {ok ? "OK" : "Eksik"}
+      </Text>
+    </View>
   );
 }
 
@@ -151,6 +196,22 @@ const styles = StyleSheet.create({
   },
   statusReady: {
     backgroundColor: COLORS.primarySoft,
+  },
+  statusPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  statusPillReady: {
+    backgroundColor: COLORS.success,
+  },
+  statusPillMissing: {
+    backgroundColor: COLORS.surfaceMuted,
   },
   statusMissing: {
     backgroundColor: "#F5D3D0",
