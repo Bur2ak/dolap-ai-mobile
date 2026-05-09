@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Share } from "react-native";
+import { Alert, Pressable, ScrollView, Share } from "react-native";
 import { StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
@@ -183,11 +184,12 @@ export default function OutfitScreen() {
                 {getRepeatReason(repeatCandidate)}
               </Text>
             </View>
-            {repeatCandidate.thumbnail_url || repeatCandidate.image_url ? (
-              <Image source={{ uri: repeatCandidate.thumbnail_url ?? repeatCandidate.image_url }} style={styles.repeatImage} />
-            ) : (
-              <View style={[styles.repeatImage, { backgroundColor: repeatCandidate.dominant_color_hex ?? COLORS.primarySoft }]} />
-            )}
+            <CachedImage
+              accessibilityLabel={repeatCandidate.subcategory ?? repeatCandidate.category}
+              fallbackColor={repeatCandidate.dominant_color_hex}
+              sourceUri={repeatCandidate.thumbnail_url ?? repeatCandidate.image_url}
+              style={styles.repeatImage}
+            />
           </View>
           <View style={styles.repeatActions}>
             <Button
@@ -237,11 +239,12 @@ export default function OutfitScreen() {
 
               return (
                 <Pressable key={item.id} style={styles.capsuleItem} onPress={() => setFocusItemId(item.id)}>
-                  {item.thumbnail_url || item.image_url ? (
-                    <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.capsuleImage} />
-                  ) : (
-                    <View style={[styles.capsuleImage, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
-                  )}
+                  <CachedImage
+                    accessibilityLabel={item.subcategory ?? item.category}
+                    fallbackColor={item.dominant_color_hex}
+                    sourceUri={item.thumbnail_url ?? item.image_url}
+                    style={styles.capsuleImage}
+                  />
                   <Text variant="caption" color="secondary" style={styles.suggestionItemLabel}>
                     {item.subcategory ?? item.category}
                   </Text>
@@ -328,11 +331,12 @@ export default function OutfitScreen() {
                 <View style={styles.suggestionItems}>
                   {suggestionItems.map((item) => (
                     <View key={item.id} style={styles.suggestionItem}>
-                      {item.thumbnail_url || item.image_url ? (
-                        <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.suggestionImage} />
-                      ) : (
-                        <View style={[styles.suggestionColorBlock, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
-                      )}
+                      <CachedImage
+                        accessibilityLabel={item.subcategory ?? item.category}
+                        fallbackColor={item.dominant_color_hex}
+                        sourceUri={item.thumbnail_url ?? item.image_url}
+                        style={styles.suggestionImage}
+                      />
                       <Text variant="caption" color="secondary" style={styles.suggestionItemLabel}>
                         {item.subcategory ?? item.category}
                       </Text>
@@ -391,11 +395,12 @@ export default function OutfitScreen() {
                   <View style={styles.suggestionItems}>
                     {saved.items.slice(0, 4).map((item) => (
                       <View key={item.id} style={styles.suggestionItem}>
-                        {item.thumbnail_url || item.image_url ? (
-                          <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.suggestionImage} />
-                        ) : (
-                          <View style={[styles.suggestionColorBlock, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
-                        )}
+                        <CachedImage
+                          accessibilityLabel={item.subcategory ?? item.category}
+                          fallbackColor={item.dominant_color_hex}
+                          sourceUri={item.thumbnail_url ?? item.image_url}
+                          style={styles.suggestionImage}
+                        />
                       </View>
                     ))}
                   </View>

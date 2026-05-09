@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, Image, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { CachedImage } from "@/components/ui/CachedImage";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { CATEGORIES } from "@/constants/categories";
@@ -212,7 +213,7 @@ export default function AddItemScreen() {
         </Card>
       ) : (
         <View style={styles.form}>
-          {imageUri ? <Image source={{ uri: imageUri }} style={styles.preview} /> : null}
+          {imageUri ? <CachedImage accessibilityLabel="Secilen kiyafet gorseli" sourceUri={imageUri} style={styles.preview} /> : null}
 
           <Card style={styles.analysisCard}>
             <Text variant="caption" color="muted">

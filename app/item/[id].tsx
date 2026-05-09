@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Image, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
@@ -164,7 +165,12 @@ export default function ItemDetailScreen() {
         />
       ) : item ? (
         <>
-          <Image source={{ uri: item.image_url }} style={styles.heroImage} />
+          <CachedImage
+            accessibilityLabel={item.subcategory ?? "Kiyafet"}
+            fallbackColor={item.dominant_color_hex}
+            sourceUri={item.image_url}
+            style={styles.heroImage}
+          />
 
           <Card style={styles.summary}>
             <Text variant="caption" color="muted">

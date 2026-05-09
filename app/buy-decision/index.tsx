@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, Image, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
@@ -144,7 +145,7 @@ export default function BuyDecisionScreen() {
 
       <Card style={styles.selectCard}>
         {imageUri ? (
-          <Image source={{ uri: imageUri }} style={styles.preview} />
+          <CachedImage accessibilityLabel="Almayi dusundugun parca" sourceUri={imageUri} style={styles.preview} />
         ) : (
           <>
             <Ionicons name="bag-handle-outline" size={48} color={COLORS.primary} />
@@ -194,7 +195,12 @@ export default function BuyDecisionScreen() {
                   <View style={styles.similarGrid}>
                     {similarSummary.matches.map((match) => (
                       <View key={match.item.id} style={styles.similarItem}>
-                        <Image source={{ uri: match.item.thumbnail_url ?? match.item.image_url }} style={styles.similarImage} />
+                        <CachedImage
+                          accessibilityLabel={match.item.subcategory ?? match.item.category}
+                          fallbackColor={match.item.dominant_color_hex}
+                          sourceUri={match.item.thumbnail_url ?? match.item.image_url}
+                          style={styles.similarImage}
+                        />
                         <Text variant="caption" color="secondary" numberOfLines={1} style={styles.similarLabel}>
                           {match.item.subcategory ?? match.item.category}
                         </Text>
@@ -301,7 +307,7 @@ function DecisionHistoryCard({
 
   return (
     <Card style={styles.historyCard}>
-      {decision.product_image_url ? <Image source={{ uri: decision.product_image_url }} style={styles.historyImage} /> : null}
+      {decision.product_image_url ? <CachedImage accessibilityLabel="Kayitli karar gorseli" sourceUri={decision.product_image_url} style={styles.historyImage} /> : null}
       <View style={styles.historyTopRow}>
         <View style={[styles.historyBadge, styles[`decision${decision.decision}`]]}>
           <Text variant="label" color="inverse">

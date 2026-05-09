@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
+import { CachedImage } from "@/components/ui/CachedImage";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
@@ -77,11 +78,12 @@ export const OutfitShareCard = forwardRef<View, OutfitShareCardProps>(function O
 function PreviewTile({ item }: { item: WardrobeItem }) {
   return (
     <View style={styles.previewTile}>
-      {item.thumbnail_url || item.image_url ? (
-        <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.previewImage} />
-      ) : (
-        <View style={[styles.previewColor, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
-      )}
+      <CachedImage
+        accessibilityLabel={item.subcategory ?? item.category}
+        fallbackColor={item.dominant_color_hex}
+        sourceUri={item.thumbnail_url ?? item.image_url}
+        style={styles.previewImage}
+      />
     </View>
   );
 }
@@ -132,10 +134,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   previewImage: {
-    height: "100%",
-    width: "100%",
-  },
-  previewColor: {
     height: "100%",
     width: "100%",
   },

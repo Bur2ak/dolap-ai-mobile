@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, FlatList, Image, Pressable, StyleSheet, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, View } from "react-native";
 
 import { OutfitShareCard } from "@/components/outfits/OutfitShareCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Text } from "@/components/ui/Text";
 import { CATEGORIES } from "@/constants/categories";
@@ -153,11 +154,12 @@ function OutfitItem({ item }: { item: WardrobeItem }) {
   return (
     <View style={styles.itemWrap}>
       <Card style={styles.itemCard}>
-        {item.thumbnail_url || item.image_url ? (
-          <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.itemImage} />
-        ) : (
-          <View style={[styles.colorBlock, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
-        )}
+        <CachedImage
+          accessibilityLabel={item.subcategory ?? categoryLabel}
+          fallbackColor={item.dominant_color_hex}
+          sourceUri={item.thumbnail_url ?? item.image_url}
+          style={styles.itemImage}
+        />
         <Text variant="label">{item.subcategory ?? categoryLabel}</Text>
         <Text variant="caption" color="muted">
           {item.brand ?? categoryLabel}

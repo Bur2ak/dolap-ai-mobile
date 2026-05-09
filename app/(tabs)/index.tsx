@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { FlatList, Image, Pressable, StyleSheet, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, View } from "react-native";
 
 import { Card } from "@/components/ui/Card";
+import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
@@ -114,11 +115,12 @@ export default function WardrobeScreen() {
           renderItem={({ item }) => (
             <Pressable style={styles.itemPressable} onPress={() => router.push(`/item/${item.id}`)}>
               <Card style={styles.itemCard}>
-              {item.thumbnail_url || item.image_url ? (
-                <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.itemImage} />
-              ) : (
-                <View style={[styles.colorBlock, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
-              )}
+              <CachedImage
+                accessibilityLabel={item.subcategory ?? item.category}
+                fallbackColor={item.dominant_color_hex}
+                sourceUri={item.thumbnail_url ?? item.image_url}
+                style={styles.itemImage}
+              />
               <Text variant="label">{item.subcategory ?? item.category}</Text>
               <Text variant="caption" color="muted">
                 {item.wear_count} kez giyildi

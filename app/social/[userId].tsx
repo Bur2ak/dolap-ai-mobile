@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Image, Share, StyleSheet, View } from "react-native";
+import { Alert, FlatList, Share, StyleSheet, View } from "react-native";
 
 import { PremiumGate } from "@/components/shared/PremiumGate";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
@@ -230,11 +231,12 @@ function SharedWardrobeHeader({
           <View style={styles.outfitPreview}>
             {friendOutfitIdea.items.map((item) => (
               <View key={item.id} style={styles.outfitPreviewItem}>
-                {item.thumbnail_url || item.image_url ? (
-                  <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.outfitPreviewImage} />
-                ) : (
-                  <View style={[styles.outfitPreviewImage, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
-                )}
+                <CachedImage
+                  accessibilityLabel={getItemLabel(item)}
+                  fallbackColor={item.dominant_color_hex}
+                  sourceUri={item.thumbnail_url ?? item.image_url}
+                  style={styles.outfitPreviewImage}
+                />
                 <Text variant="caption" color="secondary" style={styles.centerText}>
                   {getItemLabel(item)}
                 </Text>
@@ -366,11 +368,12 @@ function SharedWardrobeItem({
   return (
     <View style={styles.itemPressable}>
       <Card style={styles.itemCard}>
-        {item.thumbnail_url || item.image_url ? (
-          <Image source={{ uri: item.thumbnail_url ?? item.image_url }} style={styles.itemImage} />
-        ) : (
-          <View style={[styles.colorBlock, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
-        )}
+        <CachedImage
+          accessibilityLabel={getItemLabel(item)}
+          fallbackColor={item.dominant_color_hex}
+          sourceUri={item.thumbnail_url ?? item.image_url}
+          style={styles.itemImage}
+        />
         <Text variant="label">{getItemLabel(item)}</Text>
         <Text variant="caption" color="muted">
           {loanRequest
