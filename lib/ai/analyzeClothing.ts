@@ -1,6 +1,6 @@
 import * as FileSystem from "expo-file-system/legacy";
 
-import { supabase } from "@/lib/supabase";
+import { invokeFunctionWithRetry } from "@/lib/api/functions";
 import type { ClothingAnalysisResult } from "@/types";
 
 export const fallbackClothingAnalysis: ClothingAnalysisResult = {
@@ -17,16 +17,27 @@ export async function analyzeClothingImage(imageUri: string): Promise<ClothingAn
     encoding: FileSystem.EncodingType.Base64,
   });
 
-  const { data, error } = await supabase.functions.invoke<ClothingAnalysisResult>("analyze-clothing", {
-    body: {
+  try {
+    const data = await invokeFunctionWithRetry<ClothingAnalysisResult>("analyze-clothing", {
       imageBase64,
-      mimeType: "image/jpeg",
-    },
-  });
+      mimeType: getImageMimeType(imageUri),
+    });
 
-  if (error) {
-    throw error;
+    return data ?? fallbackClothingAnalysis;
+  } catch {
+    return fallbackClothingAnalysis;
+  }
+}
+
+function getImageMimeType(uri: string) {
+  const normalized = uri.toLowerCase().split("?")[0] ?? "";
+  if (normalized.endsWith(".png")) {
+    return "image/png";
   }
 
-  return data ?? fallbackClothingAnalysis;
+  if (normalized.endsWith(".webp")) {
+    return "image/webp";
+  }
+
+  return "image/jpeg";
 }

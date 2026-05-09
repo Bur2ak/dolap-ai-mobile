@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 
 import { cancelOutfitReminders, registerForPushNotifications, scheduleOutfitReminder } from "@/lib/notifications";
+import { captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import type { NotificationPreferences } from "@/types";
 
@@ -12,11 +13,13 @@ export function useNotifications() {
     price_drops: true,
     friend_requests: true,
     outfit_votes: true,
+    lend_requests: true,
   };
 
   const registerMutation = useMutation({
     mutationFn: registerForPushNotifications,
     onSuccess: (token) => {
+      captureEvent("push_registration_completed", { success: Boolean(token) });
       if (token) {
         void updateProfile({ push_token: token });
       }
@@ -35,6 +38,13 @@ export function useNotifications() {
       if (updates.outfit_reminder === false) {
         await cancelOutfitReminders();
       }
+
+      Object.entries(updates).forEach(([key, value]) => {
+        captureEvent("notification_preference_updated", {
+          enabled: Boolean(value),
+          preference: key,
+        });
+      });
 
       return nextPreferences;
     },

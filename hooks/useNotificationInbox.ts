@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -7,6 +8,8 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/lib/api/notifications";
+import { captureEvent } from "@/lib/observability";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 
 export function useNotificationInbox() {
@@ -20,27 +23,48 @@ export function useNotificationInbox() {
   const markReadMutation = useMutation({
     mutationFn: (notificationId: string) => markNotificationRead(userId!, notificationId),
     onSuccess: () => {
+      captureEvent("notification_marked_read");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
     },
   });
   const markAllReadMutation = useMutation({
     mutationFn: () => markAllNotificationsRead(userId!),
     onSuccess: () => {
+      captureEvent("notifications_marked_all_read");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
     },
   });
   const deleteMutation = useMutation({
     mutationFn: (notificationId: string) => deleteNotification(userId!, notificationId),
     onSuccess: () => {
+      captureEvent("notification_deleted");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
     },
   });
   const deleteReadMutation = useMutation({
     mutationFn: () => deleteReadNotifications(userId!),
     onSuccess: () => {
+      captureEvent("notifications_read_deleted");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
     },
   });
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`notifications-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, () => {
+        void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient, userId]);
+
   const notifications = notificationsQuery.data ?? [];
   const readCount = notifications.filter((notification) => notification.is_read).length;
 
@@ -48,7 +72,10 @@ export function useNotificationInbox() {
     notifications,
     unreadCount: notifications.filter((notification) => !notification.is_read).length,
     readCount,
+    error: notificationsQuery.error,
     isLoading: notificationsQuery.isLoading,
+    isRefetching: notificationsQuery.isRefetching,
+    refetch: notificationsQuery.refetch,
     markRead: markReadMutation.mutateAsync,
     markAllRead: markAllReadMutation.mutateAsync,
     deleteOne: deleteMutation.mutateAsync,

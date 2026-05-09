@@ -5,8 +5,11 @@ import { useSubscriptionStore } from "@/stores/subscriptionStore";
 export function useSubscription() {
   const profile = useAuthStore((state) => state.profile);
   const localPremiumOverride = useSubscriptionStore((state) => state.localPremiumOverride);
+  const revenueCatPremium = useSubscriptionStore((state) => state.revenueCatPremium);
   const setLocalPremiumOverride = useSubscriptionStore((state) => state.setLocalPremiumOverride);
-  const premium = localPremiumOverride || profile?.subscription_tier === "premium" || profile?.subscription_tier === "family";
+  const profilePremium = profile ? hasActiveProfilePremium(profile.subscription_tier, profile.subscription_expires_at) : false;
+  const effectiveLocalPremiumOverride = __DEV__ && localPremiumOverride;
+  const premium = effectiveLocalPremiumOverride || revenueCatPremium || profilePremium;
   const limits = premium ? PREMIUM_LIMITS : FREE_LIMITS;
 
   function checkGate(feature: LimitKey): boolean {
@@ -29,10 +32,23 @@ export function useSubscription() {
 
   return {
     premium,
-    localPremiumOverride,
+    localPremiumOverride: effectiveLocalPremiumOverride,
+    revenueCatPremium,
     limits,
     checkGate,
     isLimitReached,
     setLocalPremiumOverride,
   };
+}
+
+function hasActiveProfilePremium(tier: string, expiresAt: string | null): boolean {
+  if (tier !== "premium" && tier !== "family") {
+    return false;
+  }
+
+  if (!expiresAt) {
+    return true;
+  }
+
+  return new Date(expiresAt).getTime() > Date.now();
 }

@@ -1,9 +1,10 @@
 import * as Location from "expo-location";
 
+import { publicEnv } from "@/lib/env";
 import type { WeatherData } from "@/types";
 
 export async function getCurrentWeather(): Promise<WeatherData | null> {
-  const apiKey = process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY;
+  const apiKey = publicEnv.openWeatherApiKey;
 
   if (!apiKey) {
     return null;

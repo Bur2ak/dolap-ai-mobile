@@ -5,6 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const geminiMaxAttempts = 3;
+const geminiBaseDelayMs = 700;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -15,29 +18,20 @@ serve(async (req) => {
     const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
     if (!apiKey) {
-      return json({ error: "GOOGLE_GEMINI_API_KEY is not configured" }, 500);
+      return json(fallbackAnalysis("Gemini anahtari olmadigi icin manuel duzenlenebilir varsayilan analiz kullanildi."));
     }
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
+    const response = await callGemini(
+      apiKey,
+      [
+        {
+          inline_data: {
+            mime_type: mimeType || "image/jpeg",
+            data: imageBase64,
+          },
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inline_data: {
-                    mime_type: mimeType || "image/jpeg",
-                    data: imageBase64,
-                  },
-                },
-                {
-                  text: `Bu kiyafeti analiz et. Yalnizca JSON dondur, aciklama ekleme.
+        {
+          text: `Bu kiyafeti analiz et. Yalnizca JSON dondur, aciklama ekleme.
 
 {
   "category": "ust|alt|elbise|etek|dis_giyim|ayakkabi|canta|aksesuar|ic_giyim|spor|diger",
@@ -47,20 +41,13 @@ serve(async (req) => {
   "season": ["ilkbahar|yaz|sonbahar|kis"],
   "brand": null
 }`,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 500,
-          },
-        }),
-      },
+        },
+      ],
+      500,
     );
 
     if (!response.ok) {
-      return json({ error: "Gemini request failed", status: response.status }, response.status);
+      return json(fallbackAnalysis(`Gemini gecici olarak yanit vermedi (${response.status}).`));
     }
 
     const data = await response.json();
@@ -68,14 +55,69 @@ serve(async (req) => {
     const match = text.match(/\{[\s\S]*\}/);
 
     if (!match) {
-      return json({ error: "Gemini response did not include JSON" }, 502);
+      return json(fallbackAnalysis("Gemini yaniti beklenen JSON formatinda degildi."));
     }
 
     return json(JSON.parse(match[0]));
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
+    return json(fallbackAnalysis(error instanceof Error ? error.message : "Bilinmeyen hata."));
   }
 });
+
+function fallbackAnalysis(reason: string) {
+  return {
+    category: "ust",
+    subcategory: "Tanimlanacak parca",
+    colors: ["belirsiz"],
+    dominant_color_hex: "#12312B",
+    season: ["ilkbahar", "yaz"],
+    brand: null,
+    analysis_note: reason,
+  };
+}
+
+async function callGemini(apiKey: string, parts: unknown[], maxOutputTokens: number) {
+  const body = JSON.stringify({
+    contents: [{ parts }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens,
+    },
+  });
+
+  for (let attempt = 1; attempt <= geminiMaxAttempts; attempt += 1) {
+    try {
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body,
+      });
+
+      if (response.ok || !isRetryableGeminiStatus(response.status) || attempt === geminiMaxAttempts) {
+        return response;
+      }
+    } catch (error) {
+      if (attempt === geminiMaxAttempts) {
+        throw error;
+      }
+    }
+
+    await delay(geminiBaseDelayMs * 2 ** (attempt - 1));
+  }
+
+  throw new Error("Gemini request failed");
+}
+
+function isRetryableGeminiStatus(status: number) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

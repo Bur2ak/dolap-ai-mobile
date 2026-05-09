@@ -15,6 +15,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.shipirio.mobile",
+      "buildNumber": "1",
+      "associatedDomains": [
+        "applinks:shipirio.com",
+        "applinks:www.shipirio.com"
+      ],
       "infoPlist": {
         "NSCameraUsageDescription": "Kiyafetlerinizi gardirobunuza eklemek icin kameraniza erismemiz gerekiyor.",
         "NSPhotoLibraryUsageDescription": "Kiyafet fotograflarinizi secmek icin fotograf kitapliginiza erismemiz gerekiyor.",
@@ -24,6 +29,7 @@
     },
     "android": {
       "package": "com.shipirio.mobile",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FAF7F2"
@@ -39,6 +45,26 @@
         "VIBRATE",
         "READ_CALENDAR",
         "WRITE_CALENDAR"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "shipirio.com"
+            },
+            {
+              "scheme": "https",
+              "host": "www.shipirio.com"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
       ]
     },
     "web": {
@@ -57,7 +83,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@sentry/react-native"
     ],
     "scheme": "shipirio",
     "extra": {

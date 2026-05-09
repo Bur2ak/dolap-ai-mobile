@@ -32,7 +32,7 @@ export function Button({ title, variant = "primary", loading = false, disabled, 
       {loading ? (
         <ActivityIndicator color={variant === "primary" ? COLORS.textInverse : COLORS.primary} />
       ) : (
-        <Text variant="label" color={variant === "primary" ? "inverse" : "primary"}>
+        <Text variant="label" color={variant === "primary" ? "inverse" : "primary"} style={styles.title}>
           {title}
         </Text>
       )}
@@ -47,6 +47,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 52,
     paddingHorizontal: SPACING.lg,
+  },
+  title: {
+    flexShrink: 1,
+    textAlign: "center",
   },
   primary: {
     backgroundColor: COLORS.primary,

@@ -28,7 +28,12 @@ export interface Profile {
   notification_preferences: NotificationPreferences;
   privacy_settings: PrivacySettings;
   onboarding_completed: boolean;
+  kvkk_consent_at: string | null;
+  terms_accepted_at: string | null;
+  deletion_requested_at: string | null;
+  deletion_scheduled_for: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface NotificationPreferences {
@@ -36,6 +41,7 @@ export interface NotificationPreferences {
   price_drops: boolean;
   friend_requests: boolean;
   outfit_votes: boolean;
+  lend_requests: boolean;
 }
 
 export interface PrivacySettings {
@@ -73,6 +79,20 @@ export interface ClothingAnalysisResult {
   brand?: string | null;
 }
 
+export interface CareRecommendation {
+  title: string;
+  body: string;
+  priority: "normal" | "important";
+}
+
+export interface SustainabilityInsight {
+  score: number;
+  status: "excellent" | "good" | "needs_use" | "at_risk";
+  title: string;
+  body: string;
+  signals: string[];
+}
+
 export interface CreateWardrobeItemInput {
   image_url: string;
   thumbnail_url?: string | null;
@@ -104,10 +124,33 @@ export interface WeatherData {
   city: string;
 }
 
+export interface SmartNotificationPlan {
+  title: string;
+  body: string;
+  reason: string;
+  route: string;
+}
+
+export interface CapsuleOutfitIdea {
+  name: string;
+  event: string;
+  item_ids: string[];
+  reason: string;
+}
+
+export interface CapsuleWardrobePlan {
+  title: string;
+  summary: string;
+  coverage_score: number;
+  core_item_ids: string[];
+  outfit_ideas: CapsuleOutfitIdea[];
+}
+
 export interface OutfitSuggestion {
   items: string[];
   name: string;
   reason: string;
+  accessory_note?: string | null;
   formality_match?: string;
 }
 
@@ -135,6 +178,7 @@ export interface OutfitVote {
   voter_id: string;
   vote: OutfitVoteValue;
   created_at: string;
+  voter?: Pick<Profile, "id" | "username" | "full_name" | "avatar_url"> | null;
 }
 
 export interface SharedOutfit {
@@ -148,6 +192,7 @@ export interface OutfitRecommendationInput {
   mood: string;
   weather: WeatherData | null;
   wardrobe: WardrobeItem[];
+  focus_item_id?: string | null;
 }
 
 export type BuyDecision = "AL" | "BEKLEME" | "ALMA";
@@ -206,12 +251,48 @@ export interface EventRecord {
   created_at: string;
 }
 
-export type UpdateEventInput = Partial<Pick<EventRecord, "title" | "event_type" | "event_date" | "location" | "notes" | "calendar_event_id">>;
+export type UpdateEventInput = Partial<Pick<EventRecord, "title" | "event_type" | "event_date" | "location" | "notes" | "calendar_event_id" | "outfit_id">>;
+
+export interface StyleCalendarDay {
+  date: string;
+  day_label: string;
+  title: string;
+  body: string;
+  status: "planned" | "open";
+  event_id: string | null;
+  suggested_event_type: string;
+}
 
 export interface DistributionPoint {
   label: string;
   value: number;
   color?: string;
+}
+
+export interface StyleProfile {
+  label: string;
+  confidence: number;
+  summary: string;
+  signals: string[];
+}
+
+export interface MissingWardrobePiece {
+  category: ClothingCategory;
+  label: string;
+  reason: string;
+  priority: "high" | "medium" | "low";
+  suggested_colors: string[];
+}
+
+export interface WardrobeGoal {
+  id: string;
+  title: string;
+  body: string;
+  current: number;
+  target: number;
+  action_label: string;
+  action_route: string;
+  priority: "high" | "medium" | "low";
 }
 
 export interface WardrobeAnalytics {
@@ -220,12 +301,18 @@ export interface WardrobeAnalytics {
   avg_cost_per_wear: number;
   monthly_spending: number;
   utilization_score: number;
+  sustainability_score: number;
   inactive_items_count: number;
   most_worn: WardrobeItem[];
   never_worn: WardrobeItem[];
   category_distribution: DistributionPoint[];
   color_distribution: DistributionPoint[];
   season_distribution: DistributionPoint[];
+  brand_distribution: DistributionPoint[];
+  style_profile: StyleProfile;
+  missing_pieces: MissingWardrobePiece[];
+  weekly_goals: WardrobeGoal[];
+  sustainability_focus_items: WardrobeItem[];
   high_value_unused: WardrobeItem[];
   suggestions_to_remove: WardrobeItem[];
 }
@@ -281,6 +368,17 @@ export interface Friendship {
   addressee?: Profile;
 }
 
+export interface ReferralReward {
+  id: string;
+  friendship_id: string;
+  referrer_id: string;
+  referred_id: string;
+  reward_days: number;
+  created_at: string;
+  referrer?: Profile | null;
+  referred?: Profile | null;
+}
+
 export interface UserSearchResult {
   id: string;
   username: string | null;
@@ -291,4 +389,21 @@ export interface UserSearchResult {
 export interface FriendWardrobe {
   profile: Pick<Profile, "id" | "username" | "full_name" | "avatar_url" | "bio" | "privacy_settings">;
   items: WardrobeItem[];
+}
+
+export type LoanRequestStatus = "pending" | "approved" | "declined" | "returned";
+
+export interface LoanRequest {
+  id: string;
+  item_id: string;
+  owner_id: string;
+  requester_id: string;
+  status: LoanRequestStatus;
+  requested_at: string;
+  due_date: string | null;
+  returned_at: string | null;
+  note: string | null;
+  item?: WardrobeItem | null;
+  owner?: Profile | null;
+  requester?: Profile | null;
 }

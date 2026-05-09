@@ -34,10 +34,28 @@ const settingsRoutes = [
     route: "/notifications" as const,
   },
   {
+    icon: "swap-horizontal-outline" as const,
+    title: "Odunc Takibi",
+    body: "Gelen ve gonderilen odunc isteklerini yonet.",
+    route: "/social/loans" as const,
+  },
+  {
     icon: "card-outline" as const,
     title: "Abonelik",
     body: "Plan durumunu ve freemium limitlerini gor.",
     route: "/settings/subscription" as const,
+  },
+  {
+    icon: "pulse-outline" as const,
+    title: "Sistem Durumu",
+    body: "Env ve entegrasyon ayarlarinin hazir olup olmadigini kontrol et.",
+    route: "/settings/diagnostics" as const,
+  },
+  {
+    icon: "document-text-outline" as const,
+    title: "KVKK Aydinlatma Metni",
+    body: "Kisisel verilerin islenme kapsamlarini incele.",
+    route: "/legal/kvkk" as const,
   },
   {
     icon: "document-text-outline" as const,

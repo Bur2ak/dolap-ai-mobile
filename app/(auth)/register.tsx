@@ -1,20 +1,25 @@
-import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, Pressable, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { useAuthStore } from "@/stores/authStore";
 import { isValidEmail, normalizeEmail } from "@/utils/validation";
 
 export default function RegisterScreen() {
+  const { returnTo: returnToParam } = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const returnTo = getSafeInternalReturnTo(returnToParam);
   const { signUp } = useAuthStore();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit() {
@@ -35,11 +40,19 @@ export default function RegisterScreen() {
       return;
     }
 
+    if (!acceptedLegal) {
+      Alert.alert("Onay gerekli", "Devam etmek icin KVKK aydinlatma metni, gizlilik politikasi ve kullanim sartlarini onaylamalisin.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       await signUp(normalizedEmail, password, fullName.trim());
       Alert.alert("Kayit olusturuldu", "Email dogrulama ayarina gore giris yapabilirsin.");
-      router.replace("/(auth)/login");
+      router.replace({
+        pathname: "/(auth)/login",
+        params: returnTo ? { returnTo } : undefined,
+      });
     } catch (error) {
       Alert.alert("Kayit basarisiz", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
@@ -58,15 +71,33 @@ export default function RegisterScreen() {
         <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} />
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
         <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry />
+        <Pressable style={styles.consentRow} onPress={() => setAcceptedLegal((value) => !value)}>
+          <View style={[styles.checkbox, acceptedLegal && styles.checkboxActive]}>
+            {acceptedLegal ? <Ionicons name="checkmark" size={16} color={COLORS.background} /> : null}
+          </View>
+          <Text variant="caption" color="secondary" style={styles.consentText}>
+            KVKK aydinlatma metnini, gizlilik politikasini ve kullanim sartlarini okudum; hesabimin bu kosullarla olusturulmasini kabul ediyorum.
+          </Text>
+        </Pressable>
         <Button title="Kayit Ol" onPress={handleSubmit} loading={isSubmitting} />
         <Text variant="caption" color="muted" style={styles.legalText}>
-          Kayit olarak Shipirio gizlilik politikasi ve kullanim sartlarini kabul edersin.
+          Onay zamanin hesap kaydinda saklanir; tercihlerini ayarlardan yonetebilirsin.
         </Text>
         <View style={styles.legalLinks}>
+          <Button title="KVKK" variant="ghost" onPress={() => router.push("/legal/kvkk")} style={styles.linkButton} />
           <Button title="Gizlilik" variant="ghost" onPress={() => router.push("/legal/privacy")} style={styles.linkButton} />
           <Button title="Sartlar" variant="ghost" onPress={() => router.push("/legal/terms")} style={styles.linkButton} />
         </View>
-        <Button title="Zaten hesabim var" variant="ghost" onPress={() => router.push("/(auth)/login")} />
+        <Button
+          title="Zaten hesabim var"
+          variant="ghost"
+          onPress={() =>
+            router.push({
+              pathname: "/(auth)/login",
+              params: returnTo ? { returnTo } : undefined,
+            })
+          }
+        />
       </View>
     </View>
   );
@@ -83,6 +114,28 @@ const styles = StyleSheet.create({
   form: {
     gap: SPACING.md,
     marginTop: SPACING.xl,
+  },
+  consentRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  checkbox: {
+    alignItems: "center",
+    borderColor: COLORS.border,
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 24,
+    justifyContent: "center",
+    marginTop: 2,
+    width: 24,
+  },
+  checkboxActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  consentText: {
+    flex: 1,
   },
   legalText: {
     textAlign: "center",

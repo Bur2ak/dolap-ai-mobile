@@ -1,14 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Sharing from "expo-sharing";
 import { router, useLocalSearchParams } from "expo-router";
-import { Alert, FlatList, Image, Pressable, StyleSheet, View } from "react-native";
+import { useRef } from "react";
+import { Alert, FlatList, Image, Pressable, Share, StyleSheet, View } from "react-native";
+import { captureRef } from "react-native-view-shot";
 
+import { OutfitShareCard } from "@/components/outfits/OutfitShareCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Text } from "@/components/ui/Text";
 import { CATEGORIES } from "@/constants/categories";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useSharedOutfit } from "@/hooks/useOutfitRecommendation";
+import { createPublicAppLink } from "@/lib/links";
+import { captureError, captureEvent } from "@/lib/observability";
+import { getUuidParam } from "@/lib/routeParams";
 import type { OutfitVoteValue, WardrobeItem } from "@/types";
 
 const voteOptions: Array<{ value: OutfitVoteValue; label: string }> = [
@@ -17,36 +25,55 @@ const voteOptions: Array<{ value: OutfitVoteValue; label: string }> = [
   { value: "no", label: "Baska dene" },
 ];
 
+const voteIcons: Record<OutfitVoteValue, keyof typeof Ionicons.glyphMap> = {
+  love: "heart",
+  yes: "checkmark-circle",
+  no: "refresh-circle",
+};
+
 export default function SharedOutfitScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id: idParam } = useLocalSearchParams<{ id: string | string[] }>();
+  const id = getUuidParam(idParam);
+  const shareCardRef = useRef<View>(null);
   const {
     userId,
     sharedOutfit,
     isLoading,
+    isRefetching,
     error,
+    refetch,
     vote,
     markWorn,
     toggleFavorite,
+    shareOutfit,
+    askFriendsToVote,
     deleteOutfit,
     isVoting,
     isMarkingWorn,
     isTogglingFavorite,
+    isSharingOutfit,
+    isAskingFriends,
     isDeletingOutfit,
     canVote,
     canMarkWorn,
     canToggleFavorite,
+    canShareOutfit,
     canDeleteOutfit,
   } = useSharedOutfit(id);
+  const isOwner = Boolean(userId && sharedOutfit?.outfit.user_id === userId);
   const myVote = sharedOutfit?.votes.find((item) => item.voter_id === userId)?.vote;
+  const friendVotes = sharedOutfit?.votes.filter((item) => item.voter_id !== sharedOutfit.outfit.user_id) ?? [];
   const voteCounts = voteOptions.map((option) => ({
     ...option,
-    count: sharedOutfit?.votes.filter((item) => item.vote === option.value).length ?? 0,
+    count: friendVotes.filter((item) => item.vote === option.value).length,
   }));
 
   async function handleVote(value: OutfitVoteValue) {
     try {
       await vote(value);
+      captureEvent("outfit_vote_submitted", { outfit_id: id ?? "invalid", vote: value, surface: isOwner ? "owner_detail" : "friend_detail" });
     } catch (voteError) {
+      captureError(voteError, { area: "outfit_vote", outfit_id: id ?? "invalid", vote: value });
       Alert.alert("Oy verilemedi", voteError instanceof Error ? voteError.message : "Tekrar dene.");
     }
   }
@@ -65,6 +92,55 @@ export default function SharedOutfitScreen() {
       await toggleFavorite();
     } catch (favoriteError) {
       Alert.alert("Guncellenemedi", favoriteError instanceof Error ? favoriteError.message : "Tekrar dene.");
+    }
+  }
+
+  async function handleShareOutfit() {
+    try {
+      const outfit = await shareOutfit();
+      const shareUrl = createPublicAppLink(`/outfit/share/${outfit.share_token ?? outfit.id}`);
+      const cardUri = shareCardRef.current
+        ? await captureRef(shareCardRef, {
+            format: "png",
+            quality: 0.95,
+          })
+        : null;
+
+      if (cardUri && (await Sharing.isAvailableAsync())) {
+        await Share.share({
+          title: "Shipirio kombini",
+          message: `${outfit.name ?? "Shipirio kombinim"} icin fikrini alabilir miyim? ${shareUrl}`,
+          url: cardUri,
+        });
+        captureEvent("outfit_shared", { outfit_id: outfit.id, share_type: "image" });
+        return;
+      }
+
+      await Share.share({
+        title: "Shipirio kombini",
+        message: `${outfit.name ?? "Shipirio kombinim"} icin fikrini alabilir miyim? ${shareUrl}`,
+        url: shareUrl,
+      });
+      captureEvent("outfit_shared", { outfit_id: outfit.id, share_type: "link" });
+    } catch (shareError) {
+      captureError(shareError, { area: "outfit_share", outfit_id: id ?? "invalid" });
+      Alert.alert("Paylasilamadi", shareError instanceof Error ? shareError.message : "Tekrar dene.");
+    }
+  }
+
+  async function handleAskFriends() {
+    try {
+      const { notifiedFriendsCount } = await askFriendsToVote();
+      captureEvent("outfit_friend_vote_requested", { outfit_id: id ?? "invalid", notified_friends_count: notifiedFriendsCount });
+      if (notifiedFriendsCount > 0) {
+        Alert.alert("Arkadaslara gonderildi", `${notifiedFriendsCount} arkadasina kombin oyu bildirimi gonderildi.`);
+        return;
+      }
+
+      Alert.alert("Arkadas yok", "Henuz kabul edilmis arkadasin yok. Linkle paylasabilirsin.");
+    } catch (askError) {
+      captureError(askError, { area: "outfit_friend_vote_request", outfit_id: id ?? "invalid" });
+      Alert.alert("Gonderilemedi", askError instanceof Error ? askError.message : "Tekrar dene.");
     }
   }
 
@@ -90,23 +166,24 @@ export default function SharedOutfitScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Button title="Geri" variant="ghost" onPress={() => router.back()} />
-        <Text variant="h2">Kombin Oyu</Text>
+        <Text variant="h2">Kombin Detayi</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      {error ? (
-        <Card style={styles.empty}>
-          <Ionicons name="lock-closed-outline" size={40} color={COLORS.primary} />
-          <Text variant="h3">Kombin acilamadi</Text>
-          <Text variant="body" color="secondary" style={styles.centerText}>
-            Bu kombin yalnizca kabul edilmis arkadaslara acik olabilir.
-          </Text>
-        </Card>
+      {!id ? (
+        <EmptyState icon="alert-circle-outline" title="Kombin linki gecersiz" body="Bu kombin linki eksik veya bozuk gorunuyor." style={styles.emptyState} />
+      ) : error ? (
+        <EmptyState
+          icon="lock-closed-outline"
+          title="Kombin acilamadi"
+          body="Bu kombin yalnizca kabul edilmis arkadaslara acik olabilir."
+          actionLabel="Tekrar Dene"
+          loading={isRefetching}
+          onAction={() => void refetch()}
+          style={styles.emptyState}
+        />
       ) : isLoading ? (
-        <Card style={styles.empty}>
-          <Ionicons name="sync-outline" size={40} color={COLORS.primary} />
-          <Text variant="h3">Kombin yukleniyor</Text>
-        </Card>
+        <EmptyState icon="sync-outline" title="Kombin yukleniyor" body="Kombin detaylari hazirlaniyor." style={styles.emptyState} />
       ) : sharedOutfit ? (
         <FlatList
           data={sharedOutfit.items}
@@ -114,14 +191,9 @@ export default function SharedOutfitScreen() {
           numColumns={2}
           ListHeaderComponent={
             <View style={styles.top}>
+              <OutfitShareCard ref={shareCardRef} sharedOutfit={sharedOutfit} eyebrow={sharedOutfit.outfit.event_type ?? "Shipirio kombini"} />
+
               <Card style={styles.summary}>
-                <Text variant="caption" color="muted">
-                  {sharedOutfit.outfit.event_type ?? "Kombin"}
-                </Text>
-                <Text variant="h1">{sharedOutfit.outfit.name ?? "Paylasilan kombin"}</Text>
-                <Text variant="body" color="secondary">
-                  {sharedOutfit.outfit.ai_reasoning ?? "Arkadasin bu kombine fikrini istiyor."}
-                </Text>
                 {sharedOutfit.outfit.worn_at ? (
                   <Text variant="caption" color="muted">
                     Son giyilme: {sharedOutfit.outfit.worn_at}
@@ -136,13 +208,24 @@ export default function SharedOutfitScreen() {
                     loading={isTogglingFavorite}
                   />
                 ) : null}
+                {canShareOutfit ? (
+                  <View style={styles.shareActions}>
+                    <Button title="Paylas" variant="secondary" onPress={() => void handleShareOutfit()} loading={isSharingOutfit} />
+                    <Button title="Arkadaslara Sor" variant="ghost" onPress={() => void handleAskFriends()} loading={isAskingFriends} />
+                  </View>
+                ) : null}
                 {canDeleteOutfit ? (
                   <Button title="Kombini Sil" variant="ghost" onPress={handleDeleteOutfit} loading={isDeletingOutfit} />
                 ) : null}
               </Card>
 
               <Card style={styles.votes}>
-                <Text variant="h3">Oy ver</Text>
+                <Text variant="h3">{isOwner ? "Kisisel puanin" : canVote ? "Oy ver" : "Arkadas oylari"}</Text>
+                {isOwner ? (
+                  <Text variant="body" color="secondary">
+                    Kombini sonradan hatirlamak icin kendi hissini kaydet. Arkadas oylarindan ayri tutulur.
+                  </Text>
+                ) : null}
                 <View style={styles.voteRow}>
                   {voteOptions.map((option) => (
                     <Pressable
@@ -160,10 +243,36 @@ export default function SharedOutfitScreen() {
                 <View style={styles.counts}>
                   {voteCounts.map((option) => (
                     <Text key={option.value} variant="caption" color="muted">
-                      {option.label}: {option.count}
+                      Arkadas {option.label}: {option.count}
                     </Text>
                   ))}
                 </View>
+                {friendVotes.length > 0 ? (
+                  <View style={styles.voterList}>
+                    {friendVotes.map((item) => {
+                      const voterName = item.voter?.full_name ?? item.voter?.username ?? "Arkadas";
+                      const voteLabel = voteOptions.find((option) => option.value === item.vote)?.label ?? item.vote;
+
+                      return (
+                        <View key={item.id} style={styles.voterRow}>
+                          <View style={styles.voterIcon}>
+                            <Ionicons name={voteIcons[item.vote]} size={18} color={COLORS.primary} />
+                          </View>
+                          <View style={styles.voterCopy}>
+                            <Text variant="label">{voterName}</Text>
+                            <Text variant="caption" color="muted">
+                              {voteLabel}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <Text variant="body" color="secondary">
+                    Henuz arkadas oyu yok. Arkadaslarina sordugunda cevaplar burada gorunecek.
+                  </Text>
+                )}
               </Card>
             </View>
           }
@@ -199,12 +308,7 @@ function OutfitItem({ item }: { item: WardrobeItem }) {
 
 function EmptyItems() {
   return (
-    <Card style={styles.empty}>
-      <Ionicons name="shirt-outline" size={40} color={COLORS.primary} />
-      <Text variant="body" color="secondary" style={styles.centerText}>
-        Bu kombinde goruntulenebilir kiyafet yok.
-      </Text>
-    </Card>
+    <EmptyState icon="shirt-outline" title="Kiyafet yok" body="Bu kombinde goruntulenebilir kiyafet yok." style={styles.emptyState} />
   );
 }
 
@@ -258,6 +362,29 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: SPACING.sm,
   },
+  voterList: {
+    gap: SPACING.sm,
+  },
+  voterRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  voterIcon: {
+    alignItems: "center",
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 999,
+    height: 34,
+    justifyContent: "center",
+    width: 34,
+  },
+  voterCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  shareActions: {
+    gap: SPACING.sm,
+  },
   grid: {
     gap: SPACING.md,
     paddingBottom: 120,
@@ -285,11 +412,8 @@ const styles = StyleSheet.create({
     height: 104,
     width: "100%",
   },
-  empty: {
-    alignItems: "center",
-    gap: SPACING.sm,
+  emptyState: {
     marginTop: SPACING.md,
-    paddingVertical: 40,
   },
   centerText: {
     textAlign: "center",

@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
@@ -7,10 +7,13 @@ import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { useAuthStore } from "@/stores/authStore";
 import { isValidEmail, normalizeEmail } from "@/utils/validation";
 
 export default function LoginScreen() {
+  const { returnTo: returnToParam } = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const returnTo = getSafeInternalReturnTo(returnToParam);
   const { signIn } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +35,7 @@ export default function LoginScreen() {
     try {
       setIsSubmitting(true);
       await signIn(normalizedEmail, password);
-      router.replace("/(tabs)");
+      router.replace(returnTo as Href);
     } catch (error) {
       Alert.alert("Giris basarisiz", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
@@ -52,7 +55,16 @@ export default function LoginScreen() {
         <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry />
         <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} />
         <Button title="Sifremi unuttum" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} />
-        <Button title="Hesabin yok mu? Kayit ol" variant="ghost" onPress={() => router.push("/(auth)/register")} />
+        <Button
+          title="Hesabin yok mu? Kayit ol"
+          variant="ghost"
+          onPress={() =>
+            router.push({
+              pathname: "/(auth)/register",
+              params: returnTo ? { returnTo } : undefined,
+            })
+          }
+        />
       </View>
     </View>
   );

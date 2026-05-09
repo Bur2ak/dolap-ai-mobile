@@ -1,6 +1,9 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { fetchBuyDecisionHistory, requestBuyDecision, saveBuyDecisionResult } from "@/lib/api/buyDecision";
+import { deleteBuyDecision, fetchBuyDecisionHistory, requestBuyDecision, saveBuyDecisionResult } from "@/lib/api/buyDecision";
+import { captureEvent } from "@/lib/observability";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { BuyDecisionInput, BuyDecisionResult } from "@/types";
 
@@ -10,6 +13,15 @@ export function useBuyDecision() {
 
   const decisionMutation = useMutation({
     mutationFn: (input: BuyDecisionInput) => requestBuyDecision(input),
+    onSuccess: (result, input) => {
+      captureEvent("buy_decision_generated", {
+        decision: result.decision,
+        has_image: Boolean(input.imageUri),
+        has_price: input.price !== null,
+        similar_count: result.similar_items_in_wardrobe.length,
+        wardrobe_count: input.wardrobe.length,
+      });
+    },
   });
 
   const historyQuery = useQuery({
@@ -19,21 +31,51 @@ export function useBuyDecision() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: ({ result, imageUrl, price }: { result: BuyDecisionResult; imageUrl: string | null; price: number | null }) =>
-      saveBuyDecisionResult(userId!, result, imageUrl, price),
+    mutationFn: ({ result, imageUri, price }: { result: BuyDecisionResult; imageUri: string | null; price: number | null }) =>
+      saveBuyDecisionResult(userId!, result, imageUri, price),
     onSuccess: async () => {
+      captureEvent("buy_decision_saved");
+      await queryClient.invalidateQueries({ queryKey: ["buy-decisions", userId] });
+    },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (decisionId: string) => deleteBuyDecision(userId!, decisionId),
+    onSuccess: async () => {
+      captureEvent("buy_decision_deleted");
       await queryClient.invalidateQueries({ queryKey: ["buy-decisions", userId] });
     },
   });
 
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`buy-decisions-${userId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "buy_decisions", filter: `user_id=eq.${userId}` }, () => {
+        void queryClient.invalidateQueries({ queryKey: ["buy-decisions", userId] });
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient, userId]);
+
   return {
+    userId,
     decide: decisionMutation.mutateAsync,
     result: decisionMutation.data,
     isDeciding: decisionMutation.isPending,
     saveResult: saveMutation.mutateAsync,
-    isSaving: saveMutation.isPending,
+    deleteDecision: deleteMutation.mutateAsync,
+    isSaving: saveMutation.isPending || deleteMutation.isPending,
     canSave: Boolean(userId),
     history: historyQuery.data ?? [],
+    historyError: historyQuery.error,
     isLoadingHistory: historyQuery.isLoading,
+    isRefetchingHistory: historyQuery.isRefetching,
+    refetchHistory: historyQuery.refetch,
   };
 }

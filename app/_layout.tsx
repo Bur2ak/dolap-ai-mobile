@@ -2,24 +2,128 @@ import "react-native-gesture-handler";
 import "react-native-url-polyfill/auto";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments, type Href } from "expo-router";
+import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { COLORS } from "@/constants/colors";
+import { syncSupabaseSessionFromUrl } from "@/lib/authLinks";
+import { getNotificationRoute } from "@/lib/notifications";
+import { captureError, identifyUser, initializeObservability, resetUser } from "@/lib/observability";
+import { configureRevenueCat, getRevenueCatCustomerInfo, hasPremiumEntitlement } from "@/lib/revenuecat";
+import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
+import { useSubscriptionStore } from "@/stores/subscriptionStore";
 
 void SplashScreen.preventAutoHideAsync();
+initializeObservability();
 
 export default function RootLayout() {
   const router = useRouter();
+  const pathname = usePathname();
+  const params = useGlobalSearchParams();
   const segments = useSegments();
   const queryClient = useMemo(() => new QueryClient(), []);
+  const handledNotificationResponseIds = useRef(new Set<string>());
   const { session, isLoading, fetchProfile } = useAuthStore();
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function syncRevenueCat() {
+      const status = await configureRevenueCat(session?.user.id ?? null);
+      if (!status.configured) {
+        useSubscriptionStore.getState().setRevenueCatPremium(false);
+        return;
+      }
+
+      const customerInfo = await getRevenueCatCustomerInfo();
+      if (mounted) {
+        useSubscriptionStore.getState().setRevenueCatPremium(hasPremiumEntitlement(customerInfo));
+      }
+    }
+
+    void syncRevenueCat().catch((error) => {
+      captureError(error, { area: "revenuecat_sync" });
+      useSubscriptionStore.getState().setRevenueCatPremium(false);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (session?.user.id) {
+      identifyUser(session.user.id, { email: session.user.email });
+      return;
+    }
+
+    resetUser();
+  }, [session?.user.email, session?.user.id]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function handleAuthLink(url: string | null) {
+      if (!url) {
+        return;
+      }
+
+      const linkType = await syncSupabaseSessionFromUrl(url);
+      if (active && linkType === "recovery") {
+        router.replace("/(auth)/reset-password");
+      }
+    }
+
+    void Linking.getInitialURL()
+      .then(handleAuthLink)
+      .catch((error) => captureError(error, { area: "auth_initial_link" }));
+
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      void handleAuthLink(url).catch((error) => captureError(error, { area: "auth_runtime_link" }));
+    });
+
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [router]);
+
+  useEffect(() => {
+    const openNotificationRoute = (response: Notifications.NotificationResponse | null) => {
+      if (!response) {
+        return;
+      }
+
+      const responseId = response.notification.request.identifier;
+      if (handledNotificationResponseIds.current.has(responseId)) {
+        return;
+      }
+
+      handledNotificationResponseIds.current.add(responseId);
+      const route = getNotificationRoute(response.notification.request.content.data);
+      router.push(route as Href);
+    };
+
+    void Notifications.getLastNotificationResponseAsync()
+      .then(openNotificationRoute)
+      .catch((error) => captureError(error, { area: "notification_initial_response" }));
+
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      openNotificationRoute(response);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [router]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -47,16 +151,23 @@ export default function RootLayout() {
       return;
     }
 
-    const inAuthGroup = segments[0] === "(auth)";
+    const segmentList = segments as string[];
+    const inAuthGroup = segmentList[0] === "(auth)";
+    const inPasswordReset = inAuthGroup && segmentList[1] === "reset-password";
+    const inPublicSharedOutfit = segmentList[0] === "outfit" && segmentList[1] === "share";
 
-    if (!session && !inAuthGroup) {
-      router.replace("/(auth)/onboarding");
+    if (!session && !inAuthGroup && !inPublicSharedOutfit) {
+      const returnTo = getReturnTo(pathname, params);
+      router.replace({
+        pathname: "/(auth)/onboarding",
+        params: returnTo ? { returnTo } : undefined,
+      });
     }
 
-    if (session && inAuthGroup) {
-      router.replace("/(tabs)");
+    if (session && inAuthGroup && !inPasswordReset) {
+      router.replace(getSafeInternalReturnTo(params.returnTo) as Href);
     }
-  }, [isLoading, router, segments, session]);
+  }, [isLoading, params, pathname, router, segments, session]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -68,4 +179,39 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+function getReturnTo(pathname: string, params: Record<string, string | string[] | undefined>) {
+  if (!pathname.startsWith("/") || pathname.startsWith("/(auth)") || pathname === "/") {
+    return undefined;
+  }
+
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (key === "returnTo" || value === undefined) {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((entry) => {
+        if (!isPathParam(pathname, entry)) {
+          query.append(key, entry);
+        }
+      });
+      return;
+    }
+
+    if (isPathParam(pathname, value)) {
+      return;
+    }
+
+    query.set(key, value);
+  });
+
+  const queryString = query.toString();
+  return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+function isPathParam(pathname: string, value: string) {
+  return pathname.split("/").some((segment) => segment === value || segment === encodeURIComponent(value));
 }

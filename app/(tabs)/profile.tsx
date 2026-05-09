@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -8,10 +8,12 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useAuthStore } from "@/stores/authStore";
+import { formatDate } from "@/utils/formatters";
 
 export default function ProfileScreen() {
   const { profile, signOut } = useAuthStore();
   const { premium } = useSubscription();
+  const profileIncomplete = Boolean(profile && (!profile.username || !profile.onboarding_completed));
 
   async function handleSignOut() {
     try {
@@ -23,7 +25,7 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text variant="h1">Profil</Text>
       <Card style={styles.profileCard}>
         <View style={styles.avatar}>
@@ -39,6 +41,16 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
+      {profile?.deletion_requested_at ? (
+        <Card style={styles.deletionNotice}>
+          <Text variant="h3">Hesap silme talebi aktif</Text>
+          <Text variant="body" color="secondary">
+            Planlanan silme tarihi: {profile.deletion_scheduled_for ? formatDate(profile.deletion_scheduled_for) : "30 gun icinde"}. Talebi hesap ayarlarindan iptal edebilirsin.
+          </Text>
+          <Button title="Talebi Yonet" variant="secondary" onPress={() => router.push("/settings/account")} />
+        </Card>
+      ) : null}
+
       {!premium ? (
         <Card style={styles.premiumBanner}>
           <View style={styles.premiumCopy}>
@@ -48,6 +60,16 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Button title="Incele" onPress={() => router.push("/paywall")} />
+        </Card>
+      ) : null}
+
+      {profileIncomplete ? (
+        <Card style={styles.profileNudge}>
+          <Text variant="h3">Profilini tamamla</Text>
+          <Text variant="body" color="secondary">
+            Kullanici adi ekleyince davet linkin daha okunur olur; sosyal akislarda arkadaslarin seni daha kolay bulur.
+          </Text>
+          <Button title="Tamamla" variant="secondary" onPress={() => router.push("/settings/account")} />
         </Card>
       ) : null}
 
@@ -65,6 +87,9 @@ export default function ProfileScreen() {
           <Button title="Arkadaslarim" variant="ghost" onPress={() => router.push("/social/friends")} />
         </Card>
         <Card>
+          <Button title="Odunc Takibi" variant="ghost" onPress={() => router.push("/social/loans")} />
+        </Card>
+        <Card>
           <Button title="Fiyat Takibi" variant="ghost" onPress={() => router.push("/price-tracking")} />
         </Card>
         <Card>
@@ -72,6 +97,9 @@ export default function ProfileScreen() {
         </Card>
         <Card>
           <Button title="Bildirim Kutusu" variant="ghost" onPress={() => router.push("/notifications")} />
+        </Card>
+        <Card>
+          <Button title="Sistem Durumu" variant="ghost" onPress={() => router.push("/settings/diagnostics")} />
         </Card>
         <Card>
           <Button title="Aboneligim" variant="ghost" onPress={() => router.push("/settings/subscription")} />
@@ -85,7 +113,7 @@ export default function ProfileScreen() {
       </View>
 
       <Button title="Cikis Yap" variant="secondary" onPress={handleSignOut} style={styles.signOut} />
-    </View>
+    </ScrollView>
   );
 }
 
@@ -93,8 +121,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  content: {
     gap: SPACING.md,
     padding: SPACING.lg,
+    paddingBottom: SPACING.xl,
     paddingTop: 64,
   },
   profileCard: {
@@ -116,10 +147,17 @@ const styles = StyleSheet.create({
   premiumBanner: {
     gap: SPACING.md,
   },
+  profileNudge: {
+    gap: SPACING.md,
+  },
+  deletionNotice: {
+    borderColor: COLORS.warning,
+    gap: SPACING.md,
+  },
   premiumCopy: {
     gap: SPACING.xs,
   },
   signOut: {
-    marginTop: "auto",
+    marginTop: SPACING.md,
   },
 });

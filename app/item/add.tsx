@@ -15,7 +15,10 @@ import { useImagePicker } from "@/hooks/useImagePicker";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { analyzeClothingImage, fallbackClothingAnalysis } from "@/lib/ai/analyzeClothing";
+import { removeImageBackground } from "@/lib/ai/removeBackground";
 import type { ClothingAnalysisResult, ClothingCategory, Season } from "@/types";
+import { getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
+import { getWardrobeMetadataInputError, parseColorList } from "@/utils/wardrobeValidation";
 import { createThumbnail, optimizeImage } from "@/utils/imageUtils";
 
 type Step = "select" | "metadata";
@@ -30,11 +33,30 @@ export default function AddItemScreen() {
   const [analysis, setAnalysis] = useState<ClothingAnalysisResult>(fallbackClothingAnalysis);
   const [brand, setBrand] = useState("");
   const [price, setPrice] = useState("");
+  const [isShareable, setIsShareable] = useState(false);
+  const [isLendable, setIsLendable] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const selectedCategoryLabel = useMemo(() => {
     return CATEGORIES.find((category) => category.value === analysis.category)?.label ?? "Ust";
   }, [analysis.category]);
+
+  function guardCanStartAdding() {
+    if (!canCreate) {
+      Alert.alert("Giris gerekli", "Kiyafeti dolaba eklemek icin once giris yapmalisin.");
+      return false;
+    }
+
+    if (isLimitReached("MAX_WARDROBE_ITEMS", items.length)) {
+      Alert.alert("Dolap limiti doldu", "Free plandaki kiyafet limitine ulastin. Daha fazla kiyafet eklemek icin Premium'a gecebilirsin.", [
+        { text: "Vazgec", style: "cancel" },
+        { text: "Premium'a Gec", onPress: () => router.push("/paywall") },
+      ]);
+      return false;
+    }
+
+    return true;
+  }
 
   async function handleImageSelected(uri: string | null) {
     if (!uri) {
@@ -44,12 +66,13 @@ export default function AddItemScreen() {
     try {
       setIsAnalyzing(true);
       const optimizedUri = await optimizeImage(uri);
-      const nextThumbnailUri = await createThumbnail(optimizedUri);
-      setImageUri(optimizedUri);
+      const backgroundRemovedUri = await removeImageBackground(optimizedUri);
+      const nextThumbnailUri = await createThumbnail(backgroundRemovedUri);
+      setImageUri(backgroundRemovedUri);
       setThumbnailUri(nextThumbnailUri);
 
       try {
-        const result = await analyzeClothingImage(optimizedUri);
+        const result = await analyzeClothingImage(backgroundRemovedUri);
         setAnalysis(result);
       } catch {
         setAnalysis(fallbackClothingAnalysis);
@@ -77,6 +100,26 @@ export default function AddItemScreen() {
     });
   }
 
+  function toggleShareable() {
+    setIsShareable((current) => {
+      const nextValue = !current;
+      if (!nextValue) {
+        setIsLendable(false);
+      }
+      return nextValue;
+    });
+  }
+
+  function toggleLendable() {
+    setIsLendable((current) => {
+      const nextValue = !current;
+      if (nextValue) {
+        setIsShareable(true);
+      }
+      return nextValue;
+    });
+  }
+
   async function handleSave() {
     if (!imageUri) {
       return;
@@ -92,17 +135,32 @@ export default function AddItemScreen() {
       return;
     }
 
+    const metadataError = getWardrobeMetadataInputError({
+      colorsText: analysis.colors.join(", "),
+      price,
+      seasons: analysis.season,
+      subcategory: analysis.subcategory,
+    });
+    if (metadataError) {
+      Alert.alert(metadataError.title, metadataError.message);
+      return;
+    }
+
     try {
+      const purchasePrice = parseCurrencyInput(price);
+
       await createItem({
         image_url: imageUri,
         thumbnail_url: thumbnailUri,
         category: analysis.category,
-        subcategory: analysis.subcategory,
-        colors: analysis.colors,
+        subcategory: analysis.subcategory.trim(),
+        colors: parseColorList(analysis.colors.join(", ")),
         dominant_color_hex: analysis.dominant_color_hex,
         season: analysis.season,
         brand: brand.trim() || null,
-        purchase_price: price.trim() ? Number(price.replace(",", ".")) : null,
+        purchase_price: purchasePrice,
+        is_shareable: isShareable,
+        is_lendable: isLendable,
       });
 
       router.replace("/(tabs)");
@@ -132,6 +190,9 @@ export default function AddItemScreen() {
             <Button
               title="Kamera"
               onPress={async () => {
+                if (!guardCanStartAdding()) {
+                  return;
+                }
                 await handleImageSelected(await takePhoto());
               }}
               loading={isPicking || isAnalyzing}
@@ -140,6 +201,9 @@ export default function AddItemScreen() {
               title="Galeriden Sec"
               variant="secondary"
               onPress={async () => {
+                if (!guardCanStartAdding()) {
+                  return;
+                }
                 await handleImageSelected(await pickFromLibrary());
               }}
               loading={isPicking || isAnalyzing}
@@ -211,7 +275,26 @@ export default function AddItemScreen() {
             }
           />
           <Input label="Marka" value={brand} onChangeText={setBrand} />
-          <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+          <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
+
+          <Card style={styles.socialCard}>
+            <Text variant="h3">Sosyal ayarlar</Text>
+            <Text variant="body" color="secondary">
+              Paylasilan parcalar arkadas dolabinda gorunur. Odunc verilebilir yapmak paylasimi otomatik acar.
+            </Text>
+            <View style={styles.actions}>
+              <Button
+                title={isShareable ? "Arkadas Dolabinda Acik" : "Arkadas Dolabinda Paylas"}
+                variant={isShareable ? "primary" : "secondary"}
+                onPress={toggleShareable}
+              />
+              <Button
+                title={isLendable ? "Odunc Verilebilir" : "Odunc Verilebilir Yap"}
+                variant={isLendable ? "primary" : "secondary"}
+                onPress={toggleLendable}
+              />
+            </View>
+          </Card>
 
           <Button title="Dolaba Ekle" onPress={handleSave} loading={isCreating} />
         </View>
@@ -263,6 +346,9 @@ const styles = StyleSheet.create({
   },
   analysisCard: {
     gap: SPACING.xs,
+  },
+  socialCard: {
+    gap: SPACING.md,
   },
   wrap: {
     flexDirection: "row",

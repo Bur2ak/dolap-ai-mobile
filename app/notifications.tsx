@@ -4,10 +4,13 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useNotificationInbox } from "@/hooks/useNotificationInbox";
+import { getNotificationRoute } from "@/lib/notifications";
+import { captureEvent } from "@/lib/observability";
 import type { NotificationRecord } from "@/types";
 
 const notificationLabels: Record<NotificationRecord["type"], string> = {
@@ -20,7 +23,21 @@ const notificationLabels: Record<NotificationRecord["type"], string> = {
 };
 
 export default function NotificationsScreen() {
-  const { notifications, unreadCount, readCount, isLoading, markRead, markAllRead, deleteOne, deleteRead, isUpdating, canUse } = useNotificationInbox();
+  const {
+    notifications,
+    unreadCount,
+    readCount,
+    error,
+    isLoading,
+    isRefetching,
+    refetch,
+    markRead,
+    markAllRead,
+    deleteOne,
+    deleteRead,
+    isUpdating,
+    canUse,
+  } = useNotificationInbox();
 
   async function handleMarkAllRead() {
     try {
@@ -69,6 +86,7 @@ export default function NotificationsScreen() {
       if (!notification.is_read) {
         await markRead(notification.id);
       }
+      captureEvent("notification_opened", { type: notification.type });
       routeFromNotification(notification);
     } catch (error) {
       Alert.alert("Acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
@@ -100,6 +118,15 @@ export default function NotificationsScreen() {
         <EmptyState icon="person-outline" title="Giris gerekli" body="Bildirimlerini gormek icin once giris yapmalisin." />
       ) : isLoading ? (
         <EmptyState icon="sync-outline" title="Yukleniyor" body="Bildirimlerin hazirlaniyor." />
+      ) : error ? (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Bildirimler yuklenemedi"
+          body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
+          actionLabel="Tekrar Dene"
+          loading={isRefetching}
+          onAction={() => void refetch()}
+        />
       ) : notifications.length > 0 ? (
         <View style={styles.list}>
           {notifications.map((notification) => (
@@ -138,22 +165,7 @@ export default function NotificationsScreen() {
 }
 
 function routeFromNotification(notification: NotificationRecord) {
-  const outfitId = typeof notification.data.outfit_id === "string" ? notification.data.outfit_id : null;
-  const trackingId = typeof notification.data.tracking_id === "string" ? notification.data.tracking_id : null;
-
-  if (notification.type === "outfit_vote" && outfitId) {
-    router.push(`/outfit/${outfitId}`);
-    return;
-  }
-
-  if (notification.type === "price_drop" && trackingId) {
-    router.push("/price-tracking");
-    return;
-  }
-
-  if (notification.type === "friend_request") {
-    router.push("/social/friends");
-  }
+  router.push(getNotificationRoute({ ...notification.data, type: notification.type }));
 }
 
 function iconForNotification(type: NotificationRecord["type"]) {
@@ -169,27 +181,21 @@ function iconForNotification(type: NotificationRecord["type"]) {
     return "heart-outline" as const;
   }
 
+  if (type === "lend_request") {
+    return "shirt-outline" as const;
+  }
+
   return "notifications-outline" as const;
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("tr-TR", {
+  return new Date(value).toLocaleString("tr-TR", {
     day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
-}
-
-function EmptyState({ icon, title, body }: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string }) {
-  return (
-    <Card style={styles.empty}>
-      <Ionicons name={icon} size={40} color={COLORS.primary} />
-      <Text variant="h3">{title}</Text>
-      <Text variant="body" color="secondary" style={styles.centerText}>
-        {body}
-      </Text>
-    </Card>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -266,13 +272,5 @@ const styles = StyleSheet.create({
   deleteButton: {
     minHeight: 36,
     paddingHorizontal: SPACING.sm,
-  },
-  empty: {
-    alignItems: "center",
-    gap: SPACING.sm,
-    paddingVertical: 40,
-  },
-  centerText: {
-    textAlign: "center",
   },
 });

@@ -1,5 +1,7 @@
 import { router } from "expo-router";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import type { PurchasesPackage } from "react-native-purchases";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -7,6 +9,16 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useSubscription } from "@/hooks/useSubscription";
+import {
+  getRevenueCatPackages,
+  getRevenueCatReadiness,
+  hasPremiumEntitlement,
+  purchaseRevenueCatPackage,
+  restoreRevenueCatPurchases,
+} from "@/lib/revenuecat";
+import { captureError, captureEvent } from "@/lib/observability";
+import { useAuthStore } from "@/stores/authStore";
+import { useSubscriptionStore } from "@/stores/subscriptionStore";
 
 const features = [
   "Sinirsiz kiyafet",
@@ -19,10 +31,107 @@ const features = [
 
 export default function PaywallScreen() {
   const { setLocalPremiumOverride } = useSubscription();
+  const fetchProfile = useAuthStore((state) => state.fetchProfile);
+  const setRevenueCatPremium = useSubscriptionStore((state) => state.setRevenueCatPremium);
+  const [packages, setPackages] = useState<PurchasesPackage[]>([]);
+  const [packageLoadReason, setPackageLoadReason] = useState<string | null>(null);
+  const [isLoadingPackages, setIsLoadingPackages] = useState(true);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const planCards = packages.length > 0 ? packages.map(getPackagePlanCard) : fallbackPlanCards;
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadPackages() {
+      try {
+        const readiness = getRevenueCatReadiness();
+        if (!readiness.configured) {
+          setPackageLoadReason(readiness.reason ?? "RevenueCat hazir degil.");
+          setPackages([]);
+          return;
+        }
+
+        const nextPackages = await getRevenueCatPackages();
+        if (mounted) {
+          setPackages(nextPackages);
+          setPackageLoadReason(nextPackages.length > 0 ? null : "RevenueCat teklifleri bos dondu.");
+        }
+      } catch (error) {
+        if (mounted) {
+          setPackages([]);
+          setPackageLoadReason(error instanceof Error ? error.message : "RevenueCat teklifleri yuklenemedi.");
+        }
+      } finally {
+        if (mounted) {
+          setIsLoadingPackages(false);
+        }
+      }
+    }
+
+    void loadPackages();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   function activatePreview() {
+    captureEvent("premium_preview_activated");
     setLocalPremiumOverride(true);
     router.back();
+  }
+
+  async function handlePurchase(revenueCatPackage: PurchasesPackage) {
+    if (isPurchasing || isRestoring) {
+      return;
+    }
+
+    try {
+      setIsPurchasing(true);
+      const customerInfo = await purchaseRevenueCatPackage(revenueCatPackage);
+      const premium = hasPremiumEntitlement(customerInfo);
+      setRevenueCatPremium(premium);
+      await fetchProfile();
+      captureEvent("purchase_completed", {
+        package_id: revenueCatPackage.identifier,
+        premium,
+      });
+      Alert.alert(premium ? "Premium aktif" : "Satin alma tamamlandi", premium ? "Shipirio Premium hesabinda aktif." : "RevenueCat satin almayi tamamladi.");
+      router.back();
+    } catch (error) {
+      captureError(error, {
+        area: "revenuecat_purchase",
+        package_id: revenueCatPackage.identifier,
+      });
+      Alert.alert("Satin alma tamamlanamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsPurchasing(false);
+    }
+  }
+
+  async function handleRestore() {
+    if (isRestoring || isPurchasing) {
+      return;
+    }
+
+    try {
+      setIsRestoring(true);
+      const customerInfo = await restoreRevenueCatPurchases();
+      const premium = hasPremiumEntitlement(customerInfo);
+      setRevenueCatPremium(premium);
+      await fetchProfile();
+      captureEvent("purchase_restore_completed", { premium });
+      Alert.alert(premium ? "Abonelik bulundu" : "Abonelik bulunamadi", premium ? "Premium erisimin geri yuklendi." : "Bu hesapta aktif Premium gorunmuyor.");
+      if (premium) {
+        router.back();
+      }
+    } catch (error) {
+      captureError(error, { area: "revenuecat_restore" });
+      Alert.alert("Geri yuklenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsRestoring(false);
+    }
   }
 
   return (
@@ -50,34 +159,92 @@ export default function PaywallScreen() {
       </Card>
 
       <View style={styles.plans}>
-        <Card style={styles.plan}>
-          <Text variant="caption" color="muted">
-            Aylik
-          </Text>
-          <Text variant="h1">79 TL</Text>
-          <Text variant="body" color="secondary">
-            Esnek baslangic.
-          </Text>
-        </Card>
-        <Card style={[styles.plan, styles.featuredPlan]}>
-          <Text variant="caption" color="muted">
-            Yillik
-          </Text>
-          <Text variant="h1">599 TL</Text>
-          <Text variant="body" color="secondary">
-            En avantajli plan.
-          </Text>
-        </Card>
+        {planCards.slice(0, 2).map((plan, index) => (
+          <Card key={plan.key} style={[styles.plan, index === 1 && styles.featuredPlan]}>
+            <Text variant="caption" color="muted">
+              {plan.label}
+            </Text>
+            <Text variant="h1">{plan.price}</Text>
+            <Text variant="body" color="secondary">
+              {plan.body}
+            </Text>
+          </Card>
+        ))}
       </View>
 
-      <Button title="RevenueCat Baglaninca Satin Al" onPress={activatePreview} />
-      <Button title="Aboneligi Geri Yukle" variant="secondary" onPress={activatePreview} />
+      <Card style={styles.section}>
+        <Text variant="h3">Plan sec</Text>
+        {isLoadingPackages ? (
+          <Text variant="body" color="secondary">
+            RevenueCat teklifleri yukleniyor.
+          </Text>
+        ) : packages.length > 0 ? (
+          packages.map((revenueCatPackage) => (
+            <Button
+              key={revenueCatPackage.identifier}
+              title={`${revenueCatPackage.product.title} - ${revenueCatPackage.product.priceString}`}
+              onPress={() => void handlePurchase(revenueCatPackage)}
+              loading={isPurchasing}
+              disabled={isPurchasing || isRestoring}
+            />
+          ))
+        ) : (
+          <>
+            <Text variant="body" color="secondary">
+              {packageLoadReason ?? "RevenueCat teklifleri henuz hazir degil. App Store / Google Play urunleri baglandiginda burada gercek planlar gorunecek."}
+            </Text>
+            {__DEV__ ? <Button title="Gelistirme Icin Premium Ac" variant="secondary" onPress={activatePreview} disabled={isPurchasing || isRestoring} /> : null}
+          </>
+        )}
+      </Card>
+
+      <Button title="Aboneligi Geri Yukle" variant="secondary" onPress={() => void handleRestore()} loading={isRestoring} disabled={isPurchasing || isLoadingPackages} />
       <View style={styles.legalLinks}>
         <Button title="Gizlilik Politikasi" variant="ghost" onPress={() => router.push("/legal/privacy")} />
         <Button title="Kullanim Sartlari" variant="ghost" onPress={() => router.push("/legal/terms")} />
       </View>
     </ScrollView>
   );
+}
+
+const fallbackPlanCards = [
+  {
+    body: "Esnek baslangic.",
+    key: "fallback-monthly",
+    label: "Aylik",
+    price: "79 TL",
+  },
+  {
+    body: "En avantajli plan.",
+    key: "fallback-yearly",
+    label: "Yillik",
+    price: "599 TL",
+  },
+];
+
+function getPackagePlanCard(revenueCatPackage: PurchasesPackage) {
+  const packageType = revenueCatPackage.packageType.toLowerCase();
+  const title = revenueCatPackage.product.title || revenueCatPackage.identifier;
+
+  return {
+    body: packageType.includes("annual") ? "En avantajli plan." : packageType.includes("monthly") ? "Esnek baslangic." : title,
+    key: revenueCatPackage.identifier,
+    label: getPackageLabel(revenueCatPackage),
+    price: revenueCatPackage.product.priceString,
+  };
+}
+
+function getPackageLabel(revenueCatPackage: PurchasesPackage) {
+  const packageType = revenueCatPackage.packageType.toLowerCase();
+  if (packageType.includes("annual")) {
+    return "Yillik";
+  }
+
+  if (packageType.includes("monthly")) {
+    return "Aylik";
+  }
+
+  return revenueCatPackage.product.title || "Premium";
 }
 
 const styles = StyleSheet.create({

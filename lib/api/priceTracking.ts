@@ -1,3 +1,5 @@
+import { throwApiError } from "@/lib/api/errors";
+import { invokeFunctionWithRetry } from "@/lib/api/functions";
 import { supabase } from "@/lib/supabase";
 import type { CreatePriceTrackingInput, PriceTracking, UpdatePriceTrackingInput } from "@/types";
 
@@ -24,7 +26,7 @@ export async function fetchPriceTrackings(userId: string): Promise<PriceTracking
     .order("created_at", { ascending: false });
 
   if (error) {
-    throw error;
+    throwApiError(error, "Fiyat takip listesi yuklenemedi.");
   }
 
   return (data ?? []) as PriceTracking[];
@@ -48,7 +50,7 @@ export async function createPriceTracking(userId: string, input: CreatePriceTrac
     .single();
 
   if (error) {
-    throw error;
+    throwApiError(error, "Fiyat takibi eklenemedi.");
   }
 
   return data as PriceTracking;
@@ -62,7 +64,7 @@ export async function deletePriceTracking(userId: string, trackingId: string): P
     .eq("id", trackingId);
 
   if (error) {
-    throw error;
+    throwApiError(error, "Fiyat takibi silinemedi.");
   }
 }
 
@@ -76,20 +78,13 @@ export async function updatePriceTracking(userId: string, trackingId: string, in
     .single();
 
   if (error) {
-    throw error;
+    throwApiError(error, "Fiyat takibi guncellenemedi.");
   }
 
   return data as PriceTracking;
 }
 
 export async function checkPriceTrackings(): Promise<PriceCheckResult> {
-  const { data, error } = await supabase.functions.invoke<PriceCheckResult>("price-check", {
-    body: {},
-  });
-
-  if (error) {
-    throw error;
-  }
-
+  const data = await invokeFunctionWithRetry<PriceCheckResult>("price-check", {});
   return data ?? { checked: 0, updated: 0, notified: 0, results: [] };
 }

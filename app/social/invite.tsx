@@ -1,26 +1,28 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { Alert, Share, StyleSheet, View } from "react-native";
 
 import { PremiumGate } from "@/components/shared/PremiumGate";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { useReferralRewards } from "@/hooks/useSocial";
 import { useSubscription } from "@/hooks/useSubscription";
+import { createPublicAppLink } from "@/lib/links";
 import { useAuthStore } from "@/stores/authStore";
+import type { ReferralReward } from "@/types";
+import { formatDate } from "@/utils/formatters";
 
 export default function InviteScreen() {
   const { premium } = useSubscription();
+  const { rewards, error, isLoading, isRefetching, refetch, userId } = useReferralRewards();
   const profile = useAuthStore((state) => state.profile);
   const inviteCode = profile?.username ?? profile?.id ?? "shipirio";
-  const inviteUrl = Linking.createURL("/social/friends", {
-    queryParams: {
-      invite: inviteCode,
-    },
-  });
+  const totalRewardDays = rewards.reduce((total, reward) => total + reward.reward_days, 0);
+  const inviteUrl = createPublicAppLink("/social/friends", { invite: inviteCode });
 
   async function handleShare() {
     try {
@@ -45,27 +47,79 @@ export default function InviteScreen() {
       {!premium ? (
         <PremiumGate title="Davet linki Premium" body="Arkadas davetleri ve sosyal akislari Premium planda acilir." />
       ) : (
-        <Card style={styles.card}>
-          <View style={styles.iconWrap}>
-            <Ionicons name="person-add-outline" size={36} color={COLORS.surface} />
-          </View>
-          <Text variant="h2" style={styles.centerText}>
-            Arkadasini davet et
-          </Text>
-          <Text variant="body" color="secondary" style={styles.centerText}>
-            Bu linki paylasinca arkadasin Shipirio'da seni bulup istek gonderebilir.
-          </Text>
-          <Card style={styles.linkCard}>
-            <Text variant="caption" color="muted">
-              Davet linki
+        <>
+          <Card style={styles.card}>
+            <View style={styles.iconWrap}>
+              <Ionicons name="person-add-outline" size={36} color={COLORS.surface} />
+            </View>
+            <Text variant="h2" style={styles.centerText}>
+              Arkadasini davet et
             </Text>
-            <Text variant="body" style={styles.linkText}>
-              {inviteUrl}
+            <Text variant="body" color="secondary" style={styles.centerText}>
+              Bu linkle gelen arkadaslik kabul edilince iki hesaba da 30 gun Premium eklenir.
             </Text>
+            <Card style={styles.linkCard}>
+              <Text variant="caption" color="muted">
+                Davet linki
+              </Text>
+              <Text variant="body" style={styles.linkText}>
+                {inviteUrl}
+              </Text>
+            </Card>
+            <Button title="Paylas" onPress={handleShare} />
           </Card>
-          <Button title="Paylas" onPress={handleShare} />
-        </Card>
+
+          <Card style={styles.rewardCard}>
+            <View style={styles.rewardHeader}>
+              <Ionicons name="gift-outline" size={24} color={COLORS.primary} />
+              <View style={styles.rewardCopy}>
+                <Text variant="h3">{totalRewardDays} gun kazanildi</Text>
+                <Text variant="body" color="secondary">
+                  Kabul edilen davetlerden gelen Premium odulleri.
+                </Text>
+              </View>
+            </View>
+            {isLoading ? (
+              <EmptyState icon="sync-outline" title="Oduller yukleniyor" body="Davet odullerin hazirlaniyor." />
+            ) : error ? (
+              <EmptyState
+                icon="cloud-offline-outline"
+                title="Oduller yuklenemedi"
+                body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
+                actionLabel="Tekrar Dene"
+                loading={isRefetching}
+                onAction={() => void refetch()}
+              />
+            ) : rewards.length > 0 ? (
+              rewards.slice(0, 4).map((reward) => <RewardRow key={reward.id} reward={reward} userId={userId} />)
+            ) : (
+              <Text variant="body" color="secondary">
+                Henuz davet odulu yok.
+              </Text>
+            )}
+          </Card>
+        </>
       )}
+    </View>
+  );
+}
+
+function RewardRow({ reward, userId }: { reward: ReferralReward; userId?: string }) {
+  const friend = reward.referrer_id === userId ? reward.referred : reward.referrer;
+
+  return (
+    <View style={styles.rewardRow}>
+      <View style={styles.rewardBadge}>
+        <Text variant="label" color="inverse">
+          +{reward.reward_days}
+        </Text>
+      </View>
+      <View style={styles.rewardCopy}>
+        <Text variant="label">{friend?.full_name ?? friend?.username ?? "Arkadas"}</Text>
+        <Text variant="caption" color="muted">
+          {formatDate(reward.created_at)}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -104,6 +158,31 @@ const styles = StyleSheet.create({
   },
   linkText: {
     textAlign: "center",
+  },
+  rewardCard: {
+    gap: SPACING.md,
+  },
+  rewardHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  rewardRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  rewardBadge: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  rewardCopy: {
+    flex: 1,
+    gap: 2,
   },
   centerText: {
     textAlign: "center",

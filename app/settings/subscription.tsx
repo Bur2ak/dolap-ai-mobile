@@ -1,5 +1,6 @@
 import { router } from "expo-router";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useState } from "react";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -7,7 +8,11 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useSubscription } from "@/hooks/useSubscription";
+import { captureError, captureEvent } from "@/lib/observability";
+import { getRevenueCatCustomerInfo, getRevenueCatReadiness, hasPremiumEntitlement } from "@/lib/revenuecat";
 import { useAuthStore } from "@/stores/authStore";
+import { useSubscriptionStore } from "@/stores/subscriptionStore";
+import { formatDate } from "@/utils/formatters";
 
 const limitLabels = {
   MAX_WARDROBE_ITEMS: "Dolap kapasitesi",
@@ -21,8 +26,37 @@ const limitLabels = {
 
 export default function SubscriptionSettingsScreen() {
   const profile = useAuthStore((state) => state.profile);
+  const fetchProfile = useAuthStore((state) => state.fetchProfile);
+  const setRevenueCatPremium = useSubscriptionStore((state) => state.setRevenueCatPremium);
   const { premium, localPremiumOverride, limits, setLocalPremiumOverride } = useSubscription();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const planName = premium ? "Premium" : "Free";
+  const profilePlanName = profile?.subscription_tier ?? "free";
+  const expiryLabel = profile?.subscription_expires_at ? formatDate(profile.subscription_expires_at) : "Belirtilmemis";
+  const revenueCatReadiness = getRevenueCatReadiness();
+
+  async function handleRefreshSubscription() {
+    try {
+      setIsRefreshing(true);
+      if (!revenueCatReadiness.configured) {
+        captureEvent("subscription_refresh_skipped", { reason: revenueCatReadiness.reason ?? "not_configured" });
+        Alert.alert("RevenueCat hazir degil", revenueCatReadiness.reason ?? "Gercek abonelik kontrolu icin RevenueCat anahtari gerekiyor.");
+        return;
+      }
+
+      const customerInfo = await getRevenueCatCustomerInfo();
+      const revenueCatPremium = hasPremiumEntitlement(customerInfo);
+      setRevenueCatPremium(revenueCatPremium);
+      await fetchProfile();
+      captureEvent("subscription_refreshed", { premium: revenueCatPremium });
+      Alert.alert("Guncellendi", "Abonelik durumu yeniden kontrol edildi.");
+    } catch (error) {
+      captureError(error, { area: "subscription_refresh" });
+      Alert.alert("Kontrol edilemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -40,10 +74,10 @@ export default function SubscriptionSettingsScreen() {
         <Text variant="body" color="secondary">
           {localPremiumOverride
             ? "Yerel premium onizleme modu acik."
-            : `Supabase profil plani: ${profile?.subscription_tier ?? "free"}`}
+            : `Profil plani: ${profilePlanName}`}
         </Text>
         <Text variant="caption" color="muted">
-          Bitis: {profile?.subscription_expires_at ?? "Belirtilmemis"}
+          Bitis: {expiryLabel}
         </Text>
       </Card>
 
@@ -59,8 +93,16 @@ export default function SubscriptionSettingsScreen() {
         ))}
       </Card>
 
+      <Card style={styles.section}>
+        <Text variant="h3">RevenueCat Durumu</Text>
+        <Text variant="body" color="secondary">
+          {revenueCatReadiness.configured ? "Gercek satin alma baglantisi hazir." : revenueCatReadiness.reason ?? "RevenueCat henuz hazir degil."}
+        </Text>
+      </Card>
+
       <View style={styles.actions}>
         <Button title={premium ? "Paywall'i Ac" : "Premium'a Gec"} onPress={() => router.push("/paywall")} />
+        <Button title="Aboneligi Yenile" variant="secondary" onPress={() => void handleRefreshSubscription()} loading={isRefreshing} disabled={isRefreshing} />
         {localPremiumOverride ? (
           <Button title="Onizlemeyi Kapat" variant="secondary" onPress={() => setLocalPremiumOverride(false)} />
         ) : null}

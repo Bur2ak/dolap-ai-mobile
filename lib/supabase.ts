@@ -3,14 +3,14 @@ import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+import { getMissingRequiredPublicEnv, publicEnv } from "@/lib/env";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Supabase env degerleri eksik. .env dosyasini .env.example uzerinden olustur.");
+const missingSupabaseEnv = getMissingRequiredPublicEnv();
+if (missingSupabaseEnv.length > 0) {
+  console.warn(`Supabase env degerleri eksik: ${missingSupabaseEnv.join(", ")}. .env dosyasini .env.example uzerinden olustur.`);
 }
 
-export const supabase = createClient(supabaseUrl ?? "https://placeholder.supabase.co", supabaseAnonKey ?? "placeholder", {
+export const supabase = createClient(publicEnv.supabaseUrl ?? "https://placeholder.supabase.co", publicEnv.supabaseAnonKey ?? "placeholder", {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,

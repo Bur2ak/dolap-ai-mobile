@@ -5,6 +5,7 @@ import { Alert, Image, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { CATEGORIES } from "@/constants/categories";
@@ -12,11 +13,17 @@ import { COLORS } from "@/constants/colors";
 import { SEASONS } from "@/constants/seasons";
 import { SPACING } from "@/constants/spacing";
 import { useWardrobeItem } from "@/hooks/useWardrobe";
-import type { ClothingCategory, Season } from "@/types";
+import { getUuidParam } from "@/lib/routeParams";
+import type { CareRecommendation, ClothingCategory, Season, SustainabilityInsight } from "@/types";
+import { getCareRecommendations } from "@/utils/care";
+import { getCostPerWearLabel, getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
+import { getSustainabilityInsight } from "@/utils/sustainability";
+import { getWardrobeMetadataInputError, parseColorList } from "@/utils/wardrobeValidation";
 
 export default function ItemDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const { item, isLoading, updateItem, markWorn, deleteItem, isUpdating } = useWardrobeItem(id);
+  const { id: idParam } = useLocalSearchParams<{ id: string | string[] }>();
+  const id = getUuidParam(idParam);
+  const { item, error, isLoading, isRefetching, refetch, updateItem, markWorn, deleteItem, isUpdating } = useWardrobeItem(id);
   const [isEditing, setIsEditing] = useState(false);
   const [category, setCategory] = useState<ClothingCategory>("ust");
   const [subcategory, setSubcategory] = useState("");
@@ -40,6 +47,10 @@ export default function ItemDetailScreen() {
     setSeasons(item.season);
   }, [item]);
 
+  const costPerWear = item ? getCostPerWearLabel(item.purchase_price, item.wear_count) : null;
+  const careRecommendations = item ? getCareRecommendations(item) : [];
+  const sustainabilityInsight = item ? getSustainabilityInsight(item) : null;
+
   function toggleSeason(season: Season) {
     setSeasons((current) => (current.includes(season) ? current.filter((item) => item !== season) : [...current, season]));
   }
@@ -49,17 +60,27 @@ export default function ItemDetailScreen() {
       return;
     }
 
+    const metadataError = getWardrobeMetadataInputError({
+      colorsText: colors,
+      price,
+      seasons,
+      subcategory,
+    });
+    if (metadataError) {
+      Alert.alert(metadataError.title, metadataError.message);
+      return;
+    }
+
     try {
+      const purchasePrice = parseCurrencyInput(price);
+
       await updateItem({
         brand: brand.trim() || null,
         category,
-        colors: colors
-          .split(",")
-          .map((color) => color.trim())
-          .filter(Boolean),
-        purchase_price: price.trim() ? Number(price.replace(",", ".")) : null,
+        colors: parseColorList(colors),
+        purchase_price: purchasePrice,
         season: seasons,
-        subcategory: subcategory.trim() || null,
+        subcategory: subcategory.trim(),
       });
       setIsEditing(false);
       Alert.alert("Kaydedildi", "Kiyafet bilgileri guncellendi.");
@@ -86,7 +107,7 @@ export default function ItemDetailScreen() {
     }
 
     try {
-      await updateItem({ is_shareable: !item.is_shareable });
+      await updateItem(item.is_shareable ? { is_shareable: false, is_lendable: false } : { is_shareable: true });
     } catch (error) {
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
@@ -98,7 +119,7 @@ export default function ItemDetailScreen() {
     }
 
     try {
-      await updateItem({ is_lendable: !item.is_lendable });
+      await updateItem(item.is_lendable ? { is_lendable: false } : { is_lendable: true, is_shareable: true });
     } catch (error) {
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
@@ -131,10 +152,16 @@ export default function ItemDetailScreen() {
       </View>
 
       {isLoading ? (
-        <Card style={styles.empty}>
-          <Ionicons name="sync-outline" size={40} color={COLORS.primary} />
-          <Text variant="h3">Kiyafet yukleniyor</Text>
-        </Card>
+        <EmptyState icon="sync-outline" title="Kiyafet yukleniyor" body="Kiyafet detaylari hazirlaniyor." />
+      ) : error ? (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Kiyafet yuklenemedi"
+          body="Baglanti veya izin tarafinda gecici bir sorun olabilir."
+          actionLabel="Tekrar Dene"
+          loading={isRefetching}
+          onAction={() => void refetch()}
+        />
       ) : item ? (
         <>
           <Image source={{ uri: item.image_url }} style={styles.heroImage} />
@@ -189,7 +216,7 @@ export default function ItemDetailScreen() {
               <Input label="Alt kategori" value={subcategory} onChangeText={setSubcategory} />
               <Input label="Renkler" value={colors} onChangeText={setColors} />
               <Input label="Marka" value={brand} onChangeText={setBrand} />
-              <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+              <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
               <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={isUpdating} />
             </Card>
           ) : null}
@@ -209,6 +236,21 @@ export default function ItemDetailScreen() {
             </Card>
           </View>
 
+          <Card style={styles.costCard}>
+            <View style={styles.costHeader}>
+              <View>
+                <Text variant="caption" color="muted">
+                  Kullanim basi maliyet
+                </Text>
+                <Text variant="h2">{costPerWear?.value}</Text>
+              </View>
+              <Ionicons name="calculator-outline" size={28} color={COLORS.primary} />
+            </View>
+            <Text variant="body" color="secondary">
+              {costPerWear?.helper}
+            </Text>
+          </Card>
+
           <Card style={styles.meta}>
             <Text variant="h3">Metadata</Text>
             <Text variant="body" color="secondary">
@@ -222,6 +264,10 @@ export default function ItemDetailScreen() {
             </Text>
           </Card>
 
+          <CareCard recommendations={careRecommendations} />
+
+          <SustainabilityCard insight={sustainabilityInsight} />
+
           <Card style={styles.meta}>
             <Text variant="h3">Paylasim</Text>
             <Text variant="body" color="secondary">
@@ -229,6 +275,9 @@ export default function ItemDetailScreen() {
             </Text>
             <Text variant="body" color="secondary">
               Odunc verilebilir: {item.is_lendable ? "Evet" : "Hayir"}
+            </Text>
+            <Text variant="caption" color="muted">
+              Odunc verilebilir acilinca parca arkadas dolabinda da gorunur.
             </Text>
             <View style={styles.inlineActions}>
               <Button
@@ -252,15 +301,81 @@ export default function ItemDetailScreen() {
           </View>
         </>
       ) : (
-        <Card style={styles.empty}>
-          <Text variant="h3">Kiyafet bulunamadi</Text>
-          <Text variant="body" color="secondary" style={styles.centerText}>
-            Silinmis olabilir veya dolabina ait olmayabilir.
-          </Text>
-        </Card>
+        <EmptyState icon="shirt-outline" title="Kiyafet bulunamadi" body="Silinmis olabilir veya dolabina ait olmayabilir." />
       )}
     </ScrollView>
   );
+}
+
+function CareCard({ recommendations }: { recommendations: CareRecommendation[] }) {
+  return (
+    <Card style={styles.meta}>
+      <View style={styles.careHeader}>
+        <Text variant="h3">Bakim onerileri</Text>
+        <Ionicons name="sparkles-outline" size={22} color={COLORS.primary} />
+      </View>
+      {recommendations.map((recommendation) => (
+        <View key={recommendation.title} style={styles.careRow}>
+          <View style={[styles.careDot, recommendation.priority === "important" && styles.careDotImportant]} />
+          <View style={styles.careCopy}>
+            <Text variant="label">{recommendation.title}</Text>
+            <Text variant="body" color="secondary">
+              {recommendation.body}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+function SustainabilityCard({ insight }: { insight: SustainabilityInsight | null }) {
+  if (!insight) {
+    return null;
+  }
+
+  return (
+    <Card style={styles.meta}>
+      <View style={styles.sustainabilityHeader}>
+        <View>
+          <Text variant="caption" color="muted">
+            Surdurulebilirlik skoru
+          </Text>
+          <Text variant="h3">{insight.title}</Text>
+        </View>
+        <View style={[styles.scoreBadge, getScoreBadgeStyle(insight.status)]}>
+          <Text variant="label">{insight.score}</Text>
+        </View>
+      </View>
+      <View style={styles.scoreTrack}>
+        <View style={[styles.scoreFill, { width: `${insight.score}%` }]} />
+      </View>
+      <Text variant="body" color="secondary">
+        {insight.body}
+      </Text>
+      <View style={styles.signalWrap}>
+        {insight.signals.map((signal) => (
+          <View key={signal} style={styles.signalPill}>
+            <Text variant="caption" color="secondary">
+              {signal}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </Card>
+  );
+}
+
+function getScoreBadgeStyle(status: SustainabilityInsight["status"]) {
+  if (status === "excellent" || status === "good") {
+    return styles.scoreBadgeGood;
+  }
+
+  if (status === "needs_use") {
+    return styles.scoreBadgeWarning;
+  }
+
+  return styles.scoreBadgeRisk;
 }
 
 const styles = StyleSheet.create({
@@ -301,8 +416,83 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: SPACING.xs,
   },
+  costCard: {
+    gap: SPACING.sm,
+  },
+  costHeader: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   meta: {
     gap: SPACING.sm,
+  },
+  careHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  careRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  careDot: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 10,
+    marginTop: 6,
+    width: 10,
+  },
+  careDotImportant: {
+    backgroundColor: COLORS.warning,
+  },
+  careCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  sustainabilityHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  scoreBadge: {
+    alignItems: "center",
+    borderRadius: 999,
+    height: 52,
+    justifyContent: "center",
+    width: 52,
+  },
+  scoreBadgeGood: {
+    backgroundColor: COLORS.primarySoft,
+  },
+  scoreBadgeWarning: {
+    backgroundColor: "#F7E6C8",
+  },
+  scoreBadgeRisk: {
+    backgroundColor: "#F5D3D0",
+  },
+  scoreTrack: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    height: 8,
+    overflow: "hidden",
+  },
+  scoreFill: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: "100%",
+  },
+  signalWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  signalPill: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
   },
   actions: {
     gap: SPACING.sm,
@@ -319,13 +509,5 @@ const styles = StyleSheet.create({
   chipButton: {
     minHeight: 40,
     paddingHorizontal: SPACING.md,
-  },
-  empty: {
-    alignItems: "center",
-    gap: SPACING.sm,
-    paddingVertical: 40,
-  },
-  centerText: {
-    textAlign: "center",
   },
 });

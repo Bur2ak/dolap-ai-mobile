@@ -1,0 +1,27 @@
+-- Run this in Supabase SQL Editor after replacing the placeholders.
+-- Keep the service role key private; do not commit the filled version.
+
+create extension if not exists pg_cron with schema extensions;
+create extension if not exists pg_net with schema extensions;
+
+select cron.unschedule('price-check-job')
+where exists (
+  select 1
+  from cron.job
+  where jobname = 'price-check-job'
+);
+
+select cron.schedule(
+  'price-check-job',
+  '0 9,21 * * *',
+  $$
+  select net.http_post(
+    url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/price-check',
+    headers := jsonb_build_object(
+      'Authorization', 'Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY',
+      'Content-Type', 'application/json'
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);

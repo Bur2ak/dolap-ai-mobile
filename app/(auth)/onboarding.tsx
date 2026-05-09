@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { getSafeInternalReturnTo } from "@/lib/routeParams";
 
 const slides = [
   {
@@ -23,6 +24,9 @@ const slides = [
 ];
 
 export default function OnboardingScreen() {
+  const { returnTo: returnToParam } = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const returnTo = getSafeInternalReturnTo(returnToParam);
+
   return (
     <View style={styles.container}>
       <View style={styles.hero}>
@@ -47,8 +51,25 @@ export default function OnboardingScreen() {
       </View>
 
       <View style={styles.actions}>
-        <Button title="Kayit Ol" onPress={() => router.push("/(auth)/register")} />
-        <Button title="Giris Yap" variant="secondary" onPress={() => router.push("/(auth)/login")} />
+        <Button
+          title="Kayit Ol"
+          onPress={() =>
+            router.push({
+              pathname: "/(auth)/register",
+              params: returnTo ? { returnTo } : undefined,
+            })
+          }
+        />
+        <Button
+          title="Giris Yap"
+          variant="secondary"
+          onPress={() =>
+            router.push({
+              pathname: "/(auth)/login",
+              params: returnTo ? { returnTo } : undefined,
+            })
+          }
+        />
       </View>
     </View>
   );

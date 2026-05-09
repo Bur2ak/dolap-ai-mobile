@@ -26,7 +26,7 @@ export default function ForgotPasswordScreen() {
 
     try {
       setIsSubmitting(true);
-      await resetPassword(normalizedEmail, Linking.createURL("/(auth)/login"));
+      await resetPassword(normalizedEmail, Linking.createURL("/(auth)/reset-password"));
       Alert.alert("Email gonderildi", "Sifre sifirlama linki email adresine gonderildi.");
       router.replace("/(auth)/login");
     } catch (error) {

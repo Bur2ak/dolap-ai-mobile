@@ -7,7 +7,11 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useWardrobe } from "@/hooks/useWardrobe";
+import { useWeather } from "@/hooks/useWeather";
+import { scheduleOutfitReminder } from "@/lib/notifications";
 import type { NotificationPreferences } from "@/types";
+import { buildSmartOutfitNotification } from "@/utils/smartNotifications";
 
 const rows: Array<{ key: keyof NotificationPreferences; title: string; body: string }> = [
   {
@@ -30,10 +34,18 @@ const rows: Array<{ key: keyof NotificationPreferences; title: string; body: str
     title: "Kombin oylari",
     body: "Arkadaslarin kombinlerine oy verdiginde bildir.",
   },
+  {
+    key: "lend_requests",
+    title: "Odunc istekleri",
+    body: "Paylastigin parcalar icin gelen odunc isteklerini ve durumlarini bildir.",
+  },
 ];
 
 export default function NotificationSettingsScreen() {
   const { preferences, registerForPush, isRegistering, updatePreferences, isUpdating } = useNotifications();
+  const { items } = useWardrobe();
+  const { weather, isLoading: isWeatherLoading, refetch } = useWeather();
+  const smartPlan = buildSmartOutfitNotification(weather, items);
 
   async function handleEnablePush() {
     try {
@@ -52,6 +64,17 @@ export default function NotificationSettingsScreen() {
     }
   }
 
+  async function handleScheduleSmartReminder() {
+    try {
+      const latestWeather = weather ?? (await refetch()).data ?? null;
+      const plan = buildSmartOutfitNotification(latestWeather, items);
+      const identifier = await scheduleOutfitReminder(plan);
+      Alert.alert(identifier ? "Akilli hatirlatici kuruldu" : "Kurulamadi", identifier ? "Sabah bildirimi hava durumuna gore hazir." : "Bu cihazda lokal bildirim uygun degil.");
+    } catch (error) {
+      Alert.alert("Kurulamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -66,6 +89,20 @@ export default function NotificationSettingsScreen() {
           Hatirlaticilar ve fiyat dususleri icin cihaz bildirimi izni gerekir.
         </Text>
         <Button title="Bildirimleri Etkinlestir" onPress={handleEnablePush} loading={isRegistering} />
+      </Card>
+
+      <Card style={styles.intro}>
+        <Text variant="caption" color="muted">
+          AKILLI HAVA BILDIRIMI
+        </Text>
+        <Text variant="h3">{smartPlan.title}</Text>
+        <Text variant="body" color="secondary">
+          {isWeatherLoading ? "Hava durumu kontrol ediliyor." : smartPlan.body}
+        </Text>
+        <Text variant="caption" color="muted">
+          {smartPlan.reason}
+        </Text>
+        <Button title="Akilli Hatirlaticiyi Kur" variant="secondary" onPress={handleScheduleSmartReminder} loading={isWeatherLoading} />
       </Card>
 
       {rows.map((row) => {

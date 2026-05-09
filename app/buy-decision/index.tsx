@@ -5,15 +5,20 @@ import { Alert, Image, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useBuyDecision } from "@/hooks/useBuyDecision";
 import { useImagePicker } from "@/hooks/useImagePicker";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
-import type { BuyDecisionRecord } from "@/types";
+import { getMonthlyBuyDecisionCount, incrementMonthlyBuyDecisionCount } from "@/lib/usageLimits";
+import type { BuyDecisionRecord, WardrobeItem } from "@/types";
+import { getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
 import { optimizeImage } from "@/utils/imageUtils";
+import { buildSimilarWardrobeSummary } from "@/utils/similarWardrobe";
 
 function formatDecisionDate(value: string) {
   return new Date(value).toLocaleDateString("tr-TR", {
@@ -26,11 +31,24 @@ function formatDecisionDate(value: string) {
 export default function BuyDecisionScreen() {
   const { items } = useWardrobe();
   const { pickFromLibrary, takePhoto, isPicking } = useImagePicker();
-  const { decide, result, isDeciding, saveResult, isSaving, canSave, history, isLoadingHistory } = useBuyDecision();
+  const {
+    userId,
+    decide,
+    result,
+    isDeciding,
+    saveResult,
+    deleteDecision,
+    isSaving,
+    canSave,
+    history,
+    historyError,
+    isLoadingHistory,
+    isRefetchingHistory,
+    refetchHistory,
+  } = useBuyDecision();
+  const { premium, limits, isLimitReached } = useSubscription();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [price, setPrice] = useState("");
-
-  const numericPrice = price.trim() ? Number(price.replace(",", ".")) : null;
 
   async function handleImageSelected(uri: string | null) {
     if (!uri) {
@@ -50,12 +68,43 @@ export default function BuyDecisionScreen() {
       return;
     }
 
+    if (!userId) {
+      Alert.alert("Giris gerekli", "Karar motorunu kullanmak icin once giris yapmalisin.");
+      return;
+    }
+
+    const priceError = getCurrencyInputError(price);
+    if (priceError) {
+      Alert.alert("Fiyat gecersiz", priceError);
+      return;
+    }
+
     try {
+      if (!premium) {
+        const currentUsage = await getMonthlyBuyDecisionCount(userId);
+        if (isLimitReached("BUY_DECISIONS_PER_MONTH", currentUsage)) {
+          Alert.alert(
+            "Aylik limit doldu",
+            `Free planda ayda ${formatLimit(limits.BUY_DECISIONS_PER_MONTH)} karar analizi kullanabilirsin.`,
+            [
+              { text: "Vazgec", style: "cancel" },
+              { text: "Premium'a Gec", onPress: () => router.push("/paywall") },
+            ],
+          );
+          return;
+        }
+      }
+
+      const numericPrice = parseCurrencyInput(price);
+
       await decide({
         imageUri,
         price: numericPrice,
         wardrobe: items,
       });
+      if (!premium) {
+        await incrementMonthlyBuyDecisionCount(userId);
+      }
     } catch (error) {
       Alert.alert("Analiz edilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
@@ -71,8 +120,14 @@ export default function BuyDecisionScreen() {
       return;
     }
 
+    const priceError = getCurrencyInputError(price);
+    if (priceError) {
+      Alert.alert("Fiyat gecersiz", priceError);
+      return;
+    }
+
     try {
-      await saveResult({ result, imageUrl: null, price: numericPrice });
+      await saveResult({ result, imageUri, price: parseCurrencyInput(price) });
       Alert.alert("Kaydedildi", "Karar gecmisine eklendi.");
     } catch (error) {
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
@@ -121,11 +176,49 @@ export default function BuyDecisionScreen() {
         </View>
       </Card>
 
-      <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
+      <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
       <Button title="Analiz Et" onPress={handleAnalyze} loading={isDeciding} />
 
       {result ? (
         <Card style={styles.resultCard}>
+          {(() => {
+            const similarSummary = buildSimilarWardrobeSummary(result.similar_items_in_wardrobe, items);
+
+            return (
+              <View style={styles.similarSection}>
+                <Text variant="h3">{similarSummary.title}</Text>
+                <Text variant="body" color="secondary">
+                  {similarSummary.body}
+                </Text>
+                {similarSummary.matches.length > 0 ? (
+                  <View style={styles.similarGrid}>
+                    {similarSummary.matches.map((match) => (
+                      <View key={match.item.id} style={styles.similarItem}>
+                        <Image source={{ uri: match.item.thumbnail_url ?? match.item.image_url }} style={styles.similarImage} />
+                        <Text variant="caption" color="secondary" numberOfLines={1} style={styles.similarLabel}>
+                          {match.item.subcategory ?? match.item.category}
+                        </Text>
+                        <Text variant="caption" color="muted" style={styles.similarLabel}>
+                          %{match.score}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+                {similarSummary.matches[0]?.reasons.length ? (
+                  <View style={styles.reasonPills}>
+                    {similarSummary.matches[0].reasons.slice(0, 3).map((reason) => (
+                      <View key={reason} style={styles.reasonPill}>
+                        <Text variant="caption" color="secondary">
+                          {reason}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })()}
           <View style={[styles.decisionBadge, styles[`decision${result.decision}`]]}>
             <Text variant="h2" color="inverse">
               {result.decision}
@@ -161,27 +254,54 @@ export default function BuyDecisionScreen() {
       </View>
 
       {isLoadingHistory ? (
-        <Card>
-          <Text variant="body" color="secondary">
-            Gecmis yukleniyor...
-          </Text>
-        </Card>
+        <EmptyState icon="sync-outline" title="Gecmis yukleniyor" body="Karar gecmisin hazirlaniyor." />
+      ) : historyError ? (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Gecmis yuklenemedi"
+          body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
+          actionLabel="Tekrar Dene"
+          loading={isRefetchingHistory}
+          onAction={() => void refetchHistory()}
+        />
       ) : history.length ? (
-        history.map((decision) => <DecisionHistoryCard key={decision.id} decision={decision} />)
+        history.map((decision) => <DecisionHistoryCard key={decision.id} decision={decision} onDelete={deleteDecision} isSaving={isSaving} />)
       ) : (
-        <Card>
-          <Text variant="body" color="secondary">
-            Kayitli karar henuz yok. Analiz sonucunu kaydettiginde burada gorunecek.
-          </Text>
-        </Card>
+        <EmptyState icon="bag-handle-outline" title="Kayitli karar yok" body="Analiz sonucunu kaydettiginde burada gorunecek." />
       )}
     </ScrollView>
   );
 }
 
-function DecisionHistoryCard({ decision }: { decision: BuyDecisionRecord }) {
+function DecisionHistoryCard({
+  decision,
+  onDelete,
+  isSaving,
+}: {
+  decision: BuyDecisionRecord;
+  onDelete: (decisionId: string) => Promise<void>;
+  isSaving: boolean;
+}) {
+  function handleDelete() {
+    Alert.alert("Karari sil", "Bu karar gecmisinden kaldirilacak.", [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: "Sil",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await onDelete(decision.id);
+          } catch (error) {
+            Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          }
+        },
+      },
+    ]);
+  }
+
   return (
     <Card style={styles.historyCard}>
+      {decision.product_image_url ? <Image source={{ uri: decision.product_image_url }} style={styles.historyImage} /> : null}
       <View style={styles.historyTopRow}>
         <View style={[styles.historyBadge, styles[`decision${decision.decision}`]]}>
           <Text variant="label" color="inverse">
@@ -210,8 +330,13 @@ function DecisionHistoryCard({ decision }: { decision: BuyDecisionRecord }) {
           </Text>
         ) : null}
       </View>
+      <Button title="Sil" variant="ghost" onPress={handleDelete} loading={isSaving} />
     </Card>
   );
+}
+
+function formatLimit(value: number | boolean) {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "sinirsiz";
 }
 
 const styles = StyleSheet.create({
@@ -253,6 +378,38 @@ const styles = StyleSheet.create({
   resultCard: {
     gap: SPACING.md,
   },
+  similarSection: {
+    gap: SPACING.sm,
+  },
+  similarGrid: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  similarItem: {
+    flex: 1,
+    gap: SPACING.xs,
+    minWidth: 0,
+  },
+  similarImage: {
+    aspectRatio: 4 / 5,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    width: "100%",
+  },
+  similarLabel: {
+    textAlign: "center",
+  },
+  reasonPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  reasonPill: {
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+  },
   sectionHeader: {
     alignItems: "center",
     flexDirection: "row",
@@ -279,6 +436,12 @@ const styles = StyleSheet.create({
   },
   historyCard: {
     gap: SPACING.sm,
+  },
+  historyImage: {
+    aspectRatio: 4 / 3,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    width: "100%",
   },
   historyTopRow: {
     alignItems: "center",
