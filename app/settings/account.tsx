@@ -27,6 +27,7 @@ export default function AccountSettingsScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isUpdatingDeletion, setIsUpdatingDeletion] = useState(false);
+  const isBusy = isSaving || isSavingPassword || isUpdatingDeletion;
   const deletionInfoUrl = createPublicAppLink("/delete-account.html");
 
   useEffect(() => {
@@ -62,8 +63,13 @@ export default function AccountSettingsScreen() {
         bio: trimmedBio || null,
         onboarding_completed: true,
       });
+      captureEvent("account_profile_saved", {
+        has_bio: Boolean(trimmedBio),
+        has_username: Boolean(normalizedUsername),
+      });
       Alert.alert("Kaydedildi", "Hesap bilgilerin guncellendi.");
     } catch (error) {
+      captureError(error, { area: "account_profile_save" });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSaving(false);
@@ -86,8 +92,10 @@ export default function AccountSettingsScreen() {
       await updatePassword(password);
       setPassword("");
       setConfirmPassword("");
+      captureEvent("account_password_changed");
       Alert.alert("Sifre yenilendi", "Hesap sifren guncellendi.");
     } catch (error) {
+      captureError(error, { area: "account_password_change" });
       Alert.alert("Sifre yenilenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSavingPassword(false);
@@ -174,7 +182,7 @@ export default function AccountSettingsScreen() {
         <Text variant="caption" color={bio.trim().length > maxBioLength ? "danger" : "muted"}>
           {bio.trim().length}/{maxBioLength}
         </Text>
-        <Button title="Kaydet" onPress={handleSave} loading={isSaving} />
+        <Button title="Kaydet" onPress={handleSave} loading={isSaving} disabled={isBusy} />
       </Card>
 
       <Card style={styles.form}>
@@ -184,7 +192,7 @@ export default function AccountSettingsScreen() {
         <Text variant="caption" color="muted">
           Sifre en az 8 karakter olmali.
         </Text>
-        <Button title="Sifreyi Yenile" variant="secondary" onPress={handleChangePassword} loading={isSavingPassword} />
+        <Button title="Sifreyi Yenile" variant="secondary" onPress={handleChangePassword} loading={isSavingPassword} disabled={isBusy} />
       </Card>
 
       <Card style={styles.dangerZone}>
@@ -194,16 +202,16 @@ export default function AccountSettingsScreen() {
             <Text variant="body" color="secondary">
               Hesap silme talebin alindi. Planlanan silme tarihi: {profile.deletion_scheduled_for ? formatDate(profile.deletion_scheduled_for) : "30 gun icinde"}.
             </Text>
-            <Button title="Hesap Silme Bilgisi" variant="ghost" onPress={() => void openDeletionInfo()} />
-            <Button title="Silme Talebini Iptal Et" variant="secondary" onPress={handleCancelDeletion} loading={isUpdatingDeletion} />
+            <Button title="Hesap Silme Bilgisi" variant="ghost" onPress={() => void openDeletionInfo()} disabled={isBusy} />
+            <Button title="Silme Talebini Iptal Et" variant="secondary" onPress={handleCancelDeletion} loading={isUpdatingDeletion} disabled={isBusy} />
           </>
         ) : (
           <>
             <Text variant="body" color="secondary">
               Talep olusturdugunda hesabinin ve iliskili verilerinin kalici silinmesi icin 30 gunluk sure baslar.
             </Text>
-            <Button title="Hesap Silme Bilgisi" variant="secondary" onPress={() => void openDeletionInfo()} />
-            <Button title="Hesap Silme Talebi Olustur" variant="ghost" onPress={handleRequestDeletion} loading={isUpdatingDeletion} />
+            <Button title="Hesap Silme Bilgisi" variant="secondary" onPress={() => void openDeletionInfo()} disabled={isBusy} />
+            <Button title="Hesap Silme Talebi Olustur" variant="ghost" onPress={handleRequestDeletion} loading={isUpdatingDeletion} disabled={isBusy} />
           </>
         )}
       </Card>

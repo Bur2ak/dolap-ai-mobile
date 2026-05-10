@@ -52,6 +52,13 @@ export function useNotifications() {
 
       return nextPreferences;
     },
+    onError: (error, updates) => {
+      const changedPreference = Object.keys(updates)[0] ?? "unknown";
+      captureError(error, {
+        area: "notification_preferences_update",
+        preference: changedPreference,
+      });
+    },
   });
 
   return {

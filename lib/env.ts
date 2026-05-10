@@ -52,12 +52,24 @@ export function getPublicEnvWarnings() {
     warnings.push("EXPO_PUBLIC_OPENWEATHER_API_KEY eksik; hava durumu onerileri pasif kalir.");
   }
 
+  if (!publicEnv.siteUrlConfigured) {
+    warnings.push("EXPO_PUBLIC_SITE_URL eksik; paylasim linkleri varsayilan shipirio.com alan adina gider.");
+  }
+
   if (!publicEnv.revenueCatIosKey || !publicEnv.revenueCatAndroidKey) {
     warnings.push("RevenueCat public key eksik; gercek abonelik teklifleri cihazda gelmeyebilir.");
   }
 
   if (!publicEnv.easProjectId) {
     warnings.push("EXPO_PUBLIC_EAS_PROJECT_ID eksik; gercek cihaz push token icin EAS projectId gerekir.");
+  }
+
+  if (!publicEnv.sentryDsn) {
+    warnings.push("EXPO_PUBLIC_SENTRY_DSN eksik; runtime hata takibi pasif kalir.");
+  }
+
+  if (!publicEnv.posthogApiKey) {
+    warnings.push("EXPO_PUBLIC_POSTHOG_API_KEY eksik; urun analitigi pasif kalir.");
   }
 
   return warnings;

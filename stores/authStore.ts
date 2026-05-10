@@ -2,7 +2,7 @@ import type { Session } from "@supabase/supabase-js";
 import { create } from "zustand";
 
 import { throwApiError } from "@/lib/api/errors";
-import { captureEvent } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
 
@@ -27,6 +27,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signIn: async (email, password) => {
     const { error, data } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      captureError(error, { area: "auth_sign_in" });
       throwApiError(error, "Giris yapilamadi.");
     }
     set({ session: data.session });
@@ -48,6 +49,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       },
     });
     if (error) {
+      captureError(error, { area: "auth_sign_up" });
       throwApiError(error, "Kayit olusturulamadi.");
     }
     captureEvent("auth_signed_up", { kvkk_accepted: true, terms_accepted: true });
@@ -58,6 +60,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       redirectTo,
     });
     if (error) {
+      captureError(error, { area: "auth_password_reset_request" });
       throwApiError(error, "Sifre sifirlama e-postasi gonderilemedi.");
     }
     captureEvent("auth_password_reset_requested");
@@ -66,6 +69,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   updatePassword: async (password) => {
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
+      captureError(error, { area: "auth_password_update" });
       throwApiError(error, "Sifre guncellenemedi.");
     }
     captureEvent("auth_password_updated");
@@ -74,6 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
+      captureError(error, { area: "auth_sign_out" });
       throwApiError(error, "Cikis yapilamadi.");
     }
     captureEvent("auth_signed_out");
@@ -93,6 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single();
 
     if (error) {
+      captureError(error, { area: "profile_fetch" });
       throwApiError(error, "Profil yuklenemedi.");
     }
 
@@ -111,6 +117,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const nextUpdates = { ...updates, updated_at: new Date().toISOString() };
     const { error } = await supabase.from("profiles").update(nextUpdates).eq("id", user.id);
     if (error) {
+      captureError(error, {
+        area: "profile_update",
+        changed_bio: updates.bio !== undefined,
+        changed_full_name: updates.full_name !== undefined,
+        changed_notifications: updates.notification_preferences !== undefined,
+        changed_privacy: updates.privacy_settings !== undefined,
+        changed_username: updates.username !== undefined,
+        requested_deletion: updates.deletion_requested_at !== undefined,
+      });
       throwApiError(error, "Profil guncellenemedi.");
     }
 

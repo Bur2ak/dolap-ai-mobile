@@ -10,6 +10,7 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { createPublicAppLink } from "@/lib/links";
+import { captureError, captureEvent } from "@/lib/observability";
 
 const supportEmail = "hello@shipirio.com";
 const supportTopics = [
@@ -28,11 +29,14 @@ export default function SupportScreen() {
     try {
       if (url.startsWith("http")) {
         await WebBrowser.openBrowserAsync(url);
+        captureEvent("support_link_opened", { type: "web" });
         return;
       }
 
       await Linking.openURL(url);
+      captureEvent("support_link_opened", { type: "mailto" });
     } catch (error) {
+      captureError(error, { area: "support_link_open", url_type: url.startsWith("http") ? "web" : "mailto" });
       Alert.alert("Acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }

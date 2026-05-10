@@ -11,7 +11,7 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { getPublicEnvWarnings, publicEnv } from "@/lib/env";
 import { getPushNotificationReadiness, type PushNotificationReadiness } from "@/lib/notifications";
-import { captureError } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 
 const checks = [
   {
@@ -58,6 +58,7 @@ export default function DiagnosticsScreen() {
   const appVersion = Constants.expoConfig?.version ?? "Bilinmiyor";
   const iosBuildNumber = Constants.expoConfig?.ios?.buildNumber ?? "Bilinmiyor";
   const androidVersionCode = Constants.expoConfig?.android?.versionCode ?? "Bilinmiyor";
+  const readyCheckCount = checks.filter((check) => check.configured).length;
 
   useEffect(() => {
     void refreshPushReadiness();
@@ -66,7 +67,13 @@ export default function DiagnosticsScreen() {
   async function refreshPushReadiness() {
     try {
       setIsCheckingPush(true);
-      setPushReadiness(await getPushNotificationReadiness());
+      const readiness = await getPushNotificationReadiness();
+      setPushReadiness(readiness);
+      captureEvent("diagnostics_push_readiness_checked", {
+        device_ready: readiness.deviceReady,
+        eas_project_ready: readiness.easProjectReady,
+        granted: readiness.granted,
+      });
     } catch (error) {
       captureError(error, { area: "diagnostics_push_readiness" });
     } finally {
@@ -87,6 +94,10 @@ export default function DiagnosticsScreen() {
         <Text variant="body" color="secondary">
           Bu ekran sadece public app ayarlarini kontrol eder; gizli Supabase Edge Function secret degerlerini gostermez.
         </Text>
+        <View style={styles.statusPills}>
+          <StatusPill label="Hazir" ok={readyCheckCount === checks.length} />
+          <StatusPill label={`${readyCheckCount}/${checks.length} ayar`} ok={readyCheckCount === checks.length} />
+        </View>
       </Card>
 
       <Card style={styles.summary}>
@@ -108,7 +119,7 @@ export default function DiagnosticsScreen() {
             <StatusPill label="Izin" ok={pushReadiness.granted} />
           </View>
         ) : null}
-        <Button title="Push Durumunu Yenile" variant="secondary" onPress={() => void refreshPushReadiness()} loading={isCheckingPush} />
+        <Button title="Push Durumunu Yenile" variant="secondary" onPress={() => void refreshPushReadiness()} loading={isCheckingPush} disabled={isCheckingPush} />
       </Card>
 
       <View style={styles.list}>

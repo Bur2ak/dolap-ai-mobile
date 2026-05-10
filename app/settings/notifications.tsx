@@ -51,6 +51,7 @@ export default function NotificationSettingsScreen() {
   const [pushReadiness, setPushReadiness] = useState<PushNotificationReadiness | null>(null);
   const [isCheckingPush, setIsCheckingPush] = useState(false);
   const smartPlan = buildSmartOutfitNotification(weather, items);
+  const isBusy = isRegistering || isUpdating || isSchedulingReminder || isCheckingPush;
 
   useEffect(() => {
     void refreshPushReadiness();
@@ -71,8 +72,10 @@ export default function NotificationSettingsScreen() {
     try {
       const token = await registerForPush();
       await refreshPushReadiness();
+      captureEvent("push_enable_requested", { success: Boolean(token) });
       Alert.alert(token ? "Bildirimler hazir" : "Bildirim acilamadi", token ? "Push token kaydedildi." : "Cihaz veya izin uygun degil.");
     } catch (error) {
+      captureError(error, { area: "push_enable_request" });
       Alert.alert("Bildirim acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -81,6 +84,7 @@ export default function NotificationSettingsScreen() {
     try {
       await updatePreferences({ [key]: !preferences[key] });
     } catch (error) {
+      captureError(error, { area: "notification_preference_toggle", preference: key });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -132,7 +136,7 @@ export default function NotificationSettingsScreen() {
         <Text variant="body" color="secondary">
           Hatirlaticilar ve fiyat dususleri icin cihaz bildirimi izni gerekir.
         </Text>
-        <Button title="Bildirimleri Etkinlestir" onPress={handleEnablePush} loading={isRegistering} disabled={isRegistering || isUpdating || isSchedulingReminder} />
+        <Button title="Bildirimleri Etkinlestir" onPress={handleEnablePush} loading={isRegistering} disabled={isBusy} />
       </Card>
 
       <Card style={styles.intro}>
@@ -150,7 +154,7 @@ export default function NotificationSettingsScreen() {
             <StatusPill label="Izin" ok={pushReadiness.granted} />
           </View>
         ) : null}
-        <Button title="Durumu Yenile" variant="secondary" onPress={() => void refreshPushReadiness()} loading={isCheckingPush} disabled={isCheckingPush || isRegistering} />
+        <Button title="Durumu Yenile" variant="secondary" onPress={() => void refreshPushReadiness()} loading={isCheckingPush} disabled={isBusy} />
       </Card>
 
       <Card style={styles.intro}>
@@ -169,18 +173,18 @@ export default function NotificationSettingsScreen() {
           variant="secondary"
           onPress={handleScheduleSmartReminder}
           loading={isWeatherLoading || isSchedulingReminder}
-          disabled={isUpdating || isRegistering || isSchedulingReminder}
+          disabled={isBusy}
         />
         {preferences.outfit_reminder ? (
-          <Button title="Hatirlaticiyi Kapat" variant="ghost" onPress={handleCancelSmartReminder} loading={isSchedulingReminder} disabled={isUpdating || isSchedulingReminder} />
+          <Button title="Hatirlaticiyi Kapat" variant="ghost" onPress={handleCancelSmartReminder} loading={isSchedulingReminder} disabled={isBusy} />
         ) : null}
       </Card>
 
       {rows.map((row) => {
         const enabled = preferences[row.key];
         return (
-          <Pressable key={row.key} onPress={() => void togglePreference(row.key)} disabled={isUpdating}>
-            <Card style={styles.row}>
+          <Pressable key={row.key} onPress={() => void togglePreference(row.key)} disabled={isBusy}>
+            <Card style={[styles.row, isBusy && styles.rowDisabled]}>
               <View style={styles.rowCopy}>
                 <Text variant="h3">{row.title}</Text>
                 <Text variant="body" color="secondary">
@@ -234,6 +238,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: SPACING.md,
+  },
+  rowDisabled: {
+    opacity: 0.72,
   },
   rowCopy: {
     flex: 1,
