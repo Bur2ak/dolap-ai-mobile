@@ -9,6 +9,7 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useLoanRequests } from "@/hooks/useSocial";
+import { captureError, captureEvent } from "@/lib/observability";
 import type { LoanRequest, LoanRequestStatus } from "@/types";
 import { formatDate, formatRelativeDueDate } from "@/utils/formatters";
 
@@ -23,6 +24,8 @@ export default function LoansScreen() {
   const { loanRequests, error, isLoading, isRefetching, refetch, updateLoanRequestStatus, isUpdating, userId } = useLoanRequests();
   const incoming = loanRequests.filter((request) => request.owner_id === userId);
   const outgoing = loanRequests.filter((request) => request.requester_id === userId);
+  const pendingCount = loanRequests.filter((request) => request.status === "pending").length;
+  const activeCount = loanRequests.filter((request) => request.status === "approved").length;
 
   async function handleStatus(loanRequest: LoanRequest, status: LoanRequestStatus) {
     if (isUpdating) {
@@ -31,8 +34,14 @@ export default function LoansScreen() {
 
     try {
       await updateLoanRequestStatus({ loanRequest, status });
+      captureEvent("loan_request_status_changed", {
+        loan_request_id: loanRequest.id,
+        role: loanRequest.owner_id === userId ? "owner" : "requester",
+        status,
+      });
       Alert.alert("Guncellendi", `Odunc istegi ${statusLabels[status].toLowerCase()}.`);
     } catch (error) {
+      captureError(error, { area: "loan_request_status_action", loan_request_id: loanRequest.id, status });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -52,6 +61,18 @@ export default function LoansScreen() {
           <Text variant="body" color="secondary">
             Sana gelen ve senin gonderdigin odunc isteklerini takip et.
           </Text>
+          <View style={styles.summaryPills}>
+            <View style={styles.summaryPill}>
+              <Text variant="caption" color="primary">
+                Bekleyen {pendingCount}
+              </Text>
+            </View>
+            <View style={styles.summaryPill}>
+              <Text variant="caption" color="primary">
+                Aktif {activeCount}
+              </Text>
+            </View>
+          </View>
         </View>
       </Card>
 
@@ -197,6 +218,17 @@ const styles = StyleSheet.create({
   summaryCopy: {
     flex: 1,
     gap: SPACING.xs,
+  },
+  summaryPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  summaryPill: {
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
   },
   section: {
     gap: SPACING.md,

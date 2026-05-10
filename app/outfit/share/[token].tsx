@@ -35,6 +35,7 @@ export default function PublicSharedOutfitScreen() {
 
   async function handleVote(value: OutfitVoteValue) {
     if (!userId) {
+      captureEvent("public_outfit_vote_login_required", { token, vote: value });
       router.push({
         pathname: "/(auth)/login",
         params: {

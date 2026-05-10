@@ -12,6 +12,7 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useSocial } from "@/hooks/useSocial";
 import { useSubscription } from "@/hooks/useSubscription";
+import { captureError, captureEvent } from "@/lib/observability";
 import { getStringParam } from "@/lib/routeParams";
 import type { Friendship, Profile } from "@/types";
 
@@ -50,6 +51,7 @@ export default function FriendsScreen() {
     setQuery(inviteQuery);
     setHandledInvite(inviteQuery);
     void searchUsers(inviteQuery).catch((error) => {
+      captureError(error, { area: "friend_invite_search" });
       Alert.alert("Davet acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     });
   }, [handledInvite, invite, premium, searchUsers]);
@@ -62,8 +64,13 @@ export default function FriendsScreen() {
     }
 
     try {
-      await searchUsers(normalizedQuery);
+      const results = await searchUsers(normalizedQuery);
+      captureEvent("friend_search_performed", {
+        result_count: Array.isArray(results) ? results.length : 0,
+        search_length: normalizedQuery.length,
+      });
     } catch (error) {
+      captureError(error, { area: "friend_search_action" });
       Alert.alert("Arama yapilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -75,8 +82,10 @@ export default function FriendsScreen() {
 
     try {
       await sendFriendRequest(addresseeId);
+      captureEvent("friend_request_sent", { addressee_id: addresseeId });
       Alert.alert("Istek gonderildi", "Arkadaslik istegi beklemede.");
     } catch (error) {
+      captureError(error, { area: "friend_request_send_action", addressee_id: addresseeId });
       Alert.alert("Istek gonderilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -88,10 +97,12 @@ export default function FriendsScreen() {
 
     try {
       const { referralRewarded } = await updateFriendshipStatus({ friendshipId, status });
+      captureEvent("friendship_status_changed", { friendship_id: friendshipId, status, referral_rewarded: referralRewarded });
       if (status === "accepted" && referralRewarded) {
         Alert.alert("Arkadas oldunuz", "Davet odulu olarak iki hesaba da 30 gun Premium eklendi.");
       }
     } catch (error) {
+      captureError(error, { area: "friendship_status_action", friendship_id: friendshipId, status });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -110,7 +121,9 @@ export default function FriendsScreen() {
         onPress: async () => {
           try {
             await deleteFriendship(friendship.id);
+            captureEvent("friendship_deleted", { friendship_id: friendship.id, accepted });
           } catch (error) {
+            captureError(error, { area: "friendship_delete_action", friendship_id: friendship.id, accepted });
             Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
           }
         },
@@ -133,8 +146,8 @@ export default function FriendsScreen() {
           <Card style={styles.searchCard}>
             <Text variant="h3">Kullanici ara</Text>
             <Input label="Kullanici adi veya ad" value={query} onChangeText={setQuery} autoCapitalize="none" />
-            <Button title="Ara" onPress={handleSearch} loading={isSearching} />
-            <Button title="Davet Linki" variant="secondary" onPress={() => router.push("/social/invite")} />
+            <Button title="Ara" onPress={handleSearch} loading={isSearching} disabled={isSearching || isMutating} />
+            <Button title="Davet Linki" variant="secondary" onPress={() => router.push("/social/invite")} disabled={isSearching || isMutating} />
           </Card>
 
           {searchResults.length > 0 ? (
@@ -163,7 +176,7 @@ export default function FriendsScreen() {
                       {friendship && incoming ? (
                         <Button title="Kabul" variant="secondary" onPress={() => void handleStatus(friendship.id, "accepted")} loading={isMutating} disabled={isMutating} style={styles.compactButton} />
                       ) : accepted ? (
-                        <Button title="Dolap" variant="secondary" onPress={() => router.push(`/social/${user.id}`)} style={styles.compactButton} />
+                        <Button title="Dolap" variant="secondary" onPress={() => router.push(`/social/${user.id}`)} disabled={isMutating} style={styles.compactButton} />
                       ) : (
                         <Button title={pending ? "Bekliyor" : "Ekle"} variant="secondary" onPress={() => void handleSend(user.id)} loading={isMutating} disabled={pending || isMutating} style={styles.compactButton} />
                       )}
@@ -240,7 +253,7 @@ function FriendshipRow({
       </View>
       <View style={styles.rowActions}>
         {incoming ? <Button title="Kabul" variant="secondary" onPress={onAccept} loading={loading} disabled={loading} style={styles.compactButton} /> : null}
-        {accepted ? <Button title="Dolap" variant="secondary" onPress={() => router.push(`/social/${otherUserId}`)} style={styles.compactButton} /> : null}
+        {accepted ? <Button title="Dolap" variant="secondary" onPress={() => router.push(`/social/${otherUserId}`)} disabled={loading} style={styles.compactButton} /> : null}
         {friendship.status !== "blocked" ? (
           <Button title={accepted ? "Cikar" : "Iptal"} variant="ghost" onPress={onDelete} loading={loading} disabled={loading} style={styles.compactButton} />
         ) : null}

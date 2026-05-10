@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Share, StyleSheet, View } from "react-native";
+import { Alert, FlatList, Pressable, Share, StyleSheet, View } from "react-native";
 
 import { PremiumGate } from "@/components/shared/PremiumGate";
 import { Button } from "@/components/ui/Button";
@@ -16,6 +16,7 @@ import { SPACING } from "@/constants/spacing";
 import { useFriendWardrobe } from "@/hooks/useSocial";
 import { useSubscription } from "@/hooks/useSubscription";
 import { createPublicAppLink } from "@/lib/links";
+import { captureError, captureEvent } from "@/lib/observability";
 import { getUuidParam } from "@/lib/routeParams";
 import { formatDateOnly } from "@/utils/formatters";
 import type { ClothingCategory, FriendWardrobe, LoanRequest, WardrobeItem } from "@/types";
@@ -41,6 +42,7 @@ export default function FriendWardrobeScreen() {
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleItems = data?.profile.privacy_settings.wardrobe_visible ? data.items : [];
+  const hasActiveFilters = category !== "all" || Boolean(normalizedQuery);
   const filteredItems = visibleItems.filter((item) => {
     const categoryMatch = category === "all" || item.category === category;
     const queryMatch =
@@ -51,6 +53,27 @@ export default function FriendWardrobeScreen() {
 
     return categoryMatch && queryMatch;
   });
+
+  function handleClearFilters() {
+    setCategory("all");
+    setQuery("");
+    captureEvent("friend_wardrobe_filters_cleared", { friend_id: friendId });
+  }
+
+  function handleCategoryChange(value: SharedCategoryFilter) {
+    setCategory(value);
+    captureEvent("friend_wardrobe_filter_changed", { friend_id: friendId, filter: "category", value });
+  }
+
+  function handleGenerateOutfitIdea() {
+    const idea = buildFriendOutfitIdea(visibleItems);
+    setFriendOutfitIdea(idea);
+    captureEvent("friend_wardrobe_outfit_idea_generated", {
+      friend_id: friendId,
+      item_count: idea?.items.length ?? 0,
+      success: Boolean(idea),
+    });
+  }
 
   return (
     <View style={styles.container}>
@@ -88,22 +111,22 @@ export default function FriendWardrobeScreen() {
               borrowNote={borrowNote}
               category={category}
               friendOutfitIdea={friendOutfitIdea}
+              filteredCount={filteredItems.length}
+              hasActiveFilters={hasActiveFilters}
               query={query}
               visibleCount={visibleItems.length}
               onBorrowDueDateChange={setBorrowDueDate}
               onBorrowNoteChange={setBorrowNote}
-              onCategoryChange={setCategory}
-              onGenerateOutfit={() => setFriendOutfitIdea(buildFriendOutfitIdea(visibleItems))}
+              onCategoryChange={handleCategoryChange}
+              onClearFilters={handleClearFilters}
+              onGenerateOutfit={handleGenerateOutfitIdea}
               onQueryChange={setQuery}
             />
           }
           ListEmptyComponent={
             <EmptySharedWardrobe
               hasSharedItems={visibleItems.length > 0}
-              onClearFilters={() => {
-                setCategory("all");
-                setQuery("");
-              }}
+              onClearFilters={handleClearFilters}
             />
           }
           columnWrapperStyle={filteredItems.length > 0 ? styles.gridRow : undefined}
@@ -140,8 +163,15 @@ async function handleBorrowRequest(
 
   try {
     await requestBorrowItem({ item, input: { dueDate: input.dueDate, note: input.note } });
+    captureEvent("friend_wardrobe_borrow_requested", {
+      category: item.category,
+      has_due_date: Boolean(input.dueDate),
+      has_note: Boolean(input.note.trim()),
+      item_id: item.id,
+    });
     Alert.alert("Istek gonderildi", "Arkadasina odunc alma istegi bildirimi gonderildi.");
   } catch (error) {
+    captureError(error, { area: "friend_wardrobe_borrow_request", item_id: item.id });
     Alert.alert("Istek gonderilemedi", error instanceof Error ? error.message : "Tekrar dene.");
   }
 }
@@ -157,7 +187,9 @@ async function handleAskFriendAboutOutfit(data: FriendWardrobe, idea: FriendOutf
       message: `${friendName}, dolabindan bu kombini dusundum: ${itemLabels}. Sence olur mu? ${link}`,
       url: link,
     });
+    captureEvent("friend_wardrobe_outfit_shared", { friend_id: data.profile.id, item_count: idea.items.length });
   } catch (error) {
+    captureError(error, { area: "friend_wardrobe_outfit_share", friend_id: data.profile.id });
     Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
   }
 }
@@ -168,11 +200,14 @@ function SharedWardrobeHeader({
   data,
   category,
   friendOutfitIdea,
+  filteredCount,
+  hasActiveFilters,
   query,
   visibleCount,
   onCategoryChange,
   onBorrowDueDateChange,
   onBorrowNoteChange,
+  onClearFilters,
   onGenerateOutfit,
   onQueryChange,
 }: {
@@ -181,11 +216,14 @@ function SharedWardrobeHeader({
   data: FriendWardrobe;
   category: SharedCategoryFilter;
   friendOutfitIdea: FriendOutfitIdea | null;
+  filteredCount: number;
+  hasActiveFilters: boolean;
   query: string;
   visibleCount: number;
   onBorrowDueDateChange: (value: string) => void;
   onBorrowNoteChange: (value: string) => void;
   onCategoryChange: (value: SharedCategoryFilter) => void;
+  onClearFilters: () => void;
   onGenerateOutfit: () => void;
   onQueryChange: (value: string) => void;
 }) {
@@ -284,6 +322,19 @@ function SharedWardrobeHeader({
       />
 
       <Input label="Arkadas dolabinda ara" value={query} onChangeText={onQueryChange} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" />
+
+      {hasActiveFilters ? (
+        <View style={styles.filterSummary}>
+          <Text variant="caption" color="muted">
+            {filteredCount}/{visibleCount} kiyafet gosteriliyor
+          </Text>
+          <Pressable accessibilityRole="button" onPress={onClearFilters} style={styles.clearFiltersButton}>
+            <Text variant="caption" color="primary">
+              Temizle
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -384,7 +435,7 @@ function SharedWardrobeItem({
               ? "Odunc alinabilir"
               : `${item.wear_count} kez giyildi`}
         </Text>
-        {item.is_lendable ? <Button title={borrowTitle} variant="secondary" onPress={onBorrow} loading={loading} disabled={Boolean(loanRequest)} /> : null}
+        {item.is_lendable ? <Button title={borrowTitle} variant="secondary" onPress={onBorrow} loading={loading} disabled={Boolean(loanRequest) || loading} /> : null}
       </Card>
     </View>
   );
@@ -438,6 +489,16 @@ const styles = StyleSheet.create({
   filterButton: {
     minHeight: 40,
     paddingHorizontal: SPACING.md,
+  },
+  filterSummary: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  clearFiltersButton: {
+    borderRadius: 8,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
   },
   avatar: {
     alignItems: "center",
