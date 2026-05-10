@@ -17,6 +17,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
 import { createPublicAppLink } from "@/lib/links";
+import { captureError, captureEvent } from "@/lib/observability";
 import { getDailyOutfitSuggestionCount, incrementDailyOutfitSuggestionCount } from "@/lib/usageLimits";
 import type { OutfitRecommendationInput, OutfitSuggestion, OutfitVoteValue, SharedOutfit, WardrobeItem } from "@/types";
 import { buildCapsuleWardrobePlan } from "@/utils/capsuleWardrobe";
@@ -49,6 +50,7 @@ export default function OutfitScreen() {
   const [selectedEvent, setSelectedEvent] = useState<string>(EVENT_TYPES[0].value);
   const [selectedMood, setSelectedMood] = useState(moods[0]);
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
+  const [dailyUsage, setDailyUsage] = useState<number | null>(null);
   const repeatCandidate = useMemo(() => getRepeatCandidate(items), [items]);
   const capsulePlan = useMemo(() => buildCapsuleWardrobePlan(items), [items]);
   const focusedItem = focusItemId ? items.find((item) => item.id === focusItemId) ?? null : null;
@@ -76,6 +78,7 @@ export default function OutfitScreen() {
     try {
       if (!premium) {
         const currentUsage = await getDailyOutfitSuggestionCount(userId);
+        setDailyUsage(currentUsage);
         if (isLimitReached("DAILY_OUTFIT_SUGGESTIONS", currentUsage)) {
           Alert.alert(
             "Gunluk limit doldu",
@@ -93,9 +96,11 @@ export default function OutfitScreen() {
         ...recommendationInput,
       });
       if (!premium) {
-        await incrementDailyOutfitSuggestionCount(userId);
+        const nextUsage = await incrementDailyOutfitSuggestionCount(userId);
+        setDailyUsage(nextUsage);
       }
     } catch (error) {
+      captureError(error, { area: "outfit_recommend_action", event: selectedEvent, mood: selectedMood });
       Alert.alert("Kombin onerilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -121,7 +126,9 @@ export default function OutfitScreen() {
           url: shareUrl,
         });
       }
+      captureEvent("outfit_recommendation_shared", { notified_friends_count: notifiedFriendsCount, item_count: suggestion.items.length });
     } catch (error) {
+      captureError(error, { area: "outfit_recommendation_share_action", item_count: suggestion.items.length });
       Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -137,8 +144,10 @@ export default function OutfitScreen() {
         input: recommendationInput,
         suggestion,
       });
+      captureEvent("outfit_recommendation_saved_from_tab", { item_count: suggestion.items.length });
       Alert.alert("Kaydedildi", "Kombin kayitli kombinlerine eklendi.");
     } catch (error) {
+      captureError(error, { area: "outfit_recommendation_save_action", item_count: suggestion.items.length });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -154,6 +163,7 @@ export default function OutfitScreen() {
     if (firstIdea?.event) {
       setSelectedEvent(firstIdea.event);
     }
+    captureEvent("outfit_capsule_applied", { has_focus_item: Boolean(firstItemId), idea_count: capsulePlan.outfit_ideas.length });
   }
 
   return (
@@ -172,6 +182,24 @@ export default function OutfitScreen() {
           </Text>
         </View>
       </Card>
+
+      {!premium ? (
+        <Card style={styles.usageCard}>
+          <View style={styles.usageCopy}>
+            <Text variant="caption" color="muted">
+              FREE LIMIT
+            </Text>
+            <Text variant="body" color="secondary">
+              Gunluk kombin hakkini kullandikca burada takip edebilirsin.
+            </Text>
+          </View>
+          <View style={styles.usageBadge}>
+            <Text variant="label" color="inverse">
+              {dailyUsage ?? 0}/{formatLimit(limits.DAILY_OUTFIT_SUGGESTIONS)}
+            </Text>
+          </View>
+        </Card>
+      ) : null}
 
       {repeatCandidate ? (
         <Card style={styles.repeatCard}>
@@ -196,7 +224,10 @@ export default function OutfitScreen() {
             <Button
               title={focusItemId === repeatCandidate.id ? "Odak Secildi" : "Bu Parcayla Oner"}
               variant="secondary"
-              onPress={() => setFocusItemId(repeatCandidate.id)}
+              onPress={() => {
+                setFocusItemId(repeatCandidate.id);
+                captureEvent("outfit_focus_item_selected", { source: "repeat_candidate" });
+              }}
               disabled={isBusy}
             />
             {focusItemId ? <Button title="Odagi Kaldir" variant="ghost" onPress={() => setFocusItemId(null)} disabled={isBusy} /> : null}
@@ -240,7 +271,15 @@ export default function OutfitScreen() {
               }
 
               return (
-                <Pressable key={item.id} style={styles.capsuleItem} onPress={() => setFocusItemId(item.id)} disabled={isBusy}>
+                <Pressable
+                  key={item.id}
+                  style={styles.capsuleItem}
+                  onPress={() => {
+                    setFocusItemId(item.id);
+                    captureEvent("outfit_focus_item_selected", { source: "capsule_core" });
+                  }}
+                  disabled={isBusy}
+                >
                   <CachedImage
                     accessibilityLabel={item.subcategory ?? item.category}
                     fallbackColor={item.dominant_color_hex}
@@ -265,6 +304,7 @@ export default function OutfitScreen() {
                   onPress={() => {
                     setSelectedEvent(idea.event);
                     setFocusItemId(idea.item_ids[0] ?? null);
+                    captureEvent("outfit_capsule_idea_selected", { item_count: idea.item_ids.length });
                   }}
                 >
                   <Text variant="label">{idea.name}</Text>
@@ -286,7 +326,10 @@ export default function OutfitScreen() {
           <Pressable
             key={event.value}
             style={[styles.chip, selectedEvent === event.value && styles.activeChip]}
-            onPress={() => setSelectedEvent(event.value)}
+            onPress={() => {
+              setSelectedEvent(event.value);
+              captureEvent("outfit_preference_changed", { field: "event", value: event.value });
+            }}
             disabled={isBusy}
           >
             <Text variant="label" color={selectedEvent === event.value ? "inverse" : "secondary"}>
@@ -302,7 +345,10 @@ export default function OutfitScreen() {
           <Pressable
             key={mood}
             style={[styles.chip, selectedMood === mood && styles.activeChip]}
-            onPress={() => setSelectedMood(mood)}
+            onPress={() => {
+              setSelectedMood(mood);
+              captureEvent("outfit_preference_changed", { field: "mood", value: mood });
+            }}
             disabled={isBusy}
           >
             <Text variant="label" color={selectedMood === mood ? "inverse" : "secondary"}>
@@ -500,6 +546,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: SPACING.sm,
+  },
+  usageCard: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
+    justifyContent: "space-between",
+  },
+  usageCopy: {
+    flex: 1,
+    gap: SPACING.xs,
+  },
+  usageBadge: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    minWidth: 72,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
   },
   focusText: {
     flex: 1,

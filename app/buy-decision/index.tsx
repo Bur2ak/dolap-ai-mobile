@@ -15,6 +15,7 @@ import { useBuyDecision } from "@/hooks/useBuyDecision";
 import { useImagePicker } from "@/hooks/useImagePicker";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
+import { captureError, captureEvent } from "@/lib/observability";
 import { getMonthlyBuyDecisionCount, incrementMonthlyBuyDecisionCount } from "@/lib/usageLimits";
 import type { BuyDecisionRecord, WardrobeItem } from "@/types";
 import { getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
@@ -50,6 +51,7 @@ export default function BuyDecisionScreen() {
   const { premium, limits, isLimitReached } = useSubscription();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [price, setPrice] = useState("");
+  const [monthlyUsage, setMonthlyUsage] = useState<number | null>(null);
   const isBusy = isPicking || isDeciding || isSaving;
 
   async function handleImageSelected(uri: string | null) {
@@ -59,9 +61,17 @@ export default function BuyDecisionScreen() {
 
     try {
       setImageUri(await optimizeImage(uri));
+      captureEvent("buy_decision_image_selected");
     } catch (error) {
+      captureError(error, { area: "buy_decision_image_prepare" });
       Alert.alert("Gorsel hazirlanamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
+  }
+
+  function resetDraft() {
+    setImageUri(null);
+    setPrice("");
+    captureEvent("buy_decision_draft_reset");
   }
 
   async function handleAnalyze() {
@@ -84,6 +94,7 @@ export default function BuyDecisionScreen() {
     try {
       if (!premium) {
         const currentUsage = await getMonthlyBuyDecisionCount(userId);
+        setMonthlyUsage(currentUsage);
         if (isLimitReached("BUY_DECISIONS_PER_MONTH", currentUsage)) {
           Alert.alert(
             "Aylik limit doldu",
@@ -105,9 +116,11 @@ export default function BuyDecisionScreen() {
         wardrobe: items,
       });
       if (!premium) {
-        await incrementMonthlyBuyDecisionCount(userId);
+        const nextUsage = await incrementMonthlyBuyDecisionCount(userId);
+        setMonthlyUsage(nextUsage);
       }
     } catch (error) {
+      captureError(error, { area: "buy_decision_analyze_action", has_price: Boolean(price.trim()) });
       Alert.alert("Analiz edilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -130,8 +143,10 @@ export default function BuyDecisionScreen() {
 
     try {
       await saveResult({ result, imageUri, price: parseCurrencyInput(price) });
+      captureEvent("buy_decision_saved_from_screen", { decision: result.decision });
       Alert.alert("Kaydedildi", "Karar gecmisine eklendi.");
     } catch (error) {
+      captureError(error, { area: "buy_decision_save_action", decision: result.decision });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -163,6 +178,7 @@ export default function BuyDecisionScreen() {
           <Button
             title="Kamera"
             onPress={async () => {
+              captureEvent("buy_decision_image_source_selected", { source: "camera" });
               await handleImageSelected(await takePhoto());
             }}
             loading={isPicking}
@@ -172,13 +188,26 @@ export default function BuyDecisionScreen() {
             title="Galeriden Sec"
             variant="secondary"
             onPress={async () => {
+              captureEvent("buy_decision_image_source_selected", { source: "library" });
               await handleImageSelected(await pickFromLibrary());
             }}
             loading={isPicking}
             disabled={isBusy}
           />
+          {imageUri ? <Button title="Secimi Temizle" variant="ghost" onPress={resetDraft} disabled={isBusy} /> : null}
         </View>
       </Card>
+
+      {!premium ? (
+        <Card style={styles.limitCard}>
+          <Text variant="caption" color="muted">
+            FREE LIMIT
+          </Text>
+          <Text variant="body" color="secondary">
+            Aylik karar hakki: {monthlyUsage ?? 0}/{formatLimit(limits.BUY_DECISIONS_PER_MONTH)}
+          </Text>
+        </Card>
+      ) : null}
 
       <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
       <Button title="Analiz Et" onPress={handleAnalyze} loading={isDeciding} disabled={!imageUri || isBusy} />
@@ -300,7 +329,9 @@ function DecisionHistoryCard({
         onPress: async () => {
           try {
             await onDelete(decision.id);
+            captureEvent("buy_decision_deleted_from_screen", { decision: decision.decision });
           } catch (error) {
+            captureError(error, { area: "buy_decision_delete_action", decision_id: decision.id });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
           }
         },
@@ -386,6 +417,9 @@ const styles = StyleSheet.create({
   },
   resultCard: {
     gap: SPACING.md,
+  },
+  limitCard: {
+    gap: SPACING.xs,
   },
   similarSection: {
     gap: SPACING.sm,

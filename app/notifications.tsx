@@ -11,7 +11,7 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useNotificationInbox } from "@/hooks/useNotificationInbox";
 import { getNotificationRoute } from "@/lib/notifications";
-import { captureEvent } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 import type { NotificationRecord } from "@/types";
 
 const notificationLabels: Record<NotificationRecord["type"], string> = {
@@ -70,7 +70,9 @@ export default function NotificationsScreen() {
   async function handleMarkAllRead() {
     try {
       await markAllRead();
+      captureEvent("notifications_mark_all_read_pressed", { unread_count: unreadCount });
     } catch (error) {
+      captureError(error, { area: "notifications_mark_all_read_action" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -84,7 +86,9 @@ export default function NotificationsScreen() {
         onPress: async () => {
           try {
             await deleteRead();
+            captureEvent("notifications_delete_read_pressed", { read_count: readCount });
           } catch (error) {
+            captureError(error, { area: "notifications_delete_read_action" });
             Alert.alert("Temizlenemedi", error instanceof Error ? error.message : "Tekrar dene.");
           }
         },
@@ -101,7 +105,9 @@ export default function NotificationsScreen() {
         onPress: async () => {
           try {
             await deleteOne(notificationId);
+            captureEvent("notification_delete_pressed");
           } catch (error) {
+            captureError(error, { area: "notification_delete_action", notification_id: notificationId });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
           }
         },
@@ -117,6 +123,7 @@ export default function NotificationsScreen() {
       captureEvent("notification_opened", { type: notification.type });
       routeFromNotification(notification);
     } catch (error) {
+      captureError(error, { area: "notification_open_action", notification_id: notification.id, type: notification.type });
       Alert.alert("Acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -147,7 +154,15 @@ export default function NotificationsScreen() {
           const active = item.value === filter;
           const count = getFilterCount(item.value, notifications);
           return (
-            <Pressable key={item.value} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setFilter(item.value)}>
+            <Pressable
+              key={item.value}
+              style={[styles.filterChip, active && styles.filterChipActive]}
+              onPress={() => {
+                setFilter(item.value);
+                captureEvent("notifications_filter_changed", { filter: item.value });
+              }}
+              disabled={isUpdating}
+            >
               <Text variant="caption" color={active ? "inverse" : "secondary"}>
                 {item.label} {count > 0 ? count : ""}
               </Text>
