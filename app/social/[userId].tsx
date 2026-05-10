@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, Share, StyleSheet, View } from "react-native";
 
 import { PremiumGate } from "@/components/shared/PremiumGate";
@@ -33,6 +33,8 @@ export default function FriendWardrobeScreen() {
   const [borrowDueDate, setBorrowDueDate] = useState(getDefaultBorrowDueDate());
   const [borrowNote, setBorrowNote] = useState("");
   const [friendOutfitIdea, setFriendOutfitIdea] = useState<FriendOutfitIdea | null>(null);
+  const [activeBorrowItemId, setActiveBorrowItemId] = useState<string | null>(null);
+  const [isSharingOutfitIdea, setIsSharingOutfitIdea] = useState(false);
   const activeLoanByItemId = useMemo(() => {
     const entries = loanRequests
       .filter((request) => request.owner_id === friendId && (request.status === "pending" || request.status === "approved"))
@@ -54,6 +56,15 @@ export default function FriendWardrobeScreen() {
     return categoryMatch && queryMatch;
   });
 
+  useEffect(() => {
+    captureEvent("friend_wardrobe_screen_viewed", {
+      friend_id: friendId,
+      premium,
+      shared_item_count: visibleItems.length,
+      visible: Boolean(data?.profile.privacy_settings.wardrobe_visible),
+    });
+  }, [data?.profile.privacy_settings.wardrobe_visible, friendId, premium, visibleItems.length]);
+
   function handleClearFilters() {
     setCategory("all");
     setQuery("");
@@ -66,6 +77,11 @@ export default function FriendWardrobeScreen() {
   }
 
   function handleGenerateOutfitIdea() {
+    if (visibleItems.length < 2) {
+      captureEvent("friend_wardrobe_outfit_idea_blocked", { friend_id: friendId, reason: "not_enough_items" });
+      return;
+    }
+
     const idea = buildFriendOutfitIdea(visibleItems);
     setFriendOutfitIdea(idea);
     captureEvent("friend_wardrobe_outfit_idea_generated", {
@@ -73,6 +89,37 @@ export default function FriendWardrobeScreen() {
       item_count: idea?.items.length ?? 0,
       success: Boolean(idea),
     });
+  }
+
+  function handleRefetch() {
+    captureEvent("friend_wardrobe_refetch_requested", { friend_id: friendId });
+    void refetch();
+  }
+
+  async function handleBorrow(item: WardrobeItem) {
+    if (activeBorrowItemId || isRequestingBorrow) {
+      return;
+    }
+
+    setActiveBorrowItemId(item.id);
+    try {
+      await handleBorrowRequest(item, requestBorrowItem, { dueDate: borrowDueDate, note: borrowNote });
+    } finally {
+      setActiveBorrowItemId(null);
+    }
+  }
+
+  async function handleShareIdea(data: FriendWardrobe, idea: FriendOutfitIdea) {
+    if (isSharingOutfitIdea) {
+      return;
+    }
+
+    setIsSharingOutfitIdea(true);
+    try {
+      await handleAskFriendAboutOutfit(data, idea);
+    } finally {
+      setIsSharingOutfitIdea(false);
+    }
   }
 
   return (
@@ -94,7 +141,7 @@ export default function FriendWardrobeScreen() {
           body="Arkadaslik onayi veya gizlilik izni gerekiyor olabilir."
           actionLabel="Tekrar Dene"
           loading={isRefetching}
-          onAction={() => void refetch()}
+          onAction={handleRefetch}
           style={styles.emptyState}
         />
       ) : isLoading ? (
@@ -121,6 +168,8 @@ export default function FriendWardrobeScreen() {
               onClearFilters={handleClearFilters}
               onGenerateOutfit={handleGenerateOutfitIdea}
               onQueryChange={setQuery}
+              onShareOutfit={handleShareIdea}
+              isSharingOutfit={isSharingOutfitIdea}
             />
           }
           ListEmptyComponent={
@@ -135,8 +184,9 @@ export default function FriendWardrobeScreen() {
             <SharedWardrobeItem
               item={item}
               loanRequest={activeLoanByItemId.get(item.id)}
-              onBorrow={() => void handleBorrowRequest(item, requestBorrowItem, { dueDate: borrowDueDate, note: borrowNote })}
-              loading={isRequestingBorrow}
+              onBorrow={() => void handleBorrow(item)}
+              loading={activeBorrowItemId === item.id}
+              disabled={Boolean(activeBorrowItemId) || isRequestingBorrow}
             />
           )}
         />
@@ -210,6 +260,8 @@ function SharedWardrobeHeader({
   onClearFilters,
   onGenerateOutfit,
   onQueryChange,
+  onShareOutfit,
+  isSharingOutfit,
 }: {
   borrowDueDate: string;
   borrowNote: string;
@@ -226,6 +278,8 @@ function SharedWardrobeHeader({
   onClearFilters: () => void;
   onGenerateOutfit: () => void;
   onQueryChange: (value: string) => void;
+  onShareOutfit: (data: FriendWardrobe, idea: FriendOutfitIdea) => Promise<void>;
+  isSharingOutfit: boolean;
 }) {
   return (
     <View style={styles.listHeader}>
@@ -288,10 +342,16 @@ function SharedWardrobeHeader({
             title={friendOutfitIdea ? "Baska Fikir" : "Kombin Fikri Uret"}
             variant="secondary"
             onPress={onGenerateOutfit}
-            disabled={visibleCount < 2}
+            disabled={visibleCount < 2 || isSharingOutfit}
           />
           {friendOutfitIdea ? (
-            <Button title="Arkadasa Sor" variant="ghost" onPress={() => void handleAskFriendAboutOutfit(data, friendOutfitIdea)} />
+            <Button
+              title="Arkadasa Sor"
+              variant="ghost"
+              onPress={() => void onShareOutfit(data, friendOutfitIdea)}
+              loading={isSharingOutfit}
+              disabled={isSharingOutfit}
+            />
           ) : null}
         </View>
       </Card>
@@ -408,16 +468,24 @@ function SharedWardrobeItem({
   loanRequest,
   onBorrow,
   loading,
+  disabled,
 }: {
   item: WardrobeItem;
   loanRequest?: LoanRequest;
   onBorrow: () => void;
   loading: boolean;
+  disabled: boolean;
 }) {
   const borrowTitle = loanRequest ? (loanRequest.status === "approved" ? "Onaylandi" : "Istek Bekliyor") : "Odunc Iste";
 
   return (
-    <View style={styles.itemPressable}>
+    <Pressable
+      style={styles.itemPressable}
+      onPress={() => {
+        captureEvent("friend_wardrobe_item_opened", { item_id: item.id, category: item.category });
+        router.push(`/item/${item.id}`);
+      }}
+    >
       <Card style={styles.itemCard}>
         <CachedImage
           accessibilityLabel={getItemLabel(item)}
@@ -435,9 +503,9 @@ function SharedWardrobeItem({
               ? "Odunc alinabilir"
               : `${item.wear_count} kez giyildi`}
         </Text>
-        {item.is_lendable ? <Button title={borrowTitle} variant="secondary" onPress={onBorrow} loading={loading} disabled={Boolean(loanRequest) || loading} /> : null}
+        {item.is_lendable ? <Button title={borrowTitle} variant="secondary" onPress={onBorrow} loading={loading} disabled={Boolean(loanRequest) || disabled} /> : null}
       </Card>
-    </View>
+    </Pressable>
   );
 }
 

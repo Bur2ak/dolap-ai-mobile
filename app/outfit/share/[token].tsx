@@ -27,13 +27,26 @@ export default function PublicSharedOutfitScreen() {
   const token = normalizeToken(tokenParam);
   const { userId, sharedOutfit, isLoading, isRefetching, error, refetch, vote, isVoting, canVote } = usePublicSharedOutfit(token);
   const [handledPendingVote, setHandledPendingVote] = useState<string | null>(null);
+  const [activeVote, setActiveVote] = useState<OutfitVoteValue | null>(null);
   const myVote = sharedOutfit?.votes.find((item) => item.voter_id === userId)?.vote;
   const voteCounts = voteOptions.map((option) => ({
     ...option,
     count: sharedOutfit?.votes.filter((item) => item.vote === option.value).length ?? 0,
   }));
 
+  useEffect(() => {
+    captureEvent("public_outfit_screen_viewed", {
+      token: token ?? "missing",
+      logged_in: Boolean(userId),
+      has_pending_vote: Boolean(pendingVote),
+    });
+  }, [pendingVote, token, userId]);
+
   async function handleVote(value: OutfitVoteValue) {
+    if (isVoting || activeVote) {
+      return;
+    }
+
     if (!userId) {
       captureEvent("public_outfit_vote_login_required", { token, vote: value });
       router.push({
@@ -45,12 +58,15 @@ export default function PublicSharedOutfitScreen() {
       return;
     }
 
+    setActiveVote(value);
     try {
       await vote(value);
       captureEvent("public_outfit_vote_submitted", { outfit_id: sharedOutfit?.outfit.id, vote: value });
     } catch (voteError) {
       captureError(voteError, { area: "public_outfit_vote", token, vote: value });
       Alert.alert("Oy verilemedi", voteError instanceof Error ? voteError.message : "Tekrar dene.");
+    } finally {
+      setActiveVote(null);
     }
   }
 
@@ -89,7 +105,10 @@ export default function PublicSharedOutfitScreen() {
           body="Bu kombin linki kaldirilmis veya artik paylasilmiyor olabilir."
           actionLabel="Tekrar Dene"
           loading={isRefetching}
-          onAction={() => void refetch()}
+          onAction={() => {
+            captureEvent("public_outfit_refetch_requested", { token });
+            void refetch();
+          }}
           style={styles.emptyState}
         />
       ) : isLoading ? (
@@ -114,7 +133,7 @@ export default function PublicSharedOutfitScreen() {
                       disabled={isVoting || Boolean(userId && !canVote)}
                     >
                       <Text variant="label" color={myVote === option.value ? "inverse" : "primary"} style={styles.centerText}>
-                        {option.label}
+                        {activeVote === option.value ? "Kaydediliyor" : option.label}
                       </Text>
                     </Pressable>
                   ))}
@@ -132,7 +151,7 @@ export default function PublicSharedOutfitScreen() {
           ListEmptyComponent={<EmptyItems />}
           columnWrapperStyle={sharedOutfit.items.length > 0 ? styles.gridRow : undefined}
           contentContainerStyle={styles.grid}
-          renderItem={({ item }) => <OutfitItem item={item} />}
+          renderItem={({ item }) => <OutfitItem item={item} outfitId={sharedOutfit.outfit.id} />}
         />
       ) : null}
     </View>
@@ -149,12 +168,18 @@ function normalizeToken(value?: string | string[]) {
   return token?.trim() || undefined;
 }
 
-function OutfitItem({ item }: { item: WardrobeItem }) {
+function OutfitItem({ item, outfitId }: { item: WardrobeItem; outfitId: string }) {
   const categoryLabel = CATEGORIES.find((category) => category.value === item.category)?.label ?? item.category;
 
   return (
     <View style={styles.itemWrap}>
-      <Card style={styles.itemCard}>
+      <Pressable
+        onPress={() => {
+          captureEvent("public_outfit_item_opened", { outfit_id: outfitId, item_id: item.id });
+          router.push(`/item/${item.id}`);
+        }}
+      >
+        <Card style={styles.itemCard}>
         <CachedImage
           accessibilityLabel={item.subcategory ?? categoryLabel}
           fallbackColor={item.dominant_color_hex}
@@ -165,7 +190,8 @@ function OutfitItem({ item }: { item: WardrobeItem }) {
         <Text variant="caption" color="muted">
           {item.brand ?? categoryLabel}
         </Text>
-      </Card>
+        </Card>
+      </Pressable>
     </View>
   );
 }

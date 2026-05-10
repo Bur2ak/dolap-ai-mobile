@@ -38,6 +38,7 @@ export default function PaywallScreen() {
   const [isLoadingPackages, setIsLoadingPackages] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [activePackageId, setActivePackageId] = useState<string | null>(null);
   const planCards = packages.length > 0 ? packages.map(getPackagePlanCard) : fallbackPlanCards;
 
   const loadPackages = useCallback(async () => {
@@ -68,7 +69,19 @@ export default function PaywallScreen() {
     void loadPackages();
   }, [loadPackages]);
 
+  useEffect(() => {
+    captureEvent("paywall_screen_viewed", {
+      package_count: packages.length,
+      packages_loading: isLoadingPackages,
+      fallback_plans: packages.length === 0,
+    });
+  }, [isLoadingPackages, packages.length]);
+
   function activatePreview() {
+    if (isPurchasing || isRestoring) {
+      return;
+    }
+
     captureEvent("premium_preview_activated");
     setLocalPremiumOverride(true);
     router.back();
@@ -79,6 +92,7 @@ export default function PaywallScreen() {
       return;
     }
 
+    setActivePackageId(revenueCatPackage.identifier);
     try {
       setIsPurchasing(true);
       const customerInfo = await purchaseRevenueCatPackage(revenueCatPackage);
@@ -99,6 +113,7 @@ export default function PaywallScreen() {
       Alert.alert("Satin alma tamamlanamadi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsPurchasing(false);
+      setActivePackageId(null);
     }
   }
 
@@ -176,7 +191,7 @@ export default function PaywallScreen() {
               key={revenueCatPackage.identifier}
               title={`${revenueCatPackage.product.title} - ${revenueCatPackage.product.priceString}`}
               onPress={() => void handlePurchase(revenueCatPackage)}
-              loading={isPurchasing}
+              loading={activePackageId === revenueCatPackage.identifier}
               disabled={isPurchasing || isRestoring}
             />
           ))
@@ -202,8 +217,22 @@ export default function PaywallScreen() {
 
       <Button title="Aboneligi Geri Yukle" variant="secondary" onPress={() => void handleRestore()} loading={isRestoring} disabled={isPurchasing || isLoadingPackages} />
       <View style={styles.legalLinks}>
-        <Button title="Gizlilik Politikasi" variant="ghost" onPress={() => router.push("/legal/privacy")} />
-        <Button title="Kullanim Sartlari" variant="ghost" onPress={() => router.push("/legal/terms")} />
+        <Button
+          title="Gizlilik Politikasi"
+          variant="ghost"
+          onPress={() => {
+            captureEvent("paywall_legal_link_opened", { target: "privacy" });
+            router.push("/legal/privacy");
+          }}
+        />
+        <Button
+          title="Kullanim Sartlari"
+          variant="ghost"
+          onPress={() => {
+            captureEvent("paywall_legal_link_opened", { target: "terms" });
+            router.push("/legal/terms");
+          }}
+        />
       </View>
     </ScrollView>
   );

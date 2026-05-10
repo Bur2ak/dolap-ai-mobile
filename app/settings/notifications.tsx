@@ -50,14 +50,29 @@ export default function NotificationSettingsScreen() {
   const [isSchedulingReminder, setIsSchedulingReminder] = useState(false);
   const [pushReadiness, setPushReadiness] = useState<PushNotificationReadiness | null>(null);
   const [isCheckingPush, setIsCheckingPush] = useState(false);
+  const [updatingPreference, setUpdatingPreference] = useState<keyof NotificationPreferences | null>(null);
   const smartPlan = buildSmartOutfitNotification(weather, items);
-  const isBusy = isRegistering || isUpdating || isSchedulingReminder || isCheckingPush;
+  const isBusy = isRegistering || isUpdating || isSchedulingReminder || isCheckingPush || Boolean(updatingPreference);
 
   useEffect(() => {
     void refreshPushReadiness();
   }, []);
 
+  useEffect(() => {
+    captureEvent("notification_settings_screen_viewed", {
+      outfit_reminder: preferences.outfit_reminder,
+      price_drops: preferences.price_drops,
+      friend_requests: preferences.friend_requests,
+      outfit_votes: preferences.outfit_votes,
+      lend_requests: preferences.lend_requests,
+    });
+  }, [preferences.friend_requests, preferences.lend_requests, preferences.outfit_reminder, preferences.outfit_votes, preferences.price_drops]);
+
   async function refreshPushReadiness() {
+    if (isCheckingPush) {
+      return;
+    }
+
     try {
       setIsCheckingPush(true);
       const readiness = await getPushNotificationReadiness();
@@ -75,6 +90,10 @@ export default function NotificationSettingsScreen() {
   }
 
   async function handleEnablePush() {
+    if (isBusy) {
+      return;
+    }
+
     try {
       const token = await registerForPush();
       await refreshPushReadiness();
@@ -87,6 +106,11 @@ export default function NotificationSettingsScreen() {
   }
 
   async function togglePreference(key: keyof NotificationPreferences) {
+    if (isBusy) {
+      return;
+    }
+
+    setUpdatingPreference(key);
     try {
       const enabled = !preferences[key];
       await updatePreferences({ [key]: enabled });
@@ -94,10 +118,16 @@ export default function NotificationSettingsScreen() {
     } catch (error) {
       captureError(error, { area: "notification_preference_toggle", preference: key });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setUpdatingPreference(null);
     }
   }
 
   async function handleScheduleSmartReminder() {
+    if (isBusy) {
+      return;
+    }
+
     try {
       setIsSchedulingReminder(true);
       const latestWeather = weather ?? (await refetch()).data ?? null;
@@ -117,6 +147,10 @@ export default function NotificationSettingsScreen() {
   }
 
   async function handleCancelSmartReminder() {
+    if (isBusy) {
+      return;
+    }
+
     try {
       setIsSchedulingReminder(true);
       await cancelOutfitReminders();
@@ -199,7 +233,7 @@ export default function NotificationSettingsScreen() {
                   {row.body}
                 </Text>
               </View>
-              <View style={[styles.toggle, enabled && styles.toggleActive]}>
+              <View style={[styles.toggle, enabled && styles.toggleActive, updatingPreference === row.key && styles.toggleUpdating]}>
                 <View style={[styles.knob, enabled && styles.knobActive]} />
               </View>
             </Card>
@@ -280,6 +314,10 @@ const styles = StyleSheet.create({
   },
   toggleActive: {
     backgroundColor: COLORS.primary,
+  },
+  toggleUpdating: {
+    borderColor: COLORS.warning,
+    borderWidth: 1,
   },
   knob: {
     backgroundColor: COLORS.surface,

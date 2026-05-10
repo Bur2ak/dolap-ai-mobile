@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -18,7 +18,25 @@ export default function ProfileScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const profileIncomplete = Boolean(profile && (!profile.username || !profile.onboarding_completed));
 
+  useEffect(() => {
+    captureEvent("profile_screen_viewed", {
+      premium,
+      profile_incomplete: profileIncomplete,
+      deletion_requested: Boolean(profile?.deletion_requested_at),
+    });
+  }, [premium, profile?.deletion_requested_at, profileIncomplete]);
+
+  function openRoute(route: Parameters<typeof router.push>[0], label: string) {
+    captureEvent("profile_route_opened", { label });
+    router.push(route);
+  }
+
   function handleSignOut() {
+    if (isSigningOut) {
+      return;
+    }
+
+    captureEvent("profile_sign_out_prompt_opened");
     Alert.alert("Cikis yap", "Shipirio hesabindan cikis yapmak istiyor musun?", [
       { text: "Vazgec", style: "cancel" },
       {
@@ -72,7 +90,7 @@ export default function ProfileScreen() {
           <Text variant="body" color="secondary">
             Planlanan silme tarihi: {profile.deletion_scheduled_for ? formatDate(profile.deletion_scheduled_for) : "30 gun icinde"}. Talebi hesap ayarlarindan iptal edebilirsin.
           </Text>
-          <Button title="Talebi Yonet" variant="secondary" onPress={() => router.push("/settings/account")} />
+          <Button title="Talebi Yonet" variant="secondary" onPress={() => openRoute("/settings/account", "deletion_account")} />
         </Card>
       ) : null}
 
@@ -84,7 +102,7 @@ export default function ProfileScreen() {
               Sinirsiz dolap, etkinlik planlayici ve gelismis analizleri ac.
             </Text>
           </View>
-          <Button title="Incele" onPress={() => router.push("/paywall")} />
+          <Button title="Incele" onPress={() => openRoute("/paywall", "paywall")} />
         </Card>
       ) : null}
 
@@ -94,49 +112,49 @@ export default function ProfileScreen() {
           <Text variant="body" color="secondary">
             Kullanici adi ekleyince davet linkin daha okunur olur; sosyal akislarda arkadaslarin seni daha kolay bulur.
           </Text>
-          <Button title="Tamamla" variant="secondary" onPress={() => router.push("/settings/account")} />
+          <Button title="Tamamla" variant="secondary" onPress={() => openRoute("/settings/account", "complete_profile")} />
         </Card>
       ) : null}
 
       <View style={styles.menu}>
         <Card>
-          <Button title="Ayarlar" variant="ghost" onPress={() => router.push("/settings")} />
+          <Button title="Ayarlar" variant="ghost" onPress={() => openRoute("/settings", "settings")} />
         </Card>
         <Card>
-          <Button title="Hesap Ayarlari" variant="ghost" onPress={() => router.push("/settings/account")} />
+          <Button title="Hesap Ayarlari" variant="ghost" onPress={() => openRoute("/settings/account", "account")} />
         </Card>
         <Card>
-          <Button title="Gizlilik" variant="ghost" onPress={() => router.push("/settings/privacy")} />
+          <Button title="Gizlilik" variant="ghost" onPress={() => openRoute("/settings/privacy", "privacy")} />
         </Card>
         <Card>
-          <Button title="Arkadaslarim" variant="ghost" onPress={() => router.push("/social/friends")} />
+          <Button title="Arkadaslarim" variant="ghost" onPress={() => openRoute("/social/friends", "friends")} />
         </Card>
         <Card>
-          <Button title="Odunc Takibi" variant="ghost" onPress={() => router.push("/social/loans")} />
+          <Button title="Odunc Takibi" variant="ghost" onPress={() => openRoute("/social/loans", "loans")} />
         </Card>
         <Card>
-          <Button title="Fiyat Takibi" variant="ghost" onPress={() => router.push("/price-tracking")} />
+          <Button title="Fiyat Takibi" variant="ghost" onPress={() => openRoute("/price-tracking", "price_tracking")} />
         </Card>
         <Card>
-          <Button title="Bildirim Ayarlari" variant="ghost" onPress={() => router.push("/settings/notifications")} />
+          <Button title="Bildirim Ayarlari" variant="ghost" onPress={() => openRoute("/settings/notifications", "notification_settings")} />
         </Card>
         <Card>
-          <Button title="Bildirim Kutusu" variant="ghost" onPress={() => router.push("/notifications")} />
+          <Button title="Bildirim Kutusu" variant="ghost" onPress={() => openRoute("/notifications", "notification_inbox")} />
         </Card>
         <Card>
-          <Button title="Sistem Durumu" variant="ghost" onPress={() => router.push("/settings/diagnostics")} />
+          <Button title="Sistem Durumu" variant="ghost" onPress={() => openRoute("/settings/diagnostics", "diagnostics")} />
         </Card>
         <Card>
-          <Button title="Destek" variant="ghost" onPress={() => router.push("/settings/support")} />
+          <Button title="Destek" variant="ghost" onPress={() => openRoute("/settings/support", "support")} />
         </Card>
         <Card>
-          <Button title="Aboneligim" variant="ghost" onPress={() => router.push("/settings/subscription")} />
+          <Button title="Aboneligim" variant="ghost" onPress={() => openRoute("/settings/subscription", "subscription")} />
         </Card>
         <Card>
-          <Button title="Almali Miyim?" variant="ghost" onPress={() => router.push("/buy-decision")} />
+          <Button title="Almali Miyim?" variant="ghost" onPress={() => openRoute("/buy-decision", "buy_decision")} />
         </Card>
         <Card>
-          <Button title="Suraya Gidiyorum" variant="ghost" onPress={() => router.push("/event")} />
+          <Button title="Suraya Gidiyorum" variant="ghost" onPress={() => openRoute("/event", "event")} />
         </Card>
       </View>
 
