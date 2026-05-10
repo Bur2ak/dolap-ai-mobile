@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function ResetPasswordScreen() {
@@ -29,9 +30,11 @@ export default function ResetPasswordScreen() {
     try {
       setIsSubmitting(true);
       await updatePassword(password);
+      captureEvent("auth_password_reset_completed");
       Alert.alert("Sifre yenilendi", "Yeni sifrenle devam edebilirsin.");
       router.replace("/(tabs)");
     } catch (error) {
+      captureError(error, { area: "auth_password_reset_complete" });
       Alert.alert("Sifre yenilenemedi", error instanceof Error ? error.message : "Link suresi dolmus olabilir. Tekrar sifirlama maili iste.");
     } finally {
       setIsSubmitting(false);
@@ -50,13 +53,13 @@ export default function ResetPasswordScreen() {
           <Text variant="body" color="secondary">
             Sifre yenilemek icin emailindeki guncel sifirlama linkini acmalisin.
           </Text>
-          <Button title="Yeni Link Iste" variant="secondary" onPress={() => router.replace("/(auth)/forgot-password")} />
+          <Button title="Yeni Link Iste" variant="secondary" onPress={() => router.replace("/(auth)/forgot-password")} disabled={isSubmitting} />
         </View>
       ) : (
         <View style={styles.form}>
           <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry />
           <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
-          <Button title="Sifreyi Yenile" onPress={handleSubmit} loading={isSubmitting} />
+          <Button title="Sifreyi Yenile" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         </View>
       )}
     </View>

@@ -44,6 +44,18 @@ export default function AddItemScreen() {
     return CATEGORIES.find((category) => category.value === analysis.category)?.label ?? "Ust";
   }, [analysis.category]);
 
+  function resetDraft() {
+    setStep("select");
+    setImageUri(null);
+    setThumbnailUri(null);
+    setAnalysis(fallbackClothingAnalysis);
+    setBrand("");
+    setPrice("");
+    setIsShareable(false);
+    setIsLendable(false);
+    captureEvent("wardrobe_add_draft_reset");
+  }
+
   function guardCanStartAdding() {
     if (!canCreate) {
       Alert.alert("Giris gerekli", "Kiyafeti dolaba eklemek icin once giris yapmalisin.");
@@ -210,6 +222,7 @@ export default function AddItemScreen() {
                 if (!guardCanStartAdding()) {
                   return;
                 }
+                captureEvent("wardrobe_add_image_source_selected", { source: "camera" });
                 await handleImageSelected(await takePhoto());
               }}
               loading={isPicking || isAnalyzing}
@@ -222,6 +235,7 @@ export default function AddItemScreen() {
                 if (!guardCanStartAdding()) {
                   return;
                 }
+                captureEvent("wardrobe_add_image_source_selected", { source: "library" });
                 await handleImageSelected(await pickFromLibrary());
               }}
               loading={isPicking || isAnalyzing}
@@ -232,6 +246,9 @@ export default function AddItemScreen() {
       ) : (
         <View style={styles.form}>
           {imageUri ? <CachedImage accessibilityLabel="Secilen kiyafet gorseli" sourceUri={imageUri} style={styles.preview} /> : null}
+          <View style={styles.draftActions}>
+            <Button title="Fotografi Degistir" variant="secondary" onPress={resetDraft} disabled={isBusy} />
+          </View>
 
           <Card style={styles.analysisCard}>
             <Text variant="caption" color="muted">
@@ -240,6 +257,9 @@ export default function AddItemScreen() {
             <Text variant="h3">{selectedCategoryLabel}</Text>
             <Text variant="body" color="secondary">
               {analysis.subcategory}
+            </Text>
+            <Text variant="caption" color="muted">
+              {analysis.colors.length} renk · {analysis.season.length} sezon
             </Text>
           </Card>
 
@@ -356,6 +376,9 @@ const styles = StyleSheet.create({
   actions: {
     gap: SPACING.sm,
     width: "100%",
+  },
+  draftActions: {
+    gap: SPACING.sm,
   },
   form: {
     gap: SPACING.md,

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import { isValidEmail, normalizeEmail } from "@/utils/validation";
 
@@ -27,9 +28,11 @@ export default function ForgotPasswordScreen() {
     try {
       setIsSubmitting(true);
       await resetPassword(normalizedEmail, Linking.createURL("/(auth)/reset-password"));
+      captureEvent("auth_password_reset_requested");
       Alert.alert("Email gonderildi", "Sifre sifirlama linki email adresine gonderildi.");
       router.replace("/(auth)/login");
     } catch (error) {
+      captureError(error, { area: "auth_password_reset_request" });
       Alert.alert("Gonderilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSubmitting(false);
@@ -45,8 +48,8 @@ export default function ForgotPasswordScreen() {
 
       <View style={styles.form}>
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-        <Button title="Link Gonder" onPress={handleSubmit} loading={isSubmitting} />
-        <Button title="Giris ekranina don" variant="ghost" onPress={() => router.back()} />
+        <Button title="Link Gonder" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
+        <Button title="Giris ekranina don" variant="ghost" onPress={() => router.back()} disabled={isSubmitting} />
       </View>
     </View>
   );

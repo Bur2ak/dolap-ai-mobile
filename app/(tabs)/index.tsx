@@ -145,16 +145,20 @@ export default function WardrobeScreen() {
           renderItem={({ item }) => (
             <Pressable style={styles.itemPressable} onPress={() => router.push(`/item/${item.id}`)}>
               <Card style={styles.itemCard}>
-              <CachedImage
-                accessibilityLabel={item.subcategory ?? item.category}
-                fallbackColor={item.dominant_color_hex}
-                sourceUri={item.thumbnail_url ?? item.image_url}
-                style={styles.itemImage}
-              />
-              <Text variant="label">{item.subcategory ?? item.category}</Text>
-              <Text variant="caption" color="muted">
-                {item.wear_count} kez giyildi
-              </Text>
+                <CachedImage
+                  accessibilityLabel={item.subcategory ?? item.category}
+                  fallbackColor={item.dominant_color_hex}
+                  sourceUri={item.thumbnail_url ?? item.image_url}
+                  style={styles.itemImage}
+                />
+                <Text variant="label">{item.subcategory ?? item.category}</Text>
+                <Text variant="caption" color="muted">
+                  {item.wear_count} kez giyildi
+                </Text>
+                <View style={styles.itemSignals}>
+                  {item.is_shareable ? <SignalPill label="Paylasim" /> : null}
+                  {item.is_lendable ? <SignalPill label="Odunc" /> : null}
+                </View>
               </Card>
             </Pressable>
           )}
@@ -182,6 +186,16 @@ export default function WardrobeScreen() {
           style={styles.emptyState}
         />
       )}
+    </View>
+  );
+}
+
+function SignalPill({ label }: { label: string }) {
+  return (
+    <View style={styles.signalPill}>
+      <Text variant="caption" color="primary">
+        {label}
+      </Text>
     </View>
   );
 }
@@ -269,6 +283,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceMuted,
     borderRadius: 8,
     width: "100%",
+  },
+  itemSignals: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  signalPill: {
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
   },
   colorBlock: {
     borderRadius: 8,

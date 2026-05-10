@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { captureError, captureEvent } from "@/lib/observability";
 import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { useAuthStore } from "@/stores/authStore";
 import { isValidEmail, normalizeEmail } from "@/utils/validation";
@@ -48,12 +49,14 @@ export default function RegisterScreen() {
     try {
       setIsSubmitting(true);
       await signUp(normalizedEmail, password, fullName.trim());
+      captureEvent("auth_register_completed", { accepted_legal: acceptedLegal, has_return_to: Boolean(returnTo) });
       Alert.alert("Kayit olusturuldu", "Email dogrulama ayarina gore giris yapabilirsin.");
       router.replace({
         pathname: "/(auth)/login",
         params: returnTo ? { returnTo } : undefined,
       });
     } catch (error) {
+      captureError(error, { area: "auth_register" });
       Alert.alert("Kayit basarisiz", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSubmitting(false);
@@ -71,7 +74,7 @@ export default function RegisterScreen() {
         <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} />
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
         <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry />
-        <Pressable style={styles.consentRow} onPress={() => setAcceptedLegal((value) => !value)}>
+        <Pressable style={styles.consentRow} onPress={() => setAcceptedLegal((value) => !value)} disabled={isSubmitting}>
           <View style={[styles.checkbox, acceptedLegal && styles.checkboxActive]}>
             {acceptedLegal ? <Ionicons name="checkmark" size={16} color={COLORS.background} /> : null}
           </View>
@@ -79,14 +82,14 @@ export default function RegisterScreen() {
             KVKK aydinlatma metnini, gizlilik politikasini ve kullanim sartlarini okudum; hesabimin bu kosullarla olusturulmasini kabul ediyorum.
           </Text>
         </Pressable>
-        <Button title="Kayit Ol" onPress={handleSubmit} loading={isSubmitting} />
+        <Button title="Kayit Ol" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         <Text variant="caption" color="muted" style={styles.legalText}>
           Onay zamanin hesap kaydinda saklanir; tercihlerini ayarlardan yonetebilirsin.
         </Text>
         <View style={styles.legalLinks}>
-          <Button title="KVKK" variant="ghost" onPress={() => router.push("/legal/kvkk")} style={styles.linkButton} />
-          <Button title="Gizlilik" variant="ghost" onPress={() => router.push("/legal/privacy")} style={styles.linkButton} />
-          <Button title="Sartlar" variant="ghost" onPress={() => router.push("/legal/terms")} style={styles.linkButton} />
+          <Button title="KVKK" variant="ghost" onPress={() => router.push("/legal/kvkk")} disabled={isSubmitting} style={styles.linkButton} />
+          <Button title="Gizlilik" variant="ghost" onPress={() => router.push("/legal/privacy")} disabled={isSubmitting} style={styles.linkButton} />
+          <Button title="Sartlar" variant="ghost" onPress={() => router.push("/legal/terms")} disabled={isSubmitting} style={styles.linkButton} />
         </View>
         <Button
           title="Zaten hesabim var"
@@ -97,6 +100,7 @@ export default function RegisterScreen() {
               params: returnTo ? { returnTo } : undefined,
             })
           }
+          disabled={isSubmitting}
         />
       </View>
     </View>

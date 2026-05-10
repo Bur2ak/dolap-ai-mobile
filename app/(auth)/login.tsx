@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { captureError, captureEvent } from "@/lib/observability";
 import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { useAuthStore } from "@/stores/authStore";
 import { isValidEmail, normalizeEmail } from "@/utils/validation";
@@ -35,8 +36,10 @@ export default function LoginScreen() {
     try {
       setIsSubmitting(true);
       await signIn(normalizedEmail, password);
+      captureEvent("auth_login_completed", { has_return_to: Boolean(returnTo) });
       router.replace(returnTo as Href);
     } catch (error) {
+      captureError(error, { area: "auth_login" });
       Alert.alert("Giris basarisiz", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSubmitting(false);
@@ -53,8 +56,8 @@ export default function LoginScreen() {
       <View style={styles.form}>
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
         <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry />
-        <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} />
-        <Button title="Sifremi unuttum" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} />
+        <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
+        <Button title="Sifremi unuttum" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} disabled={isSubmitting} />
         <Button
           title="Hesabin yok mu? Kayit ol"
           variant="ghost"
@@ -64,6 +67,7 @@ export default function LoginScreen() {
               params: returnTo ? { returnTo } : undefined,
             })
           }
+          disabled={isSubmitting}
         />
       </View>
     </View>

@@ -195,7 +195,18 @@ export default function ItemDetailScreen() {
             <Text variant="body" color="secondary">
               {item.brand ? `${item.brand} markasi` : "Marka bilgisi eklenmemis"}
             </Text>
-            <Button title={isEditing ? "Duzenlemeyi Kapat" : "Bilgileri Duzenle"} variant="secondary" onPress={() => setIsEditing((value) => !value)} disabled={isBusy} />
+            <Button
+              title={isEditing ? "Duzenlemeyi Kapat" : "Bilgileri Duzenle"}
+              variant="secondary"
+              onPress={() => {
+                setIsEditing((value) => {
+                  const nextValue = !value;
+                  captureEvent("wardrobe_item_detail_edit_toggled", { enabled: nextValue });
+                  return nextValue;
+                });
+              }}
+              disabled={isBusy}
+            />
           </Card>
 
           {isEditing ? (
@@ -293,6 +304,10 @@ export default function ItemDetailScreen() {
 
           <Card style={styles.meta}>
             <Text variant="h3">Paylasim</Text>
+            <View style={styles.statusPills}>
+              <StatusPill label="Paylasim" enabled={item.is_shareable} />
+              <StatusPill label="Odunc" enabled={item.is_lendable} />
+            </View>
             <Text variant="body" color="secondary">
               Arkadas dolabinda gorunme: {item.is_shareable ? "Acik" : "Kapali"}
             </Text>
@@ -329,6 +344,16 @@ export default function ItemDetailScreen() {
         <EmptyState icon="shirt-outline" title="Kiyafet bulunamadi" body="Silinmis olabilir veya dolabina ait olmayabilir." />
       )}
     </ScrollView>
+  );
+}
+
+function StatusPill({ label, enabled }: { label: string; enabled: boolean }) {
+  return (
+    <View style={[styles.statusPill, enabled ? styles.statusPillActive : styles.statusPillMuted]}>
+      <Text variant="caption" color={enabled ? "inverse" : "secondary"}>
+        {label}: {enabled ? "Acik" : "Kapali"}
+      </Text>
+    </View>
   );
 }
 
@@ -525,6 +550,22 @@ const styles = StyleSheet.create({
   },
   inlineActions: {
     gap: SPACING.sm,
+  },
+  statusPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  statusPillActive: {
+    backgroundColor: COLORS.primary,
+  },
+  statusPillMuted: {
+    backgroundColor: COLORS.surfaceMuted,
   },
   wrap: {
     flexDirection: "row",
