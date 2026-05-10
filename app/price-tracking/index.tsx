@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -13,6 +13,7 @@ import { SPACING } from "@/constants/spacing";
 import { usePriceTracking } from "@/hooks/usePriceTracking";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
+import { captureError, captureEvent } from "@/lib/observability";
 import type { MissingWardrobePiece, PriceTracking } from "@/types";
 import { formatCurrency, getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
 import { getOptionalHttpUrlError, normalizeOptionalHttpUrl } from "@/utils/validation";
@@ -84,6 +85,7 @@ export default function PriceTrackingScreen() {
       setCurrentPrice("");
       setTargetPrice("");
     } catch (error) {
+      captureError(error, { area: "price_tracking_create_action", has_url: Boolean(productUrl.trim()) });
       Alert.alert("Takip eklenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -115,8 +117,10 @@ export default function PriceTrackingScreen() {
         current_price: null,
         target_price: null,
       });
+      captureEvent("price_tracking_smart_suggestion_added", { category: piece.category, priority: piece.priority });
       Alert.alert("Listeye eklendi", "Eksik parca fiyat takip listene eklendi.");
     } catch (error) {
+      captureError(error, { area: "price_tracking_smart_suggestion_action", category: piece.category, priority: piece.priority });
       Alert.alert("Eklenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -131,6 +135,7 @@ export default function PriceTrackingScreen() {
           try {
             await deleteTracking(id);
           } catch (error) {
+            captureError(error, { area: "price_tracking_delete_action", tracking_id: id });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
           }
         },
@@ -153,6 +158,7 @@ export default function PriceTrackingScreen() {
         `${result.checked} urun kontrol edildi, ${result.updated} fiyat guncellendi, ${result.notified} bildirim olustu.${pushSent > 0 ? ` ${pushSent} push gonderildi.` : ""}${undetected > 0 ? ` ${undetected} urunde fiyat bulunamadi.` : ""}`,
       );
     } catch (error) {
+      captureError(error, { area: "price_tracking_check_action" });
       Alert.alert("Kontrol edilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -365,6 +371,7 @@ function TrackingCard({
       });
       setIsEditing(false);
     } catch (error) {
+      captureError(error, { area: "price_tracking_update_action", tracking_id: tracking.id, has_url: Boolean(url.trim()) });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -435,6 +442,9 @@ function TrackingCard({
           <Text variant="caption" color="muted">
             {tracking.last_checked ? `Son kontrol: ${formatPriceCheckDate(tracking.last_checked)}` : "Henuz otomatik kontrol yapilmadi."}
           </Text>
+          {tracking.product_url ? (
+            <Button title="Urun Linkini Ac" variant="ghost" onPress={() => void openProductUrl(tracking)} disabled={isBusy} />
+          ) : null}
         </>
       )}
     </Card>
@@ -547,6 +557,21 @@ function getPriceTrackingInputError(productUrl: string, currentPrice: string, ta
   }
 
   return null;
+}
+
+async function openProductUrl(tracking: PriceTracking) {
+  const url = normalizeOptionalHttpUrl(tracking.product_url ?? "");
+  if (!url) {
+    return;
+  }
+
+  try {
+    await Linking.openURL(url);
+    captureEvent("price_tracking_product_url_opened", { tracking_id: tracking.id });
+  } catch (error) {
+    captureError(error, { area: "price_tracking_product_url_open", tracking_id: tracking.id });
+    Alert.alert("Link acilamadi", "Urun linki bu cihazda acilamadi.");
+  }
 }
 
 const styles = StyleSheet.create({

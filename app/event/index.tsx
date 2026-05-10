@@ -81,6 +81,7 @@ export default function EventPlannerScreen() {
     try {
       await recommend(eventInput);
     } catch (error) {
+      captureError(error, { area: "event_recommend_action", event_type: eventInput.event_type, wardrobe_count: items.length });
       Alert.alert("Kombin bulunamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -108,8 +109,10 @@ export default function EventPlannerScreen() {
         location: eventInput.location,
         notes: eventInput.notes,
       });
+      clearEventDraft(setTitle, setLocation, setNotes);
       Alert.alert("Kaydedildi", "Etkinlik planina eklendi.");
     } catch (error) {
+      captureError(error, { area: "event_save_action", event_type: eventInput.event_type });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -146,6 +149,7 @@ export default function EventPlannerScreen() {
         calendar_event_id: calendarEventId,
       });
       captureEvent("event_calendar_added", { calendar_available: Boolean(calendarEventId), event_type: eventInput.event_type });
+      clearEventDraft(setTitle, setLocation, setNotes);
       Alert.alert(calendarEventId ? "Takvime eklendi" : "Etkinlik kaydedildi", calendarEventId ? "Cihaz takvimine ve Shipirio planina eklendi." : "Cihaz takvimi uygun degil; Shipirio planina kaydedildi.");
     } catch (error) {
       captureError(error, { area: "event_calendar_add", event_type: eventInput.event_type });
@@ -170,8 +174,11 @@ export default function EventPlannerScreen() {
 
     try {
       await saveSuggestionAsEvent({ input: eventInput, suggestion });
+      captureEvent("event_suggestion_planned", { event_type: eventInput.event_type, item_count: suggestion.items.length });
+      clearEventDraft(setTitle, setLocation, setNotes);
       Alert.alert("Planlandi", "Kombin kaydedildi ve etkinlik planina baglandi.");
     } catch (error) {
+      captureError(error, { area: "event_suggestion_plan_action", event_type: eventInput.event_type, item_count: suggestion.items.length });
       Alert.alert("Planlanamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -201,6 +208,7 @@ export default function EventPlannerScreen() {
           setEventDate(`${day.date}T09:00`);
           setTitle(day.status === "planned" ? day.title : "");
           setNotes(day.status === "planned" ? day.body : `Stil takvimi: ${day.title}. ${day.body}`);
+          captureEvent("style_calendar_day_selected", { date: day.date, status: day.status });
         }}
       />
 
@@ -400,7 +408,9 @@ function EventPlanCard({
         },
       });
       setIsEditing(false);
+      captureEvent("event_plan_edit_saved", { event_id: event.id, event_type: eventType });
     } catch (error) {
+      captureError(error, { area: "event_plan_edit_save_action", event_id: event.id });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -458,7 +468,9 @@ function EventPlanCard({
           try {
             await cancelEventReminder(event.id);
             await onDelete(event.id);
+            captureEvent("event_plan_deleted_from_card", { event_id: event.id });
           } catch (error) {
+            captureError(error, { area: "event_plan_delete_action", event_id: event.id });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
           }
         },
@@ -577,6 +589,16 @@ function validateEventForm(title: string, eventDate: string) {
   }
 
   return true;
+}
+
+function clearEventDraft(
+  setTitle: (value: string) => void,
+  setLocation: (value: string) => void,
+  setNotes: (value: string) => void,
+) {
+  setTitle("");
+  setLocation("");
+  setNotes("");
 }
 
 const styles = StyleSheet.create({
