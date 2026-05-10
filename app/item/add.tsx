@@ -17,6 +17,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { analyzeClothingImage, fallbackClothingAnalysis } from "@/lib/ai/analyzeClothing";
 import { removeImageBackground } from "@/lib/ai/removeBackground";
+import { captureError, captureEvent } from "@/lib/observability";
 import type { ClothingAnalysisResult, ClothingCategory, Season } from "@/types";
 import { getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
 import { getWardrobeMetadataInputError, parseColorList } from "@/utils/wardrobeValidation";
@@ -37,6 +38,7 @@ export default function AddItemScreen() {
   const [isShareable, setIsShareable] = useState(false);
   const [isLendable, setIsLendable] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const isBusy = isPicking || isAnalyzing || isCreating;
 
   const selectedCategoryLabel = useMemo(() => {
     return CATEGORIES.find((category) => category.value === analysis.category)?.label ?? "Ust";
@@ -75,12 +77,19 @@ export default function AddItemScreen() {
       try {
         const result = await analyzeClothingImage(backgroundRemovedUri);
         setAnalysis(result);
-      } catch {
+        captureEvent("wardrobe_image_analyzed", {
+          category: result.category,
+          season_count: result.season.length,
+        });
+      } catch (analysisError) {
+        captureError(analysisError, { area: "wardrobe_image_analysis" });
+        captureEvent("wardrobe_image_analysis_fallback");
         setAnalysis(fallbackClothingAnalysis);
       }
 
       setStep("metadata");
     } catch (error) {
+      captureError(error, { area: "wardrobe_image_prepare" });
       Alert.alert("Gorsel hazirlanamadi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsAnalyzing(false);
@@ -164,8 +173,15 @@ export default function AddItemScreen() {
         is_lendable: isLendable,
       });
 
+      captureEvent("wardrobe_add_flow_completed", {
+        category: analysis.category,
+        is_lendable: isLendable,
+        is_shareable: isShareable,
+        season_count: analysis.season.length,
+      });
       router.replace("/(tabs)");
     } catch (error) {
+      captureError(error, { area: "wardrobe_add_save", category: analysis.category });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Supabase ayarlarini kontrol edip tekrar dene.");
     }
   }
@@ -197,6 +213,7 @@ export default function AddItemScreen() {
                 await handleImageSelected(await takePhoto());
               }}
               loading={isPicking || isAnalyzing}
+              disabled={isBusy}
             />
             <Button
               title="Galeriden Sec"
@@ -208,6 +225,7 @@ export default function AddItemScreen() {
                 await handleImageSelected(await pickFromLibrary());
               }}
               loading={isPicking || isAnalyzing}
+              disabled={isBusy}
             />
           </View>
         </Card>
@@ -235,6 +253,7 @@ export default function AddItemScreen() {
                   title={category.label}
                   variant={active ? "primary" : "secondary"}
                   onPress={() => updateCategory(category.value)}
+                  disabled={isBusy}
                   style={styles.chipButton}
                 />
               );
@@ -251,6 +270,7 @@ export default function AddItemScreen() {
                   title={season.label}
                   variant={active ? "primary" : "secondary"}
                   onPress={() => toggleSeason(season.value)}
+                  disabled={isBusy}
                   style={styles.chipButton}
                 />
               );
@@ -288,16 +308,18 @@ export default function AddItemScreen() {
                 title={isShareable ? "Arkadas Dolabinda Acik" : "Arkadas Dolabinda Paylas"}
                 variant={isShareable ? "primary" : "secondary"}
                 onPress={toggleShareable}
+                disabled={isBusy}
               />
               <Button
                 title={isLendable ? "Odunc Verilebilir" : "Odunc Verilebilir Yap"}
                 variant={isLendable ? "primary" : "secondary"}
                 onPress={toggleLendable}
+                disabled={isBusy}
               />
             </View>
           </Card>
 
-          <Button title="Dolaba Ekle" onPress={handleSave} loading={isCreating} />
+          <Button title="Dolaba Ekle" onPress={handleSave} loading={isCreating} disabled={isBusy} />
         </View>
       )}
     </ScrollView>

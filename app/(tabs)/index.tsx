@@ -11,6 +11,7 @@ import { CATEGORIES } from "@/constants/categories";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useWardrobe } from "@/hooks/useWardrobe";
+import { captureEvent } from "@/lib/observability";
 import { useWardrobeStore } from "@/stores/wardrobeStore";
 import type { ClothingCategory, Season } from "@/types";
 
@@ -26,6 +27,7 @@ export default function WardrobeScreen() {
   const { items, error, isLoading, isRefetching, refetch } = useWardrobe();
   const { category, season, search, setCategory, setSeason, setSearch } = useWardrobeStore();
   const normalizedQuery = search.trim().toLowerCase();
+  const hasActiveFilters = category !== "all" || season !== "all" || Boolean(normalizedQuery);
   const filteredItems = items.filter((item) => {
     const categoryMatch = category === "all" || item.category === category;
     const seasonMatch = season === "all" || item.season.includes(season);
@@ -63,7 +65,10 @@ export default function WardrobeScreen() {
           return (
           <Pressable
             style={[styles.chip, active && styles.activeChip]}
-            onPress={() => setCategory(item.value === "all" ? "all" : (item.value as ClothingCategory))}
+            onPress={() => {
+              setCategory(item.value === "all" ? "all" : (item.value as ClothingCategory));
+              captureEvent("wardrobe_filter_changed", { filter: "category", value: item.value });
+            }}
           >
             <Text variant="label" color={active ? "inverse" : "secondary"}>
               {item.label}
@@ -82,7 +87,13 @@ export default function WardrobeScreen() {
         renderItem={({ item }) => {
           const active = item.value === season;
           return (
-            <Pressable style={[styles.seasonChip, active && styles.activeSeasonChip]} onPress={() => setSeason(item.value)}>
+            <Pressable
+              style={[styles.seasonChip, active && styles.activeSeasonChip]}
+              onPress={() => {
+                setSeason(item.value);
+                captureEvent("wardrobe_filter_changed", { filter: "season", value: item.value });
+              }}
+            >
               <Text variant="caption" color={active ? "inverse" : "secondary"}>
                 {item.label}
               </Text>
@@ -92,6 +103,25 @@ export default function WardrobeScreen() {
       />
 
       <Input label="Dolapta ara" value={search} onChangeText={setSearch} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" />
+      {hasActiveFilters ? (
+        <View style={styles.filterSummary}>
+          <Text variant="caption" color="muted">
+            {filteredItems.length}/{items.length} kiyafet gosteriliyor
+          </Text>
+          <Pressable
+            onPress={() => {
+              setCategory("all");
+              setSeason("all");
+              setSearch("");
+              captureEvent("wardrobe_filters_cleared");
+            }}
+          >
+            <Text variant="caption" color="primary">
+              Temizle
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {isLoading ? (
         <WardrobeSkeleton />
@@ -145,6 +175,7 @@ export default function WardrobeScreen() {
                   setCategory("all");
                   setSeason("all");
                   setSearch("");
+                  captureEvent("wardrobe_filters_cleared");
                 }
               : () => router.push("/item/add")
           }
@@ -183,6 +214,12 @@ const styles = StyleSheet.create({
   seasonFilters: {
     gap: SPACING.sm,
     paddingBottom: SPACING.md,
+  },
+  filterSummary: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: SPACING.sm,
   },
   chip: {
     backgroundColor: COLORS.surface,

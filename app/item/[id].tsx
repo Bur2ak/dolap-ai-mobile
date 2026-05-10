@@ -14,6 +14,7 @@ import { COLORS } from "@/constants/colors";
 import { SEASONS } from "@/constants/seasons";
 import { SPACING } from "@/constants/spacing";
 import { useWardrobeItem } from "@/hooks/useWardrobe";
+import { captureError, captureEvent } from "@/lib/observability";
 import { getUuidParam } from "@/lib/routeParams";
 import type { CareRecommendation, ClothingCategory, Season, SustainabilityInsight } from "@/types";
 import { getCareRecommendations } from "@/utils/care";
@@ -32,6 +33,7 @@ export default function ItemDetailScreen() {
   const [brand, setBrand] = useState("");
   const [price, setPrice] = useState("");
   const [seasons, setSeasons] = useState<Season[]>([]);
+  const isBusy = isUpdating;
 
   const categoryLabel = CATEGORIES.find((category) => category.value === item?.category)?.label ?? item?.category;
 
@@ -84,8 +86,13 @@ export default function ItemDetailScreen() {
         subcategory: subcategory.trim(),
       });
       setIsEditing(false);
+      captureEvent("wardrobe_item_detail_saved", {
+        category,
+        season_count: seasons.length,
+      });
       Alert.alert("Kaydedildi", "Kiyafet bilgileri guncellendi.");
     } catch (error) {
+      captureError(error, { area: "wardrobe_item_detail_save", category });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -97,7 +104,9 @@ export default function ItemDetailScreen() {
 
     try {
       await markWorn(item);
+      captureEvent("wardrobe_item_detail_mark_worn");
     } catch (error) {
+      captureError(error, { area: "wardrobe_item_detail_mark_worn_action" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -109,7 +118,9 @@ export default function ItemDetailScreen() {
 
     try {
       await updateItem(item.is_shareable ? { is_shareable: false, is_lendable: false } : { is_shareable: true });
+      captureEvent("wardrobe_item_shareable_toggled", { enabled: !item.is_shareable });
     } catch (error) {
+      captureError(error, { area: "wardrobe_item_shareable_toggle" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -121,7 +132,9 @@ export default function ItemDetailScreen() {
 
     try {
       await updateItem(item.is_lendable ? { is_lendable: false } : { is_lendable: true, is_shareable: true });
+      captureEvent("wardrobe_item_lendable_toggled", { enabled: !item.is_lendable });
     } catch (error) {
+      captureError(error, { area: "wardrobe_item_lendable_toggle" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -135,8 +148,10 @@ export default function ItemDetailScreen() {
         onPress: async () => {
           try {
             await deleteItem();
+            captureEvent("wardrobe_item_detail_deleted");
             router.replace("/(tabs)");
           } catch (error) {
+            captureError(error, { area: "wardrobe_item_detail_delete_action" });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
           }
         },
@@ -180,7 +195,7 @@ export default function ItemDetailScreen() {
             <Text variant="body" color="secondary">
               {item.brand ? `${item.brand} markasi` : "Marka bilgisi eklenmemis"}
             </Text>
-            <Button title={isEditing ? "Duzenlemeyi Kapat" : "Bilgileri Duzenle"} variant="secondary" onPress={() => setIsEditing((value) => !value)} />
+            <Button title={isEditing ? "Duzenlemeyi Kapat" : "Bilgileri Duzenle"} variant="secondary" onPress={() => setIsEditing((value) => !value)} disabled={isBusy} />
           </Card>
 
           {isEditing ? (
@@ -197,6 +212,7 @@ export default function ItemDetailScreen() {
                       title={itemCategory.label}
                       variant={active ? "primary" : "secondary"}
                       onPress={() => setCategory(itemCategory.value)}
+                      disabled={isBusy}
                       style={styles.chipButton}
                     />
                   );
@@ -213,6 +229,7 @@ export default function ItemDetailScreen() {
                       title={season.label}
                       variant={active ? "primary" : "secondary"}
                       onPress={() => toggleSeason(season.value)}
+                      disabled={isBusy}
                       style={styles.chipButton}
                     />
                   );
@@ -223,7 +240,7 @@ export default function ItemDetailScreen() {
               <Input label="Renkler" value={colors} onChangeText={setColors} />
               <Input label="Marka" value={brand} onChangeText={setBrand} />
               <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
-              <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={isUpdating} />
+              <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={isUpdating} disabled={isBusy} />
             </Card>
           ) : null}
 
@@ -291,19 +308,21 @@ export default function ItemDetailScreen() {
                 variant="secondary"
                 onPress={() => void handleShareableToggle()}
                 loading={isUpdating}
+                disabled={isBusy}
               />
               <Button
                 title={item.is_lendable ? "Odunc Kapat" : "Odunc Verilebilir"}
                 variant="ghost"
                 onPress={() => void handleLendableToggle()}
                 loading={isUpdating}
+                disabled={isBusy}
               />
             </View>
           </Card>
 
           <View style={styles.actions}>
-            <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={isUpdating} />
-            <Button title="Sil" variant="secondary" onPress={handleDelete} loading={isUpdating} />
+            <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={isUpdating} disabled={isBusy} />
+            <Button title="Sil" variant="secondary" onPress={handleDelete} loading={isUpdating} disabled={isBusy} />
           </View>
         </>
       ) : (

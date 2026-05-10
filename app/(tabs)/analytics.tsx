@@ -14,6 +14,7 @@ import { usePriceTracking } from "@/hooks/usePriceTracking";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
+import { captureError, captureEvent } from "@/lib/observability";
 import type { DistributionPoint, MissingWardrobePiece, StyleProfile, UpdateWardrobeItemInput, WardrobeGoal, WardrobeItem } from "@/types";
 import { formatCurrency, formatNumber, getCostPerWearLabel } from "@/utils/formatters";
 
@@ -76,8 +77,13 @@ export default function AnalyticsScreen() {
         current_price: null,
         target_price: null,
       });
+      captureEvent("analytics_missing_piece_tracked", {
+        category: piece.category,
+        priority: piece.priority,
+      });
       Alert.alert("Listeye eklendi", "Eksik parca fiyat takip listene eklendi.");
     } catch (error) {
+      captureError(error, { area: "analytics_missing_piece_track", category: piece.category, priority: piece.priority });
       Alert.alert("Eklenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -333,6 +339,7 @@ function MissingPiecesCard({
                 variant="secondary"
                 onPress={() => void onAddToTracking(piece)}
                 loading={isAdding}
+                disabled={isAdding}
                 style={styles.missingAction}
               />
             </View>
@@ -367,17 +374,21 @@ function DetoxItemList({
   async function handleMarkWorn(item: WardrobeItem) {
     try {
       await onMarkWorn(item);
+      captureEvent("analytics_detox_mark_worn");
       Alert.alert("Kaydedildi", "Parca bugun giyildi olarak islendi.");
     } catch (error) {
+      captureError(error, { area: "analytics_detox_mark_worn" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
 
   async function handleLendable(item: WardrobeItem) {
     try {
-      await onUpdateItem({ itemId: item.id, input: { is_lendable: true } });
+      await onUpdateItem({ itemId: item.id, input: { is_lendable: true, is_shareable: true } });
+      captureEvent("analytics_detox_lendable_enabled");
       Alert.alert("Guncellendi", "Parca odunc verilebilir olarak isaretlendi.");
     } catch (error) {
+      captureError(error, { area: "analytics_detox_lendable" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -385,6 +396,7 @@ function DetoxItemList({
   function handleListingDraft(item: WardrobeItem) {
     const title = [item.brand, item.subcategory ?? formatCategory(item.category), item.colors[0]].filter(Boolean).join(" ");
     const priceHint = item.purchase_price ? Math.max(Math.round(item.purchase_price * 0.45), 50) : null;
+    captureEvent("analytics_detox_listing_draft_opened", { has_price_hint: Boolean(priceHint) });
 
     Alert.alert(
       "Satis taslagi",
@@ -405,7 +417,9 @@ function DetoxItemList({
         onPress: async () => {
           try {
             await onDeleteItem(item.id);
+            captureEvent("analytics_detox_item_deleted");
           } catch (error) {
+            captureError(error, { area: "analytics_detox_delete" });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
           }
         },
@@ -435,10 +449,10 @@ function DetoxItemList({
               </Text>
             </Pressable>
             <View style={styles.detoxActions}>
-              <Button title="Giydim" variant="secondary" onPress={() => void handleMarkWorn(item)} loading={isUpdating} style={styles.detoxButton} />
-              <Button title="Odunc" variant="secondary" onPress={() => void handleLendable(item)} loading={isUpdating} style={styles.detoxButton} />
-              <Button title="Satis" variant="ghost" onPress={() => handleListingDraft(item)} style={styles.detoxButton} />
-              <Button title="Sil" variant="ghost" onPress={() => handleDelete(item)} loading={isUpdating} style={styles.detoxButton} />
+              <Button title="Giydim" variant="secondary" onPress={() => void handleMarkWorn(item)} loading={isUpdating} disabled={isUpdating} style={styles.detoxButton} />
+              <Button title="Odunc" variant="secondary" onPress={() => void handleLendable(item)} loading={isUpdating} disabled={isUpdating} style={styles.detoxButton} />
+              <Button title="Satis" variant="ghost" onPress={() => handleListingDraft(item)} disabled={isUpdating} style={styles.detoxButton} />
+              <Button title="Sil" variant="ghost" onPress={() => handleDelete(item)} loading={isUpdating} disabled={isUpdating} style={styles.detoxButton} />
             </View>
           </View>
         ))
