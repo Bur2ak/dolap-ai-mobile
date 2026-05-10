@@ -41,6 +41,9 @@ export default function PriceTrackingScreen() {
   const [store, setStore] = useState("");
   const [currentPrice, setCurrentPrice] = useState("");
   const [targetPrice, setTargetPrice] = useState("");
+  const isBusy = isCreating || isUpdating || isDeleting || isChecking;
+  const targetReadyCount = trackings.filter((tracking) => tracking.current_price !== null && tracking.target_price !== null && tracking.current_price <= tracking.target_price).length;
+  const trackedUrlCount = trackings.filter((tracking) => Boolean(tracking.product_url)).length;
 
   async function handleCreate() {
     if (!canUse) {
@@ -169,7 +172,7 @@ export default function PriceTrackingScreen() {
         <Input label="Urun linki" value={productUrl} onChangeText={setProductUrl} autoCapitalize="none" autoCorrect={false} error={getOptionalHttpUrlError(productUrl)} />
         <Input label="Mevcut fiyat" value={currentPrice} onChangeText={setCurrentPrice} keyboardType="decimal-pad" error={getCurrencyInputError(currentPrice)} />
         <Input label="Hedef fiyat" value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" error={getCurrencyInputError(targetPrice)} />
-        <Button title="Takibe Ekle" onPress={handleCreate} loading={isCreating} />
+        <Button title="Takibe Ekle" onPress={handleCreate} loading={isCreating} disabled={isBusy} />
       </Card>
 
       <SmartShoppingListCard
@@ -177,13 +180,36 @@ export default function PriceTrackingScreen() {
         trackings={trackings}
         onAdd={handleAddSmartSuggestion}
         isAdding={isCreating}
+        disabled={isBusy}
       />
 
       <View style={styles.list}>
         <View style={styles.listHeader}>
           <Text variant="h3">Takip listesi</Text>
-          <Button title="Kontrol Et" variant="secondary" onPress={handleCheckPrices} loading={isChecking} />
+          <Button title="Kontrol Et" variant="secondary" onPress={handleCheckPrices} loading={isChecking} disabled={trackings.length === 0 || isBusy} />
         </View>
+        {trackings.length > 0 ? (
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryPill}>
+              <Text variant="caption" color="muted">
+                AKTIF
+              </Text>
+              <Text variant="h3">{trackings.length}</Text>
+            </View>
+            <View style={styles.summaryPill}>
+              <Text variant="caption" color="muted">
+                HEDEFTE
+              </Text>
+              <Text variant="h3">{targetReadyCount}</Text>
+            </View>
+            <View style={styles.summaryPill}>
+              <Text variant="caption" color="muted">
+                LINKLI
+              </Text>
+              <Text variant="h3">{trackedUrlCount}</Text>
+            </View>
+          </View>
+        ) : null}
         {isLoading ? (
           <EmptyState icon="sync-outline" title="Takipler yukleniyor" body="Fiyat takip listen hazirlaniyor." />
         ) : error ? (
@@ -204,6 +230,7 @@ export default function PriceTrackingScreen() {
               onUpdate={updateTracking}
               isDeleting={isDeleting}
               isUpdating={isUpdating}
+              isBusy={isBusy}
             />
           ))
         ) : (
@@ -219,11 +246,13 @@ function SmartShoppingListCard({
   trackings,
   onAdd,
   isAdding,
+  disabled,
 }: {
   pieces: MissingWardrobePiece[];
   trackings: PriceTracking[];
   onAdd: (piece: MissingWardrobePiece) => Promise<void>;
   isAdding: boolean;
+  disabled: boolean;
 }) {
   const visiblePieces = pieces.slice(0, 4);
 
@@ -259,7 +288,7 @@ function SmartShoppingListCard({
                   variant="secondary"
                   onPress={() => void onAdd(piece)}
                   loading={isAdding}
-                  disabled={added}
+                  disabled={added || disabled}
                   style={styles.smartAction}
                 />
               </View>
@@ -281,12 +310,14 @@ function TrackingCard({
   onUpdate,
   isDeleting,
   isUpdating,
+  isBusy,
 }: {
   tracking: PriceTracking;
   onDelete: (id: string) => Promise<void>;
   onUpdate: ReturnType<typeof usePriceTracking>["updateTracking"];
   isDeleting: boolean;
   isUpdating: boolean;
+  isBusy: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(tracking.product_name);
@@ -348,10 +379,10 @@ function TrackingCard({
           </Text>
         </View>
         <View style={styles.cardActions}>
-          <Pressable style={styles.iconButton} onPress={() => setIsEditing((value) => !value)} disabled={isUpdating}>
+          <Pressable style={styles.iconButton} onPress={() => setIsEditing((value) => !value)} disabled={isBusy}>
             <Ionicons name={isEditing ? "close-outline" : "create-outline"} size={20} color={COLORS.primary} />
           </Pressable>
-          <Pressable style={styles.iconButton} onPress={() => void onDelete(tracking.id)} disabled={isDeleting}>
+          <Pressable style={styles.iconButton} onPress={() => void onDelete(tracking.id)} disabled={isDeleting || isBusy}>
             <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
           </Pressable>
         </View>
@@ -364,7 +395,7 @@ function TrackingCard({
           <Input label="Urun linki" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} error={getOptionalHttpUrlError(url)} />
           <Input label="Mevcut fiyat" value={currentPrice} onChangeText={setCurrentPrice} keyboardType="decimal-pad" error={getCurrencyInputError(currentPrice)} />
           <Input label="Hedef fiyat" value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" error={getCurrencyInputError(targetPrice)} />
-          <Button title="Degisiklikleri Kaydet" onPress={handleSave} loading={isUpdating} />
+          <Button title="Degisiklikleri Kaydet" onPress={handleSave} loading={isUpdating} disabled={isBusy} />
         </View>
       ) : (
         <>
@@ -586,6 +617,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: SPACING.md,
     justifyContent: "space-between",
+  },
+  summaryGrid: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  summaryPill: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    flex: 1,
+    gap: 2,
+    padding: SPACING.sm,
   },
   trackingCard: {
     gap: SPACING.md,

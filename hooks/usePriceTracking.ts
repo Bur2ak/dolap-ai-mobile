@@ -8,7 +8,7 @@ import {
   fetchPriceTrackings,
   updatePriceTracking,
 } from "@/lib/api/priceTracking";
-import { captureEvent } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { CreatePriceTrackingInput, UpdatePriceTrackingInput } from "@/types";
@@ -25,6 +25,14 @@ export function usePriceTracking() {
 
   const createMutation = useMutation({
     mutationFn: (input: CreatePriceTrackingInput) => createPriceTracking(userId!, input),
+    onError: (error, input) => {
+      captureError(error, {
+        area: "price_tracking_create",
+        has_current_price: input.current_price !== null,
+        has_target_price: input.target_price !== null,
+        has_url: Boolean(input.product_url),
+      });
+    },
     onSuccess: (_tracking, input) => {
       captureEvent("price_tracking_created", {
         has_current_price: input.current_price !== null,
@@ -37,6 +45,9 @@ export function usePriceTracking() {
 
   const deleteMutation = useMutation({
     mutationFn: (trackingId: string) => deletePriceTracking(userId!, trackingId),
+    onError: (error) => {
+      captureError(error, { area: "price_tracking_delete" });
+    },
     onSuccess: () => {
       captureEvent("price_tracking_deleted");
       void queryClient.invalidateQueries({ queryKey: ["price-trackings", userId] });
@@ -44,6 +55,14 @@ export function usePriceTracking() {
   });
   const updateMutation = useMutation({
     mutationFn: ({ trackingId, input }: { trackingId: string; input: UpdatePriceTrackingInput }) => updatePriceTracking(userId!, trackingId, input),
+    onError: (error, variables) => {
+      captureError(error, {
+        area: "price_tracking_update",
+        changed_current_price: variables.input.current_price !== undefined,
+        changed_target_price: variables.input.target_price !== undefined,
+        changed_url: variables.input.product_url !== undefined,
+      });
+    },
     onSuccess: (_tracking, variables) => {
       captureEvent("price_tracking_updated", {
         changed_current_price: variables.input.current_price !== undefined,
@@ -55,10 +74,18 @@ export function usePriceTracking() {
   });
   const checkMutation = useMutation({
     mutationFn: () => checkPriceTrackings(),
+    onError: (error) => {
+      captureError(error, { area: "price_tracking_check" });
+    },
     onSuccess: (result) => {
+      const undetected = result.results.filter((item) => item.reason === "price_not_detected").length;
+      const pushSent = result.results.filter((item) => item.push_sent).length;
+
       captureEvent("price_tracking_checked", {
         checked: result.checked,
         notified: result.notified,
+        push_sent: pushSent,
+        undetected,
         updated: result.updated,
       });
       void queryClient.invalidateQueries({ queryKey: ["price-trackings", userId] });

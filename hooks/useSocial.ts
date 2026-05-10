@@ -14,6 +14,7 @@ import {
   updateFriendshipStatus,
   updateLoanRequestStatus,
 } from "@/lib/api/social";
+import { captureError } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { LoanRequest, LoanRequestStatus, WardrobeItem } from "@/types";
@@ -30,12 +31,18 @@ export function useSocial() {
 
   const searchMutation = useMutation({
     mutationFn: (query: string) => searchUsers(query, userId!),
+    onError: (error) => {
+      captureError(error, { area: "social_user_search" });
+    },
   });
 
   const sendRequestMutation = useMutation({
     mutationFn: (addresseeId: string) => sendFriendRequest(userId!, addresseeId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
+    },
+    onError: (error) => {
+      captureError(error, { area: "friend_request_send" });
     },
   });
 
@@ -48,11 +55,17 @@ export function useSocial() {
       void queryClient.invalidateQueries({ queryKey: ["profile", userId] });
       void useAuthStore.getState().fetchProfile();
     },
+    onError: (error, variables) => {
+      captureError(error, { area: "friendship_status_update", status: variables.status });
+    },
   });
   const deleteMutation = useMutation({
     mutationFn: (friendshipId: string) => deleteFriendship(userId!, friendshipId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
+    },
+    onError: (error) => {
+      captureError(error, { area: "friendship_delete" });
     },
   });
 
@@ -113,6 +126,9 @@ export function useFriendWardrobe(friendId?: string) {
     mutationFn: ({ item, input }: { item: WardrobeItem; input?: BorrowWardrobeItemInput }) => requestBorrowWardrobeItem(userId!, item, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["loan-requests", userId] });
+    },
+    onError: (error) => {
+      captureError(error, { area: "loan_request_create" });
     },
   });
 
@@ -198,6 +214,9 @@ export function useLoanRequests() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["loan-requests", userId] });
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
+    },
+    onError: (error, variables) => {
+      captureError(error, { area: "loan_request_status_update", status: variables.status });
     },
   });
 

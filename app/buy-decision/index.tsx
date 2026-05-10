@@ -50,6 +50,7 @@ export default function BuyDecisionScreen() {
   const { premium, limits, isLimitReached } = useSubscription();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [price, setPrice] = useState("");
+  const isBusy = isPicking || isDeciding || isSaving;
 
   async function handleImageSelected(uri: string | null) {
     if (!uri) {
@@ -165,6 +166,7 @@ export default function BuyDecisionScreen() {
               await handleImageSelected(await takePhoto());
             }}
             loading={isPicking}
+            disabled={isBusy}
           />
           <Button
             title="Galeriden Sec"
@@ -173,12 +175,13 @@ export default function BuyDecisionScreen() {
               await handleImageSelected(await pickFromLibrary());
             }}
             loading={isPicking}
+            disabled={isBusy}
           />
         </View>
       </Card>
 
       <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
-      <Button title="Analiz Et" onPress={handleAnalyze} loading={isDeciding} />
+      <Button title="Analiz Et" onPress={handleAnalyze} loading={isDeciding} disabled={!imageUri || isBusy} />
 
       {result ? (
         <Card style={styles.resultCard}>
@@ -248,7 +251,7 @@ export default function BuyDecisionScreen() {
               {result.discount_advice}
             </Text>
           ) : null}
-          <Button title="Karari Kaydet" variant="secondary" onPress={handleSave} loading={isSaving} />
+          <Button title="Karari Kaydet" variant="secondary" onPress={handleSave} loading={isSaving} disabled={isBusy} />
         </Card>
       ) : null}
 
@@ -336,7 +339,7 @@ function DecisionHistoryCard({
           </Text>
         ) : null}
       </View>
-      <Button title="Sil" variant="ghost" onPress={handleDelete} loading={isSaving} />
+      <Button title="Sil" variant="ghost" onPress={handleDelete} loading={isSaving} disabled={isSaving} />
     </Card>
   );
 }

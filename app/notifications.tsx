@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -22,7 +23,19 @@ const notificationLabels: Record<NotificationRecord["type"], string> = {
   system: "Sistem",
 };
 
+type NotificationFilter = "all" | "unread" | NotificationRecord["type"];
+
+const filters: Array<{ label: string; value: NotificationFilter }> = [
+  { label: "Tumu", value: "all" },
+  { label: "Okunmamis", value: "unread" },
+  { label: "Fiyat", value: "price_drop" },
+  { label: "Sosyal", value: "friend_request" },
+  { label: "Kombin", value: "outfit_vote" },
+  { label: "Odunc", value: "lend_request" },
+];
+
 export default function NotificationsScreen() {
+  const [filter, setFilter] = useState<NotificationFilter>("all");
   const {
     notifications,
     unreadCount,
@@ -38,6 +51,21 @@ export default function NotificationsScreen() {
     isUpdating,
     canUse,
   } = useNotificationInbox();
+  const visibleNotifications = useMemo(
+    () =>
+      notifications.filter((notification) => {
+        if (filter === "all") {
+          return true;
+        }
+
+        if (filter === "unread") {
+          return !notification.is_read;
+        }
+
+        return notification.type === filter;
+      }),
+    [filter, notifications],
+  );
 
   async function handleMarkAllRead() {
     try {
@@ -114,6 +142,20 @@ export default function NotificationsScreen() {
         </View>
       </Card>
 
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+        {filters.map((item) => {
+          const active = item.value === filter;
+          const count = getFilterCount(item.value, notifications);
+          return (
+            <Pressable key={item.value} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setFilter(item.value)}>
+              <Text variant="caption" color={active ? "inverse" : "secondary"}>
+                {item.label} {count > 0 ? count : ""}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
       {!canUse ? (
         <EmptyState icon="person-outline" title="Giris gerekli" body="Bildirimlerini gormek icin once giris yapmalisin." />
       ) : isLoading ? (
@@ -127,9 +169,9 @@ export default function NotificationsScreen() {
           loading={isRefetching}
           onAction={() => void refetch()}
         />
-      ) : notifications.length > 0 ? (
+      ) : visibleNotifications.length > 0 ? (
         <View style={styles.list}>
-          {notifications.map((notification) => (
+          {visibleNotifications.map((notification) => (
             <Card key={notification.id} style={[styles.notificationCard, !notification.is_read && styles.unreadCard]}>
               <Pressable style={styles.notificationMain} onPress={() => void handlePress(notification)} disabled={isUpdating}>
                 <View style={styles.iconWrap}>
@@ -158,7 +200,13 @@ export default function NotificationsScreen() {
           ))}
         </View>
       ) : (
-        <EmptyState icon="notifications-outline" title="Bildirim yok" body="Yeni gelismeler burada gorunecek." />
+        <EmptyState
+          icon="notifications-outline"
+          title={notifications.length > 0 ? "Bu filtrede bildirim yok" : "Bildirim yok"}
+          body={notifications.length > 0 ? "Farkli bir filtre secerek diger bildirimlere bakabilirsin." : "Yeni gelismeler burada gorunecek."}
+          actionLabel={notifications.length > 0 ? "Tumunu Goster" : undefined}
+          onAction={notifications.length > 0 ? () => setFilter("all") : undefined}
+        />
       )}
     </ScrollView>
   );
@@ -186,6 +234,18 @@ function iconForNotification(type: NotificationRecord["type"]) {
   }
 
   return "notifications-outline" as const;
+}
+
+function getFilterCount(filter: NotificationFilter, notifications: NotificationRecord[]) {
+  if (filter === "all") {
+    return notifications.length;
+  }
+
+  if (filter === "unread") {
+    return notifications.filter((notification) => !notification.is_read).length;
+  }
+
+  return notifications.filter((notification) => notification.type === filter).length;
 }
 
 function formatDate(value: string) {
@@ -229,6 +289,24 @@ const styles = StyleSheet.create({
   summaryActions: {
     gap: SPACING.xs,
     width: 132,
+  },
+  filters: {
+    gap: SPACING.sm,
+    paddingRight: SPACING.lg,
+  },
+  filterChip: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 36,
+    paddingHorizontal: SPACING.md,
+  },
+  filterChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   list: {
     gap: SPACING.sm,

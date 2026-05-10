@@ -8,7 +8,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/lib/api/notifications";
-import { captureEvent } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -26,12 +26,18 @@ export function useNotificationInbox() {
       captureEvent("notification_marked_read");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
     },
+    onError: (error) => {
+      captureError(error, { area: "notification_mark_read" });
+    },
   });
   const markAllReadMutation = useMutation({
     mutationFn: () => markAllNotificationsRead(userId!),
     onSuccess: () => {
       captureEvent("notifications_marked_all_read");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
+    },
+    onError: (error) => {
+      captureError(error, { area: "notifications_mark_all_read" });
     },
   });
   const deleteMutation = useMutation({
@@ -40,12 +46,18 @@ export function useNotificationInbox() {
       captureEvent("notification_deleted");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
     },
+    onError: (error) => {
+      captureError(error, { area: "notification_delete" });
+    },
   });
   const deleteReadMutation = useMutation({
     mutationFn: () => deleteReadNotifications(userId!),
     onSuccess: () => {
       captureEvent("notifications_read_deleted");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
+    },
+    onError: (error) => {
+      captureError(error, { area: "notifications_delete_read" });
     },
   });
   useEffect(() => {

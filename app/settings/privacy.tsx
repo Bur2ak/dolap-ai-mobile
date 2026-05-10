@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -29,10 +30,12 @@ const rows: Array<{ key: keyof PrivacySettings; title: string; body: string }> =
 
 export default function PrivacySettingsScreen() {
   const { profile, updateProfile } = useAuthStore();
+  const [updatingKey, setUpdatingKey] = useState<keyof PrivacySettings | null>(null);
   const privacy = profile?.privacy_settings ?? defaultPrivacy;
 
   async function toggle(key: keyof PrivacySettings) {
     try {
+      setUpdatingKey(key);
       await updateProfile({
         privacy_settings: {
           ...privacy,
@@ -41,6 +44,8 @@ export default function PrivacySettingsScreen() {
       });
     } catch (error) {
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setUpdatingKey(null);
     }
   }
 
@@ -56,15 +61,16 @@ export default function PrivacySettingsScreen() {
         <Text variant="h3">Paylasim tercihleri</Text>
         {rows.map((row) => {
           const enabled = privacy[row.key];
+          const disabled = Boolean(updatingKey);
           return (
-            <Pressable key={row.key} style={styles.row} onPress={() => void toggle(row.key)}>
+            <Pressable key={row.key} style={[styles.row, disabled && styles.rowDisabled]} onPress={() => void toggle(row.key)} disabled={disabled}>
               <View style={styles.rowCopy}>
                 <Text variant="label">{row.title}</Text>
                 <Text variant="body" color="secondary">
                   {row.body}
                 </Text>
               </View>
-              <View style={[styles.toggle, enabled && styles.toggleActive]}>
+              <View style={[styles.toggle, enabled && styles.toggleActive, updatingKey === row.key && styles.toggleUpdating]}>
                 <View style={[styles.knob, enabled && styles.knobActive]} />
               </View>
             </Pressable>
@@ -101,6 +107,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: SPACING.md,
   },
+  rowDisabled: {
+    opacity: 0.72,
+  },
   rowCopy: {
     flex: 1,
     gap: SPACING.xs,
@@ -115,6 +124,10 @@ const styles = StyleSheet.create({
   },
   toggleActive: {
     backgroundColor: COLORS.primary,
+  },
+  toggleUpdating: {
+    borderColor: COLORS.warning,
+    borderWidth: 1,
   },
   knob: {
     backgroundColor: COLORS.surface,
