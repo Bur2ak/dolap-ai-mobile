@@ -61,10 +61,22 @@ export default function DiagnosticsScreen() {
   const readyCheckCount = checks.filter((check) => check.configured).length;
 
   useEffect(() => {
+    captureEvent("diagnostics_screen_viewed", {
+      ready_check_count: readyCheckCount,
+      warning_count: warnings.length,
+    });
+  }, [readyCheckCount, warnings.length]);
+
+  useEffect(() => {
     void refreshPushReadiness();
   }, []);
 
   async function refreshPushReadiness() {
+    if (isCheckingPush) {
+      captureEvent("diagnostics_push_readiness_refresh_blocked", { reason: "busy" });
+      return;
+    }
+
     try {
       setIsCheckingPush(true);
       const readiness = await getPushNotificationReadiness();

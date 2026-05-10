@@ -373,30 +373,30 @@ function MissingPiecesCard({
           const isActive = activePieceKey === pieceKey;
 
           return (
-          <View key={pieceKey} style={styles.missingRow}>
-            <View style={[styles.priorityPill, styles[`priority${piece.priority}`]]}>
-              <Text variant="caption" color="inverse">
-                {formatPriority(piece.priority)}
-              </Text>
+            <View key={pieceKey} style={styles.missingRow}>
+              <View style={[styles.priorityPill, styles[`priority${piece.priority}`]]}>
+                <Text variant="caption" color="inverse">
+                  {formatPriority(piece.priority)}
+                </Text>
+              </View>
+              <View style={styles.missingCopy}>
+                <Text variant="label">{piece.label}</Text>
+                <Text variant="body" color="secondary">
+                  {piece.reason}
+                </Text>
+                <Text variant="caption" color="muted">
+                  Renk onerisi: {piece.suggested_colors.join(", ")}
+                </Text>
+                <Button
+                  title="Alisveris Listesine Ekle"
+                  variant="secondary"
+                  onPress={() => void onAddToTracking(piece)}
+                  loading={isActive}
+                  disabled={isAdding && !isActive}
+                  style={styles.missingAction}
+                />
+              </View>
             </View>
-            <View style={styles.missingCopy}>
-              <Text variant="label">{piece.label}</Text>
-              <Text variant="body" color="secondary">
-                {piece.reason}
-              </Text>
-              <Text variant="caption" color="muted">
-                Renk onerisi: {piece.suggested_colors.join(", ")}
-              </Text>
-              <Button
-                title="Alisveris Listesine Ekle"
-                variant="secondary"
-                onPress={() => void onAddToTracking(piece)}
-                loading={isActive}
-                disabled={isAdding}
-                style={styles.missingAction}
-              />
-            </View>
-          </View>
           );
         })
       ) : (

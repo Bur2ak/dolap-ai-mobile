@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -35,7 +35,20 @@ export default function SubscriptionSettingsScreen() {
   const expiryLabel = profile?.subscription_expires_at ? formatDate(profile.subscription_expires_at) : "Belirtilmemis";
   const revenueCatReadiness = getRevenueCatReadiness();
 
+  useEffect(() => {
+    captureEvent("subscription_settings_screen_viewed", {
+      local_preview: localPremiumOverride,
+      plan: planName,
+      revenuecat_ready: revenueCatReadiness.configured,
+    });
+  }, [localPremiumOverride, planName, revenueCatReadiness.configured]);
+
   async function handleRefreshSubscription() {
+    if (isRefreshing) {
+      captureEvent("subscription_refresh_blocked", { reason: "busy" });
+      return;
+    }
+
     try {
       setIsRefreshing(true);
       if (!revenueCatReadiness.configured) {

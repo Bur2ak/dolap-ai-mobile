@@ -39,6 +39,7 @@ export default function PaywallScreen() {
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [activePackageId, setActivePackageId] = useState<string | null>(null);
+  const isBusy = isPurchasing || isRestoring || isLoadingPackages;
   const planCards = packages.length > 0 ? packages.map(getPackagePlanCard) : fallbackPlanCards;
 
   const loadPackages = useCallback(async () => {
@@ -79,6 +80,7 @@ export default function PaywallScreen() {
 
   function activatePreview() {
     if (isPurchasing || isRestoring) {
+      captureEvent("premium_preview_blocked", { reason: "busy" });
       return;
     }
 
@@ -89,12 +91,14 @@ export default function PaywallScreen() {
 
   async function handlePurchase(revenueCatPackage: PurchasesPackage) {
     if (isPurchasing || isRestoring) {
+      captureEvent("purchase_blocked", { reason: "busy", package_id: revenueCatPackage.identifier });
       return;
     }
 
     setActivePackageId(revenueCatPackage.identifier);
     try {
       setIsPurchasing(true);
+      captureEvent("purchase_started", { package_id: revenueCatPackage.identifier });
       const customerInfo = await purchaseRevenueCatPackage(revenueCatPackage);
       const premium = hasPremiumEntitlement(customerInfo);
       setRevenueCatPremium(premium);
@@ -119,11 +123,13 @@ export default function PaywallScreen() {
 
   async function handleRestore() {
     if (isRestoring || isPurchasing) {
+      captureEvent("purchase_restore_blocked", { reason: "busy" });
       return;
     }
 
     try {
       setIsRestoring(true);
+      captureEvent("purchase_restore_started");
       const customerInfo = await restoreRevenueCatPurchases();
       const premium = hasPremiumEntitlement(customerInfo);
       setRevenueCatPremium(premium);
@@ -144,7 +150,7 @@ export default function PaywallScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isPurchasing || isRestoring} />
         <Text variant="h2">Shipirio Premium</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -192,7 +198,7 @@ export default function PaywallScreen() {
               title={`${revenueCatPackage.product.title} - ${revenueCatPackage.product.priceString}`}
               onPress={() => void handlePurchase(revenueCatPackage)}
               loading={activePackageId === revenueCatPackage.identifier}
-              disabled={isPurchasing || isRestoring}
+              disabled={isBusy}
             />
           ))
         ) : (
@@ -208,14 +214,14 @@ export default function PaywallScreen() {
                 void loadPackages();
               }}
               loading={isLoadingPackages}
-              disabled={isPurchasing || isRestoring || isLoadingPackages}
+              disabled={isBusy}
             />
             {__DEV__ ? <Button title="Gelistirme Icin Premium Ac" variant="secondary" onPress={activatePreview} disabled={isPurchasing || isRestoring} /> : null}
           </>
         )}
       </Card>
 
-      <Button title="Aboneligi Geri Yukle" variant="secondary" onPress={() => void handleRestore()} loading={isRestoring} disabled={isPurchasing || isLoadingPackages} />
+      <Button title="Aboneligi Geri Yukle" variant="secondary" onPress={() => void handleRestore()} loading={isRestoring} disabled={isBusy && !isRestoring} />
       <View style={styles.legalLinks}>
         <Button
           title="Gizlilik Politikasi"
@@ -224,6 +230,7 @@ export default function PaywallScreen() {
             captureEvent("paywall_legal_link_opened", { target: "privacy" });
             router.push("/legal/privacy");
           }}
+          disabled={isPurchasing || isRestoring}
         />
         <Button
           title="Kullanim Sartlari"
@@ -232,6 +239,7 @@ export default function PaywallScreen() {
             captureEvent("paywall_legal_link_opened", { target: "terms" });
             router.push("/legal/terms");
           }}
+          disabled={isPurchasing || isRestoring}
         />
       </View>
     </ScrollView>
