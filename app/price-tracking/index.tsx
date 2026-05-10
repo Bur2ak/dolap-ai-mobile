@@ -42,28 +42,46 @@ export default function PriceTrackingScreen() {
   const [store, setStore] = useState("");
   const [currentPrice, setCurrentPrice] = useState("");
   const [targetPrice, setTargetPrice] = useState("");
+  const [activeSmartPieceKey, setActiveSmartPieceKey] = useState<string | null>(null);
+  const [activeDeleteId, setActiveDeleteId] = useState<string | null>(null);
   const isBusy = isCreating || isUpdating || isDeleting || isChecking;
   const targetReadyCount = trackings.filter((tracking) => tracking.current_price !== null && tracking.target_price !== null && tracking.current_price <= tracking.target_price).length;
   const trackedUrlCount = trackings.filter((tracking) => Boolean(tracking.product_url)).length;
 
+  useEffect(() => {
+    captureEvent("price_tracking_screen_viewed", {
+      target_ready_count: targetReadyCount,
+      tracked_url_count: trackedUrlCount,
+      tracking_count: trackings.length,
+    });
+  }, [targetReadyCount, trackedUrlCount, trackings.length]);
+
   async function handleCreate() {
+    if (isBusy) {
+      return;
+    }
+
     if (!canUse) {
+      captureEvent("price_tracking_create_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Fiyat takibi icin once giris yapmalisin.");
       return;
     }
 
     if (isLimitReached("PRICE_TRACKING_ITEMS", trackings.length)) {
+      captureEvent("price_tracking_create_blocked", { reason: "limit", tracking_count: trackings.length });
       router.push("/paywall");
       return;
     }
 
     if (!productName.trim()) {
+      captureEvent("price_tracking_create_blocked", { reason: "missing_name" });
       Alert.alert("Urun adi gerekli", "Takip edecegin urune bir ad ver.");
       return;
     }
 
     const inputError = getPriceTrackingInputError(productUrl, currentPrice, targetPrice);
     if (inputError) {
+      captureEvent("price_tracking_create_blocked", { reason: "input" });
       Alert.alert(inputError.title, inputError.message);
       return;
     }
@@ -91,12 +109,19 @@ export default function PriceTrackingScreen() {
   }
 
   async function handleAddSmartSuggestion(piece: MissingWardrobePiece) {
+    const pieceKey = getSmartPieceKey(piece);
+    if (isBusy || activeSmartPieceKey) {
+      return;
+    }
+
     if (!canUse) {
+      captureEvent("price_tracking_smart_suggestion_blocked", { reason: "auth", category: piece.category, priority: piece.priority });
       Alert.alert("Giris gerekli", "Alisveris onerilerini takibe eklemek icin once giris yapmalisin.");
       return;
     }
 
     if (isLimitReached("PRICE_TRACKING_ITEMS", trackings.length)) {
+      captureEvent("price_tracking_smart_suggestion_blocked", { reason: "limit", category: piece.category, priority: piece.priority });
       router.push("/paywall");
       return;
     }
@@ -105,10 +130,12 @@ export default function PriceTrackingScreen() {
     const alreadyExists = trackings.some((tracking) => tracking.product_name.toLocaleLowerCase("tr-TR") === productName.toLocaleLowerCase("tr-TR"));
 
     if (alreadyExists) {
+      captureEvent("price_tracking_smart_suggestion_blocked", { reason: "duplicate", category: piece.category, priority: piece.priority });
       Alert.alert("Zaten listede", "Bu eksik parca fiyat takip listende zaten var.");
       return;
     }
 
+    setActiveSmartPieceKey(pieceKey);
     try {
       await createTracking({
         product_name: productName,
@@ -122,21 +149,31 @@ export default function PriceTrackingScreen() {
     } catch (error) {
       captureError(error, { area: "price_tracking_smart_suggestion_action", category: piece.category, priority: piece.priority });
       Alert.alert("Eklenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveSmartPieceKey(null);
     }
   }
 
   async function handleDelete(id: string) {
+    if (isBusy || activeDeleteId) {
+      return;
+    }
+
+    captureEvent("price_tracking_delete_prompt_opened", { tracking_id: id });
     Alert.alert("Takibi sil", "Bu fiyat takibi listenden kaldirilacak.", [
       { text: "Vazgec", style: "cancel" },
       {
         text: "Sil",
         style: "destructive",
         onPress: async () => {
+          setActiveDeleteId(id);
           try {
             await deleteTracking(id);
           } catch (error) {
             captureError(error, { area: "price_tracking_delete_action", tracking_id: id });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          } finally {
+            setActiveDeleteId(null);
           }
         },
       },
@@ -144,7 +181,12 @@ export default function PriceTrackingScreen() {
   }
 
   async function handleCheckPrices() {
+    if (isBusy) {
+      return;
+    }
+
     if (!canUse) {
+      captureEvent("price_tracking_check_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Fiyatlari kontrol etmek icin once giris yapmalisin.");
       return;
     }
@@ -185,6 +227,7 @@ export default function PriceTrackingScreen() {
         pieces={analytics.missing_pieces}
         trackings={trackings}
         onAdd={handleAddSmartSuggestion}
+        activePieceKey={activeSmartPieceKey}
         isAdding={isCreating}
         disabled={isBusy}
       />
@@ -225,7 +268,10 @@ export default function PriceTrackingScreen() {
             body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
             actionLabel="Tekrar Dene"
             loading={isRefetching}
-            onAction={() => void refetch()}
+            onAction={() => {
+              captureEvent("price_tracking_refetch_requested");
+              void refetch();
+            }}
           />
         ) : trackings.length > 0 ? (
           trackings.map((tracking) => (
@@ -237,6 +283,7 @@ export default function PriceTrackingScreen() {
               isDeleting={isDeleting}
               isUpdating={isUpdating}
               isBusy={isBusy}
+              activeDeleteId={activeDeleteId}
             />
           ))
         ) : (
@@ -251,12 +298,14 @@ function SmartShoppingListCard({
   pieces,
   trackings,
   onAdd,
+  activePieceKey,
   isAdding,
   disabled,
 }: {
   pieces: MissingWardrobePiece[];
   trackings: PriceTracking[];
   onAdd: (piece: MissingWardrobePiece) => Promise<void>;
+  activePieceKey: string | null;
   isAdding: boolean;
   disabled: boolean;
 }) {
@@ -277,6 +326,8 @@ function SmartShoppingListCard({
         visiblePieces.map((piece) => {
           const productName = `${piece.label} (${piece.suggested_colors.join(", ")})`;
           const added = trackings.some((tracking) => tracking.product_name.toLocaleLowerCase("tr-TR") === productName.toLocaleLowerCase("tr-TR"));
+          const pieceKey = getSmartPieceKey(piece);
+          const isAddingThis = activePieceKey === pieceKey;
 
           return (
             <View key={`${piece.category}-${piece.label}`} style={styles.smartRow}>
@@ -293,8 +344,8 @@ function SmartShoppingListCard({
                   title={added ? "Listede" : "Fiyat Takibine Ekle"}
                   variant="secondary"
                   onPress={() => void onAdd(piece)}
-                  loading={isAdding}
-                  disabled={added || disabled}
+                  loading={isAddingThis}
+                  disabled={added || disabled || (isAdding && !isAddingThis)}
                   style={styles.smartAction}
                 />
               </View>
@@ -317,6 +368,7 @@ function TrackingCard({
   isDeleting,
   isUpdating,
   isBusy,
+  activeDeleteId,
 }: {
   tracking: PriceTracking;
   onDelete: (id: string) => Promise<void>;
@@ -324,6 +376,7 @@ function TrackingCard({
   isDeleting: boolean;
   isUpdating: boolean;
   isBusy: boolean;
+  activeDeleteId: string | null;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(tracking.product_name);
@@ -334,6 +387,7 @@ function TrackingCard({
   const history = getPriceHistory(tracking);
   const latestPrice = tracking.current_price ?? history.at(-1)?.price ?? null;
   const targetProgress = getTargetProgress(latestPrice, tracking.initial_price, tracking.target_price);
+  const isDeletingThis = activeDeleteId === tracking.id;
 
   useEffect(() => {
     setName(tracking.product_name);
@@ -344,13 +398,19 @@ function TrackingCard({
   }, [tracking]);
 
   async function handleSave() {
+    if (isBusy) {
+      return;
+    }
+
     if (!name.trim()) {
+      captureEvent("price_tracking_update_blocked", { reason: "missing_name", tracking_id: tracking.id });
       Alert.alert("Urun adi gerekli", "Takip kaydi icin urun adi bos olamaz.");
       return;
     }
 
     const inputError = getPriceTrackingInputError(url, currentPrice, targetPrice);
     if (inputError) {
+      captureEvent("price_tracking_update_blocked", { reason: "input", tracking_id: tracking.id });
       Alert.alert(inputError.title, inputError.message);
       return;
     }
@@ -369,6 +429,7 @@ function TrackingCard({
           target_price: parsedTargetPrice,
         },
       });
+      captureEvent("price_tracking_updated", { tracking_id: tracking.id, has_url: Boolean(url.trim()) });
       setIsEditing(false);
     } catch (error) {
       captureError(error, { area: "price_tracking_update_action", tracking_id: tracking.id, has_url: Boolean(url.trim()) });
@@ -386,11 +447,19 @@ function TrackingCard({
           </Text>
         </View>
         <View style={styles.cardActions}>
-          <Pressable style={styles.iconButton} onPress={() => setIsEditing((value) => !value)} disabled={isBusy}>
+          <Pressable
+            style={styles.iconButton}
+            onPress={() => {
+              const nextValue = !isEditing;
+              captureEvent("price_tracking_edit_toggled", { tracking_id: tracking.id, is_editing: nextValue });
+              setIsEditing(nextValue);
+            }}
+            disabled={isBusy}
+          >
             <Ionicons name={isEditing ? "close-outline" : "create-outline"} size={20} color={COLORS.primary} />
           </Pressable>
-          <Pressable style={styles.iconButton} onPress={() => void onDelete(tracking.id)} disabled={isDeleting || isBusy}>
-            <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+          <Pressable style={[styles.iconButton, isDeletingThis ? styles.iconButtonBusy : null]} onPress={() => void onDelete(tracking.id)} disabled={isDeleting || isBusy || isDeletingThis}>
+            <Ionicons name={isDeletingThis ? "hourglass-outline" : "trash-outline"} size={20} color={COLORS.danger} />
           </Pressable>
         </View>
       </View>
@@ -507,6 +576,10 @@ function getPriceHistory(tracking: PriceTracking) {
   }
 
   return normalized;
+}
+
+function getSmartPieceKey(piece: MissingWardrobePiece) {
+  return `${piece.category}-${piece.label}-${piece.priority}`;
 }
 
 function getTargetProgress(currentPrice: number | null, initialPrice: number | null, targetPrice: number | null) {
@@ -677,6 +750,9 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: "center",
     width: 40,
+  },
+  iconButtonBusy: {
+    opacity: 0.6,
   },
   priceRow: {
     flexDirection: "row",

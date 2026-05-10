@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useEffect } from "react";
 import { FlatList, Pressable, StyleSheet, View } from "react-native";
 
 import { Card } from "@/components/ui/Card";
@@ -40,6 +41,26 @@ export default function WardrobeScreen() {
     return categoryMatch && seasonMatch && queryMatch;
   });
 
+  useEffect(() => {
+    captureEvent("wardrobe_screen_viewed", {
+      item_count: items.length,
+      filtered_count: filteredItems.length,
+      has_active_filters: hasActiveFilters,
+    });
+  }, [filteredItems.length, hasActiveFilters, items.length]);
+
+  function clearFilters(source: "summary" | "empty") {
+    setCategory("all");
+    setSeason("all");
+    setSearch("");
+    captureEvent("wardrobe_filters_cleared", { source });
+  }
+
+  function openAddItem() {
+    captureEvent("wardrobe_add_item_opened");
+    router.push("/item/add");
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -49,7 +70,7 @@ export default function WardrobeScreen() {
             {items.length} kiyafet
           </Text>
         </View>
-        <Pressable style={styles.iconButton} onPress={() => router.push("/item/add")}>
+        <Pressable style={styles.iconButton} onPress={openAddItem}>
           <Ionicons name="add" size={28} color={COLORS.surface} />
         </Pressable>
       </View>
@@ -63,18 +84,18 @@ export default function WardrobeScreen() {
         renderItem={({ item }) => {
           const active = item.value === category;
           return (
-          <Pressable
-            style={[styles.chip, active && styles.activeChip]}
-            onPress={() => {
-              setCategory(item.value === "all" ? "all" : (item.value as ClothingCategory));
-              captureEvent("wardrobe_filter_changed", { filter: "category", value: item.value });
-            }}
-          >
-            <Text variant="label" color={active ? "inverse" : "secondary"}>
-              {item.label}
-            </Text>
-          </Pressable>
-        );
+            <Pressable
+              style={[styles.chip, active && styles.activeChip]}
+              onPress={() => {
+                setCategory(item.value === "all" ? "all" : (item.value as ClothingCategory));
+                captureEvent("wardrobe_filter_changed", { filter: "category", value: item.value });
+              }}
+            >
+              <Text variant="label" color={active ? "inverse" : "secondary"}>
+                {item.label}
+              </Text>
+            </Pressable>
+          );
         }}
       />
 
@@ -110,10 +131,7 @@ export default function WardrobeScreen() {
           </Text>
           <Pressable
             onPress={() => {
-              setCategory("all");
-              setSeason("all");
-              setSearch("");
-              captureEvent("wardrobe_filters_cleared");
+              clearFilters("summary");
             }}
           >
             <Text variant="caption" color="primary">
@@ -132,7 +150,10 @@ export default function WardrobeScreen() {
           body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
           actionLabel="Tekrar Dene"
           loading={isRefetching}
-          onAction={() => void refetch()}
+          onAction={() => {
+            captureEvent("wardrobe_refetch_requested");
+            void refetch();
+          }}
           style={styles.emptyState}
         />
       ) : filteredItems.length > 0 ? (
@@ -143,7 +164,13 @@ export default function WardrobeScreen() {
           columnWrapperStyle={styles.gridRow}
           contentContainerStyle={styles.grid}
           renderItem={({ item }) => (
-            <Pressable style={styles.itemPressable} onPress={() => router.push(`/item/${item.id}`)}>
+            <Pressable
+              style={styles.itemPressable}
+              onPress={() => {
+                captureEvent("wardrobe_item_opened", { item_id: item.id, category: item.category });
+                router.push(`/item/${item.id}`);
+              }}
+            >
               <Card style={styles.itemCard}>
                 <CachedImage
                   accessibilityLabel={item.subcategory ?? item.category}
@@ -176,12 +203,9 @@ export default function WardrobeScreen() {
           onAction={
             items.length > 0
               ? () => {
-                  setCategory("all");
-                  setSeason("all");
-                  setSearch("");
-                  captureEvent("wardrobe_filters_cleared");
+                  clearFilters("empty");
                 }
-              : () => router.push("/item/add")
+              : openAddItem
           }
           style={styles.emptyState}
         />
