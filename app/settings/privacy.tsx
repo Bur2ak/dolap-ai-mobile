@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -34,7 +34,18 @@ export default function PrivacySettingsScreen() {
   const [updatingKey, setUpdatingKey] = useState<keyof PrivacySettings | null>(null);
   const privacy = profile?.privacy_settings ?? defaultPrivacy;
 
+  useEffect(() => {
+    captureEvent("privacy_settings_screen_viewed", {
+      wardrobe_visible: privacy.wardrobe_visible,
+      allow_friend_requests: privacy.allow_friend_requests,
+    });
+  }, [privacy.allow_friend_requests, privacy.wardrobe_visible]);
+
   async function toggle(key: keyof PrivacySettings) {
+    if (updatingKey) {
+      return;
+    }
+
     try {
       setUpdatingKey(key);
       await updateProfile({

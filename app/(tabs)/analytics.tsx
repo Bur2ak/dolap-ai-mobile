@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -23,6 +24,7 @@ export default function AnalyticsScreen() {
   const { markWorn, updateItem, deleteItem, isUpdating } = useWardrobe();
   const { trackings, createTracking, isCreating: isCreatingTracking, canUse: canUsePriceTracking } = usePriceTracking();
   const { checkGate, isLimitReached, limits } = useSubscription();
+  const [activeMissingPieceKey, setActiveMissingPieceKey] = useState<string | null>(null);
   const hasBlockingError = Boolean(error && analytics.total_items === 0);
   const topCategory = analytics.category_distribution[0];
   const focusText =
@@ -43,13 +45,34 @@ export default function AnalyticsScreen() {
     ["90 gun atil", formatNumber(analytics.inactive_items_count)],
   ];
 
+  useEffect(() => {
+    captureEvent("analytics_screen_viewed", {
+      total_items: analytics.total_items,
+      utilization_score: analytics.utilization_score,
+      sustainability_score: analytics.sustainability_score,
+      has_blocking_error: hasBlockingError,
+    });
+  }, [analytics.sustainability_score, analytics.total_items, analytics.utilization_score, hasBlockingError]);
+
+  function handleRefetch() {
+    captureEvent("analytics_refetch_requested", { has_blocking_error: hasBlockingError });
+    void refetch();
+  }
+
   async function handleAddMissingPiece(piece: MissingWardrobePiece) {
+    const pieceKey = getMissingPieceKey(piece);
+    if (activeMissingPieceKey || isCreatingTracking) {
+      return;
+    }
+
     if (!canUsePriceTracking) {
+      captureEvent("analytics_missing_piece_track_blocked", { reason: "auth", category: piece.category, priority: piece.priority });
       Alert.alert("Giris gerekli", "Eksik parcayi alisveris listesine eklemek icin once giris yapmalisin.");
       return;
     }
 
     if (isLimitReached("PRICE_TRACKING_ITEMS", trackings.length)) {
+      captureEvent("analytics_missing_piece_track_blocked", { reason: "limit", category: piece.category, priority: piece.priority });
       Alert.alert(
         "Takip limiti doldu",
         `Free planda ${formatLimit(limits.PRICE_TRACKING_ITEMS)} fiyat takibi ekleyebilirsin.`,
@@ -65,10 +88,12 @@ export default function AnalyticsScreen() {
     const alreadyExists = trackings.some((tracking) => tracking.product_name.toLocaleLowerCase("tr-TR") === productName.toLocaleLowerCase("tr-TR"));
 
     if (alreadyExists) {
+      captureEvent("analytics_missing_piece_track_blocked", { reason: "duplicate", category: piece.category, priority: piece.priority });
       Alert.alert("Zaten listede", "Bu eksik parca fiyat takip listende gorunuyor.");
       return;
     }
 
+    setActiveMissingPieceKey(pieceKey);
     try {
       await createTracking({
         product_name: productName,
@@ -85,6 +110,8 @@ export default function AnalyticsScreen() {
     } catch (error) {
       captureError(error, { area: "analytics_missing_piece_track", category: piece.category, priority: piece.priority });
       Alert.alert("Eklenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveMissingPieceKey(null);
     }
   }
 
@@ -102,7 +129,7 @@ export default function AnalyticsScreen() {
           body="Dolap verileri alinamadigi icin analiz olusturulamadi."
           actionLabel="Tekrar Dene"
           loading={isRefetching}
-          onAction={() => void refetch()}
+          onAction={handleRefetch}
         />
       ) : (
         <>
@@ -140,7 +167,12 @@ export default function AnalyticsScreen() {
       <StyleProfileCard profile={analytics.style_profile} />
       <WeeklyGoalsCard goals={analytics.weekly_goals} />
       <SustainabilitySummaryCard score={analytics.sustainability_score} items={analytics.sustainability_focus_items} />
-      <MissingPiecesCard pieces={analytics.missing_pieces} onAddToTracking={handleAddMissingPiece} isAdding={isCreatingTracking} />
+      <MissingPiecesCard
+        pieces={analytics.missing_pieces}
+        onAddToTracking={handleAddMissingPiece}
+        isAdding={isCreatingTracking}
+        activePieceKey={activeMissingPieceKey}
+      />
       <ItemList title="En cok giyilenler" items={analytics.most_worn} empty="Henuz giyilme verisi yok." />
       <ItemList title="Hic giyilmeyenler" items={analytics.never_worn} empty="Harika, her sey kullanilmis gorunuyor." />
       {checkGate("ANALYTICS_FULL") ? (
@@ -201,7 +233,15 @@ function WeeklyGoalsCard({ goals }: { goals: WardrobeGoal[] }) {
                 <View style={styles.goalTrack}>
                   <View style={[styles.goalFill, { width: `${progress}%` }]} />
                 </View>
-                <Button title={goal.action_label} variant="secondary" onPress={() => router.push(goal.action_route)} style={styles.goalAction} />
+                <Button
+                  title={goal.action_label}
+                  variant="secondary"
+                  onPress={() => {
+                    captureEvent("analytics_weekly_goal_opened", { goal_id: goal.id, priority: goal.priority, action_route: goal.action_route });
+                    router.push(goal.action_route);
+                  }}
+                  style={styles.goalAction}
+                />
               </View>
             </View>
           );
@@ -250,7 +290,14 @@ function SustainabilitySummaryCard({ score, items }: { score: number; items: War
         <View style={styles.signalList}>
           <Text variant="label">Rotasyona alinabilecekler</Text>
           {items.map((item) => (
-            <Pressable key={item.id} style={styles.itemRow} onPress={() => router.push(`/item/${item.id}`)}>
+            <Pressable
+              key={item.id}
+              style={styles.itemRow}
+              onPress={() => {
+                captureEvent("analytics_sustainability_item_opened", { item_id: item.id });
+                router.push(`/item/${item.id}`);
+              }}
+            >
               <View style={[styles.itemDot, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
               <View style={styles.itemText}>
                 <Text variant="label">{item.subcategory ?? formatCategory(item.category)}</Text>
@@ -310,17 +357,23 @@ function MissingPiecesCard({
   pieces,
   onAddToTracking,
   isAdding,
+  activePieceKey,
 }: {
   pieces: MissingWardrobePiece[];
   onAddToTracking: (piece: MissingWardrobePiece) => Promise<void>;
   isAdding: boolean;
+  activePieceKey: string | null;
 }) {
   return (
     <Card style={styles.section}>
       <Text variant="h3">Eksik parca analizi</Text>
       {pieces.length > 0 ? (
-        pieces.map((piece) => (
-          <View key={`${piece.category}-${piece.label}`} style={styles.missingRow}>
+        pieces.map((piece) => {
+          const pieceKey = getMissingPieceKey(piece);
+          const isActive = activePieceKey === pieceKey;
+
+          return (
+          <View key={pieceKey} style={styles.missingRow}>
             <View style={[styles.priorityPill, styles[`priority${piece.priority}`]]}>
               <Text variant="caption" color="inverse">
                 {formatPriority(piece.priority)}
@@ -338,13 +391,14 @@ function MissingPiecesCard({
                 title="Alisveris Listesine Ekle"
                 variant="secondary"
                 onPress={() => void onAddToTracking(piece)}
-                loading={isAdding}
+                loading={isActive}
                 disabled={isAdding}
                 style={styles.missingAction}
               />
             </View>
           </View>
-        ))
+          );
+        })
       ) : (
         <Text variant="body" color="secondary">
           Dolabin temel kategorilerde dengeli gorunuyor.
@@ -371,32 +425,52 @@ function DetoxItemList({
   onUpdateItem: (params: { itemId: string; input: UpdateWardrobeItemInput }) => Promise<WardrobeItem>;
   onDeleteItem: (itemId: string) => Promise<void>;
 }) {
+  const [activeAction, setActiveAction] = useState<{ itemId: string; action: "worn" | "lendable" | "delete" } | null>(null);
+
   async function handleMarkWorn(item: WardrobeItem) {
+    if (activeAction || isUpdating) {
+      return;
+    }
+
+    setActiveAction({ itemId: item.id, action: "worn" });
     try {
       await onMarkWorn(item);
-      captureEvent("analytics_detox_mark_worn");
+      captureEvent("analytics_detox_mark_worn", { item_id: item.id, wear_count: item.wear_count });
       Alert.alert("Kaydedildi", "Parca bugun giyildi olarak islendi.");
     } catch (error) {
-      captureError(error, { area: "analytics_detox_mark_worn" });
+      captureError(error, { area: "analytics_detox_mark_worn", item_id: item.id });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   async function handleLendable(item: WardrobeItem) {
+    if (activeAction || isUpdating) {
+      return;
+    }
+
+    setActiveAction({ itemId: item.id, action: "lendable" });
     try {
       await onUpdateItem({ itemId: item.id, input: { is_lendable: true, is_shareable: true } });
-      captureEvent("analytics_detox_lendable_enabled");
+      captureEvent("analytics_detox_lendable_enabled", { item_id: item.id });
       Alert.alert("Guncellendi", "Parca odunc verilebilir olarak isaretlendi.");
     } catch (error) {
-      captureError(error, { area: "analytics_detox_lendable" });
+      captureError(error, { area: "analytics_detox_lendable", item_id: item.id });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   function handleListingDraft(item: WardrobeItem) {
+    if (activeAction || isUpdating) {
+      return;
+    }
+
     const title = [item.brand, item.subcategory ?? formatCategory(item.category), item.colors[0]].filter(Boolean).join(" ");
     const priceHint = item.purchase_price ? Math.max(Math.round(item.purchase_price * 0.45), 50) : null;
-    captureEvent("analytics_detox_listing_draft_opened", { has_price_hint: Boolean(priceHint) });
+    captureEvent("analytics_detox_listing_draft_opened", { item_id: item.id, has_price_hint: Boolean(priceHint) });
 
     Alert.alert(
       "Satis taslagi",
@@ -409,18 +483,26 @@ function DetoxItemList({
   }
 
   function handleDelete(item: WardrobeItem) {
+    if (activeAction || isUpdating) {
+      return;
+    }
+
+    captureEvent("analytics_detox_delete_prompt_opened", { item_id: item.id });
     Alert.alert("Parcayi sil", "Bu parca dolabindan kaldirilacak.", [
       { text: "Vazgec", style: "cancel" },
       {
         text: "Sil",
         style: "destructive",
         onPress: async () => {
+          setActiveAction({ itemId: item.id, action: "delete" });
           try {
             await onDeleteItem(item.id);
-            captureEvent("analytics_detox_item_deleted");
+            captureEvent("analytics_detox_item_deleted", { item_id: item.id });
           } catch (error) {
-            captureError(error, { area: "analytics_detox_delete" });
+            captureError(error, { area: "analytics_detox_delete", item_id: item.id });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          } finally {
+            setActiveAction(null);
           }
         },
       },
@@ -436,7 +518,13 @@ function DetoxItemList({
       {items.length > 0 ? (
         items.map((item) => (
           <View key={item.id} style={styles.detoxItem}>
-            <Pressable style={styles.itemRow} onPress={() => router.push(`/item/${item.id}`)}>
+            <Pressable
+              style={styles.itemRow}
+              onPress={() => {
+                captureEvent("analytics_detox_item_opened", { item_id: item.id });
+                router.push(`/item/${item.id}`);
+              }}
+            >
               <View style={[styles.itemDot, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
               <View style={styles.itemText}>
                 <Text variant="label">{item.subcategory ?? item.category}</Text>
@@ -449,10 +537,31 @@ function DetoxItemList({
               </Text>
             </Pressable>
             <View style={styles.detoxActions}>
-              <Button title="Giydim" variant="secondary" onPress={() => void handleMarkWorn(item)} loading={isUpdating} disabled={isUpdating} style={styles.detoxButton} />
-              <Button title="Odunc" variant="secondary" onPress={() => void handleLendable(item)} loading={isUpdating} disabled={isUpdating} style={styles.detoxButton} />
-              <Button title="Satis" variant="ghost" onPress={() => handleListingDraft(item)} disabled={isUpdating} style={styles.detoxButton} />
-              <Button title="Sil" variant="ghost" onPress={() => handleDelete(item)} loading={isUpdating} disabled={isUpdating} style={styles.detoxButton} />
+              <Button
+                title="Giydim"
+                variant="secondary"
+                onPress={() => void handleMarkWorn(item)}
+                loading={activeAction?.itemId === item.id && activeAction.action === "worn"}
+                disabled={Boolean(activeAction) || isUpdating}
+                style={styles.detoxButton}
+              />
+              <Button
+                title="Odunc"
+                variant="secondary"
+                onPress={() => void handleLendable(item)}
+                loading={activeAction?.itemId === item.id && activeAction.action === "lendable"}
+                disabled={Boolean(activeAction) || isUpdating}
+                style={styles.detoxButton}
+              />
+              <Button title="Satis" variant="ghost" onPress={() => handleListingDraft(item)} disabled={Boolean(activeAction) || isUpdating} style={styles.detoxButton} />
+              <Button
+                title="Sil"
+                variant="ghost"
+                onPress={() => handleDelete(item)}
+                loading={activeAction?.itemId === item.id && activeAction.action === "delete"}
+                disabled={Boolean(activeAction) || isUpdating}
+                style={styles.detoxButton}
+              />
             </View>
           </View>
         ))
@@ -483,6 +592,10 @@ function formatPriority(value: MissingWardrobePiece["priority"]) {
 
 function formatLimit(value: number | boolean) {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "sinirsiz";
+}
+
+function getMissingPieceKey(piece: MissingWardrobePiece) {
+  return `${piece.category}-${piece.label}-${piece.priority}`;
 }
 
 function formatDistributionLabel(value: string) {
@@ -528,7 +641,14 @@ function ItemList({ title, items, empty }: { title: string; items: WardrobeItem[
           const costPerWear = getCostPerWearLabel(item.purchase_price, item.wear_count);
 
           return (
-            <Pressable key={item.id} style={styles.itemRow} onPress={() => router.push(`/item/${item.id}`)}>
+            <Pressable
+              key={item.id}
+              style={styles.itemRow}
+              onPress={() => {
+                captureEvent("analytics_item_list_item_opened", { item_id: item.id, list_title: title });
+                router.push(`/item/${item.id}`);
+              }}
+            >
               <View style={[styles.itemDot, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
               <View style={styles.itemText}>
                 <Text variant="label">{item.subcategory ?? item.category}</Text>

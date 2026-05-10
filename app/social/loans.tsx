@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -20,18 +21,54 @@ const statusLabels: Record<LoanRequestStatus, string> = {
   returned: "Iade edildi",
 };
 
+type LoanFilter = "all" | "incoming" | "outgoing" | "overdue";
+
+const filterOptions: Array<{ value: LoanFilter; label: string }> = [
+  { value: "all", label: "Tumu" },
+  { value: "incoming", label: "Gelen" },
+  { value: "outgoing", label: "Giden" },
+  { value: "overdue", label: "Geciken" },
+];
+
 export default function LoansScreen() {
   const { loanRequests, error, isLoading, isRefetching, refetch, updateLoanRequestStatus, isUpdating, userId } = useLoanRequests();
+  const [filter, setFilter] = useState<LoanFilter>("all");
+  const [activeStatusAction, setActiveStatusAction] = useState<{ id: string; status: LoanRequestStatus } | null>(null);
   const incoming = loanRequests.filter((request) => request.owner_id === userId);
   const outgoing = loanRequests.filter((request) => request.requester_id === userId);
   const pendingCount = loanRequests.filter((request) => request.status === "pending").length;
   const activeCount = loanRequests.filter((request) => request.status === "approved").length;
+  const overdueCount = loanRequests.filter(isLoanOverdue).length;
+  const filteredIncoming = filter === "outgoing" ? [] : filterLoanRequests(incoming, filter);
+  const filteredOutgoing = filter === "incoming" ? [] : filterLoanRequests(outgoing, filter);
+
+  useEffect(() => {
+    captureEvent("loan_requests_screen_viewed", {
+      total_count: loanRequests.length,
+      incoming_count: incoming.length,
+      outgoing_count: outgoing.length,
+      pending_count: pendingCount,
+      active_count: activeCount,
+      overdue_count: overdueCount,
+    });
+  }, [activeCount, incoming.length, loanRequests.length, outgoing.length, overdueCount, pendingCount]);
+
+  function handleFilter(nextFilter: LoanFilter) {
+    setFilter(nextFilter);
+    captureEvent("loan_requests_filter_selected", { filter: nextFilter });
+  }
+
+  function handleRefetch() {
+    captureEvent("loan_requests_refetch_requested");
+    void refetch();
+  }
 
   async function handleStatus(loanRequest: LoanRequest, status: LoanRequestStatus) {
-    if (isUpdating) {
+    if (activeStatusAction || isUpdating) {
       return;
     }
 
+    setActiveStatusAction({ id: loanRequest.id, status });
     try {
       await updateLoanRequestStatus({ loanRequest, status });
       captureEvent("loan_request_status_changed", {
@@ -43,6 +80,8 @@ export default function LoansScreen() {
     } catch (error) {
       captureError(error, { area: "loan_request_status_action", loan_request_id: loanRequest.id, status });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveStatusAction(null);
     }
   }
 
@@ -72,9 +111,26 @@ export default function LoansScreen() {
                 Aktif {activeCount}
               </Text>
             </View>
+            <View style={[styles.summaryPill, overdueCount > 0 && styles.summaryPillWarning]}>
+              <Text variant="caption" color={overdueCount > 0 ? "danger" : "primary"}>
+                Geciken {overdueCount}
+              </Text>
+            </View>
           </View>
         </View>
       </Card>
+
+      <View style={styles.filterRow}>
+        {filterOptions.map((option) => (
+          <Button
+            key={option.value}
+            title={option.label}
+            variant={filter === option.value ? "primary" : "secondary"}
+            onPress={() => handleFilter(option.value)}
+            style={styles.filterButton}
+          />
+        ))}
+      </View>
 
       {isLoading ? (
         <EmptyState icon="sync-outline" title="Odunc kayitlari yukleniyor" body="Odunc isteklerin hazirlaniyor." />
@@ -85,25 +141,27 @@ export default function LoansScreen() {
           body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
           actionLabel="Tekrar Dene"
           loading={isRefetching}
-          onAction={() => void refetch()}
+          onAction={handleRefetch}
         />
       ) : (
         <>
           <LoanSection
             title="Sana gelen istekler"
             empty="Sana gelen odunc istegi yok."
-            items={incoming}
+            items={filteredIncoming}
             currentUserId={userId}
             onStatus={handleStatus}
-            loading={isUpdating}
+            activeStatusAction={activeStatusAction}
+            isUpdating={isUpdating}
           />
           <LoanSection
             title="Gonderdigin istekler"
             empty="Gonderdigin odunc istegi yok."
-            items={outgoing}
+            items={filteredOutgoing}
             currentUserId={userId}
             onStatus={handleStatus}
-            loading={isUpdating}
+            activeStatusAction={activeStatusAction}
+            isUpdating={isUpdating}
           />
         </>
       )}
@@ -117,20 +175,31 @@ function LoanSection({
   items,
   currentUserId,
   onStatus,
-  loading,
+  activeStatusAction,
+  isUpdating,
 }: {
   title: string;
   empty: string;
   items: LoanRequest[];
   currentUserId?: string;
   onStatus: (loanRequest: LoanRequest, status: LoanRequestStatus) => Promise<void>;
-  loading: boolean;
+  activeStatusAction: { id: string; status: LoanRequestStatus } | null;
+  isUpdating: boolean;
 }) {
   return (
     <Card style={styles.section}>
       <Text variant="h3">{title}</Text>
       {items.length > 0 ? (
-        items.map((item) => <LoanRequestRow key={item.id} loanRequest={item} currentUserId={currentUserId} onStatus={onStatus} loading={loading} />)
+        items.map((item) => (
+          <LoanRequestRow
+            key={item.id}
+            loanRequest={item}
+            currentUserId={currentUserId}
+            onStatus={onStatus}
+            activeStatusAction={activeStatusAction}
+            isUpdating={isUpdating}
+          />
+        ))
       ) : (
         <EmptyState icon="swap-horizontal-outline" title="Kayit yok" body={empty} />
       )}
@@ -142,21 +211,25 @@ function LoanRequestRow({
   loanRequest,
   currentUserId,
   onStatus,
-  loading,
+  activeStatusAction,
+  isUpdating,
 }: {
   loanRequest: LoanRequest;
   currentUserId?: string;
   onStatus: (loanRequest: LoanRequest, status: LoanRequestStatus) => Promise<void>;
-  loading: boolean;
+  activeStatusAction: { id: string; status: LoanRequestStatus } | null;
+  isUpdating: boolean;
 }) {
   const isOwner = loanRequest.owner_id === currentUserId;
   const itemLabel = loanRequest.item?.subcategory ?? loanRequest.item?.brand ?? loanRequest.item?.category ?? "Kiyafet";
   const person = isOwner ? loanRequest.requester?.full_name ?? loanRequest.requester?.username ?? "Arkadas" : loanRequest.owner?.full_name ?? loanRequest.owner?.username ?? "Arkadas";
   const dueDateLabel = loanRequest.due_date ? `${formatDate(loanRequest.due_date)} - ${formatRelativeDueDate(loanRequest.due_date)}` : formatRelativeDueDate(null);
-  const isOverdue = loanRequest.due_date ? new Date(loanRequest.due_date).getTime() < new Date().setHours(0, 0, 0, 0) : false;
+  const isOverdue = isLoanOverdue(loanRequest);
+  const isRowUpdating = activeStatusAction?.id === loanRequest.id;
+  const isActionDisabled = Boolean(activeStatusAction) || isUpdating;
 
   return (
-    <View style={styles.loanRow}>
+    <View style={[styles.loanRow, isOverdue && styles.loanRowOverdue]}>
       <View style={styles.loanIcon}>
         <Ionicons name="shirt-outline" size={20} color={COLORS.primary} />
       </View>
@@ -179,16 +252,53 @@ function LoanRequestRow({
       <View style={styles.loanActions}>
         {isOwner && loanRequest.status === "pending" ? (
           <>
-            <Button title="Kabul" variant="secondary" onPress={() => void onStatus(loanRequest, "approved")} loading={loading} disabled={loading} style={styles.smallButton} />
-            <Button title="Red" variant="ghost" onPress={() => void onStatus(loanRequest, "declined")} loading={loading} disabled={loading} style={styles.smallButton} />
+            <Button
+              title="Kabul"
+              variant="secondary"
+              onPress={() => void onStatus(loanRequest, "approved")}
+              loading={isRowUpdating && activeStatusAction?.status === "approved"}
+              disabled={isActionDisabled}
+              style={styles.smallButton}
+            />
+            <Button
+              title="Red"
+              variant="ghost"
+              onPress={() => void onStatus(loanRequest, "declined")}
+              loading={isRowUpdating && activeStatusAction?.status === "declined"}
+              disabled={isActionDisabled}
+              style={styles.smallButton}
+            />
           </>
         ) : null}
         {isOwner && loanRequest.status === "approved" ? (
-          <Button title="Iade" variant="secondary" onPress={() => void onStatus(loanRequest, "returned")} loading={loading} disabled={loading} style={styles.smallButton} />
+          <Button
+            title="Iade"
+            variant="secondary"
+            onPress={() => void onStatus(loanRequest, "returned")}
+            loading={isRowUpdating && activeStatusAction?.status === "returned"}
+            disabled={isActionDisabled}
+            style={styles.smallButton}
+          />
         ) : null}
       </View>
     </View>
   );
+}
+
+function filterLoanRequests(items: LoanRequest[], filter: LoanFilter) {
+  if (filter === "incoming" || filter === "outgoing") {
+    return items;
+  }
+
+  if (filter === "overdue") {
+    return items.filter(isLoanOverdue);
+  }
+
+  return items;
+}
+
+function isLoanOverdue(loanRequest: LoanRequest) {
+  return loanRequest.status === "approved" && loanRequest.due_date ? new Date(loanRequest.due_date).getTime() < new Date().setHours(0, 0, 0, 0) : false;
 }
 
 const styles = StyleSheet.create({
@@ -230,6 +340,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
   },
+  summaryPillWarning: {
+    backgroundColor: COLORS.dangerSoft,
+  },
+  filterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  filterButton: {
+    minHeight: 40,
+    paddingHorizontal: SPACING.md,
+  },
   section: {
     gap: SPACING.md,
   },
@@ -237,6 +359,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: SPACING.sm,
+  },
+  loanRowOverdue: {
+    backgroundColor: COLORS.dangerSoft,
+    borderRadius: 8,
+    padding: SPACING.xs,
   },
   loanIcon: {
     alignItems: "center",

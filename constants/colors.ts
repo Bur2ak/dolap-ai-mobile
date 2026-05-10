@@ -11,6 +11,8 @@ export const COLORS = {
   textInverse: "#FFFFFF",
   border: "#E4DDD3",
   danger: "#B3261E",
+  dangerSoft: "#F7DEDA",
   warning: "#9A6400",
+  warningSoft: "#F4E7C5",
   success: "#1F7A4D",
 } as const;

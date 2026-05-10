@@ -36,7 +36,19 @@ export default function AccountSettingsScreen() {
     setBio(profile?.bio ?? "");
   }, [profile]);
 
+  useEffect(() => {
+    captureEvent("account_settings_screen_viewed", {
+      has_username: Boolean(profile?.username),
+      has_bio: Boolean(profile?.bio),
+      deletion_requested: Boolean(profile?.deletion_requested_at),
+    });
+  }, [profile?.bio, profile?.deletion_requested_at, profile?.username]);
+
   async function handleSave() {
+    if (isBusy) {
+      return;
+    }
+
     const normalizedUsername = normalizeUsername(username);
     const trimmedBio = bio.trim();
 
@@ -77,6 +89,10 @@ export default function AccountSettingsScreen() {
   }
 
   async function handleChangePassword() {
+    if (isBusy) {
+      return;
+    }
+
     if (password.length < 8) {
       Alert.alert("Sifre kisa", "Yeni sifre en az 8 karakter olmali.");
       return;
@@ -103,6 +119,11 @@ export default function AccountSettingsScreen() {
   }
 
   function handleRequestDeletion() {
+    if (isBusy) {
+      return;
+    }
+
+    captureEvent("account_deletion_request_prompt_opened");
     Alert.alert(
       "Hesap silme talebi",
       "Hesabin 30 gun sonra kalici silinmek uzere isaretlenecek. Bu sure icinde talebi iptal edebilirsin.",
@@ -120,6 +141,11 @@ export default function AccountSettingsScreen() {
   }
 
   function handleCancelDeletion() {
+    if (isBusy) {
+      return;
+    }
+
+    captureEvent("account_deletion_cancel_prompt_opened");
     Alert.alert("Silme talebini iptal et", "Hesabin silinmek uzere isaretlenmeyecek.", [
       { text: "Vazgec", style: "cancel" },
       {

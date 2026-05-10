@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
+import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -21,11 +22,21 @@ const supportTopics = [
 ];
 
 export default function SupportScreen() {
+  const [openingLink, setOpeningLink] = useState<string | null>(null);
   const supportUrl = createPublicAppLink("/support.html");
   const privacyUrl = createPublicAppLink("/privacy.html");
   const deleteAccountUrl = createPublicAppLink("/delete-account.html");
 
+  useEffect(() => {
+    captureEvent("support_screen_viewed");
+  }, []);
+
   async function openUrl(url: string, label: string) {
+    if (openingLink) {
+      return;
+    }
+
+    setOpeningLink(label);
     try {
       if (url.startsWith("http")) {
         await WebBrowser.openBrowserAsync(url);
@@ -38,6 +49,8 @@ export default function SupportScreen() {
     } catch (error) {
       captureError(error, { area: "support_link_open", label, url_type: url.startsWith("http") ? "web" : "mailto" });
       Alert.alert("Acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setOpeningLink(null);
     }
   }
 
@@ -64,7 +77,12 @@ export default function SupportScreen() {
         <Text variant="body" color="secondary">
           {supportEmail}
         </Text>
-        <Button title="E-posta Gonder" onPress={() => void openUrl(`mailto:${supportEmail}?subject=Shipirio%20Destek`, "email")} />
+        <Button
+          title="E-posta Gonder"
+          onPress={() => void openUrl(`mailto:${supportEmail}?subject=Shipirio%20Destek`, "email")}
+          loading={openingLink === "email"}
+          disabled={Boolean(openingLink)}
+        />
       </Card>
 
       <Card style={styles.section}>
@@ -81,9 +99,27 @@ export default function SupportScreen() {
 
       <Card style={styles.section}>
         <Text variant="h3">Web sayfalari</Text>
-        <Button title="Destek Sayfasini Ac" variant="secondary" onPress={() => void openUrl(supportUrl, "support")} />
-        <Button title="Gizlilik Sayfasini Ac" variant="secondary" onPress={() => void openUrl(privacyUrl, "privacy")} />
-        <Button title="Hesap Silme Bilgisini Ac" variant="secondary" onPress={() => void openUrl(deleteAccountUrl, "delete_account")} />
+        <Button
+          title="Destek Sayfasini Ac"
+          variant="secondary"
+          onPress={() => void openUrl(supportUrl, "support")}
+          loading={openingLink === "support"}
+          disabled={Boolean(openingLink)}
+        />
+        <Button
+          title="Gizlilik Sayfasini Ac"
+          variant="secondary"
+          onPress={() => void openUrl(privacyUrl, "privacy")}
+          loading={openingLink === "privacy"}
+          disabled={Boolean(openingLink)}
+        />
+        <Button
+          title="Hesap Silme Bilgisini Ac"
+          variant="secondary"
+          onPress={() => void openUrl(deleteAccountUrl, "delete_account")}
+          loading={openingLink === "delete_account"}
+          disabled={Boolean(openingLink)}
+        />
       </Card>
     </ScrollView>
   );
