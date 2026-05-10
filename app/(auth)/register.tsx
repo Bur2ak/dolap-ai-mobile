@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -23,25 +23,37 @@ export default function RegisterScreen() {
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    captureEvent("auth_register_screen_viewed", { has_return_to: Boolean(returnTo) });
+  }, [returnTo]);
+
   async function handleSubmit() {
+    if (isSubmitting) {
+      return;
+    }
+
     const normalizedEmail = normalizeEmail(email);
 
     if (!fullName.trim()) {
+      captureEvent("auth_register_blocked", { reason: "missing_name" });
       Alert.alert("Ad Soyad gerekli", "Hesabini olusturmak icin adini yaz.");
       return;
     }
 
     if (!isValidEmail(normalizedEmail)) {
+      captureEvent("auth_register_blocked", { reason: "invalid_email" });
       Alert.alert("Email gecersiz", "Gecerli bir email adresi gir.");
       return;
     }
 
     if (password.length < 8) {
+      captureEvent("auth_register_blocked", { reason: "short_password" });
       Alert.alert("Sifre kisa", "Sifre en az 8 karakter olmali.");
       return;
     }
 
     if (!acceptedLegal) {
+      captureEvent("auth_register_blocked", { reason: "legal_not_accepted" });
       Alert.alert("Onay gerekli", "Devam etmek icin KVKK aydinlatma metni, gizlilik politikasi ve kullanim sartlarini onaylamalisin.");
       return;
     }
@@ -74,7 +86,16 @@ export default function RegisterScreen() {
         <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} />
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
         <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry />
-        <Pressable style={styles.consentRow} onPress={() => setAcceptedLegal((value) => !value)} disabled={isSubmitting}>
+        <Pressable
+          style={styles.consentRow}
+          onPress={() =>
+            setAcceptedLegal((value) => {
+              captureEvent("auth_register_legal_toggled", { accepted: !value });
+              return !value;
+            })
+          }
+          disabled={isSubmitting}
+        >
           <View style={[styles.checkbox, acceptedLegal && styles.checkboxActive]}>
             {acceptedLegal ? <Ionicons name="checkmark" size={16} color={COLORS.background} /> : null}
           </View>
@@ -87,9 +108,36 @@ export default function RegisterScreen() {
           Onay zamanin hesap kaydinda saklanir; tercihlerini ayarlardan yonetebilirsin.
         </Text>
         <View style={styles.legalLinks}>
-          <Button title="KVKK" variant="ghost" onPress={() => router.push("/legal/kvkk")} disabled={isSubmitting} style={styles.linkButton} />
-          <Button title="Gizlilik" variant="ghost" onPress={() => router.push("/legal/privacy")} disabled={isSubmitting} style={styles.linkButton} />
-          <Button title="Sartlar" variant="ghost" onPress={() => router.push("/legal/terms")} disabled={isSubmitting} style={styles.linkButton} />
+          <Button
+            title="KVKK"
+            variant="ghost"
+            onPress={() => {
+              captureEvent("auth_register_legal_link_opened", { target: "kvkk" });
+              router.push("/legal/kvkk");
+            }}
+            disabled={isSubmitting}
+            style={styles.linkButton}
+          />
+          <Button
+            title="Gizlilik"
+            variant="ghost"
+            onPress={() => {
+              captureEvent("auth_register_legal_link_opened", { target: "privacy" });
+              router.push("/legal/privacy");
+            }}
+            disabled={isSubmitting}
+            style={styles.linkButton}
+          />
+          <Button
+            title="Sartlar"
+            variant="ghost"
+            onPress={() => {
+              captureEvent("auth_register_legal_link_opened", { target: "terms" });
+              router.push("/legal/terms");
+            }}
+            disabled={isSubmitting}
+            style={styles.linkButton}
+          />
         </View>
         <Button
           title="Zaten hesabim var"

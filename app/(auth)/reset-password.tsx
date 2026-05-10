@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -16,13 +16,23 @@ export default function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    captureEvent("auth_reset_password_screen_viewed", { has_session: Boolean(session) });
+  }, [session]);
+
   async function handleSubmit() {
+    if (isSubmitting) {
+      return;
+    }
+
     if (password.length < 8) {
+      captureEvent("auth_password_reset_complete_blocked", { reason: "short_password" });
       Alert.alert("Sifre kisa", "Yeni sifre en az 8 karakter olmali.");
       return;
     }
 
     if (password !== confirmPassword) {
+      captureEvent("auth_password_reset_complete_blocked", { reason: "password_mismatch" });
       Alert.alert("Sifreler eslesmiyor", "Iki alana da ayni sifreyi yaz.");
       return;
     }

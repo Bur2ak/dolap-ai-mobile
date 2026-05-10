@@ -1,6 +1,6 @@
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -17,10 +17,19 @@ export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    captureEvent("auth_forgot_password_screen_viewed");
+  }, []);
+
   async function handleSubmit() {
+    if (isSubmitting) {
+      return;
+    }
+
     const normalizedEmail = normalizeEmail(email);
 
     if (!isValidEmail(normalizedEmail)) {
+      captureEvent("auth_password_reset_request_blocked", { reason: "invalid_email" });
       Alert.alert("Email gecersiz", "Sifre sifirlama linki icin gecerli bir email adresi gir.");
       return;
     }

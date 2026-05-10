@@ -33,6 +33,7 @@ export default function ItemDetailScreen() {
   const [brand, setBrand] = useState("");
   const [price, setPrice] = useState("");
   const [seasons, setSeasons] = useState<Season[]>([]);
+  const [activeAction, setActiveAction] = useState<"save" | "worn" | "shareable" | "lendable" | "delete" | null>(null);
   const isBusy = isUpdating;
 
   const categoryLabel = CATEGORIES.find((category) => category.value === item?.category)?.label ?? item?.category;
@@ -54,12 +55,20 @@ export default function ItemDetailScreen() {
   const careRecommendations = item ? getCareRecommendations(item) : [];
   const sustainabilityInsight = item ? getSustainabilityInsight(item) : null;
 
+  useEffect(() => {
+    captureEvent("wardrobe_item_detail_viewed", {
+      item_id: id ?? "invalid",
+      loaded: Boolean(item),
+      category: item?.category ?? "unknown",
+    });
+  }, [id, item]);
+
   function toggleSeason(season: Season) {
     setSeasons((current) => (current.includes(season) ? current.filter((item) => item !== season) : [...current, season]));
   }
 
   async function handleSaveEdits() {
-    if (!item) {
+    if (!item || activeAction || isBusy) {
       return;
     }
 
@@ -70,10 +79,12 @@ export default function ItemDetailScreen() {
       subcategory,
     });
     if (metadataError) {
+      captureEvent("wardrobe_item_detail_save_blocked", { reason: "metadata", item_id: item.id });
       Alert.alert(metadataError.title, metadataError.message);
       return;
     }
 
+    setActiveAction("save");
     try {
       const purchasePrice = parseCurrencyInput(price);
 
@@ -94,65 +105,84 @@ export default function ItemDetailScreen() {
     } catch (error) {
       captureError(error, { area: "wardrobe_item_detail_save", category });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   async function handleMarkWorn() {
-    if (!item) {
+    if (!item || activeAction || isBusy) {
       return;
     }
 
+    setActiveAction("worn");
     try {
       await markWorn(item);
-      captureEvent("wardrobe_item_detail_mark_worn");
+      captureEvent("wardrobe_item_detail_mark_worn", { item_id: item.id, category: item.category });
     } catch (error) {
       captureError(error, { area: "wardrobe_item_detail_mark_worn_action" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   async function handleShareableToggle() {
-    if (!item) {
+    if (!item || activeAction || isBusy) {
       return;
     }
 
+    setActiveAction("shareable");
     try {
       await updateItem(item.is_shareable ? { is_shareable: false, is_lendable: false } : { is_shareable: true });
       captureEvent("wardrobe_item_shareable_toggled", { enabled: !item.is_shareable });
     } catch (error) {
       captureError(error, { area: "wardrobe_item_shareable_toggle" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   async function handleLendableToggle() {
-    if (!item) {
+    if (!item || activeAction || isBusy) {
       return;
     }
 
+    setActiveAction("lendable");
     try {
       await updateItem(item.is_lendable ? { is_lendable: false } : { is_lendable: true, is_shareable: true });
       captureEvent("wardrobe_item_lendable_toggled", { enabled: !item.is_lendable });
     } catch (error) {
       captureError(error, { area: "wardrobe_item_lendable_toggle" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   function handleDelete() {
+    if (!item || activeAction || isBusy) {
+      return;
+    }
+
+    captureEvent("wardrobe_item_detail_delete_prompt_opened", { item_id: item.id });
     Alert.alert("Kiyafeti sil", "Bu kiyafet dolabindan kaldirilacak.", [
       { text: "Vazgec", style: "cancel" },
       {
         text: "Sil",
         style: "destructive",
         onPress: async () => {
+          setActiveAction("delete");
           try {
             await deleteItem();
-            captureEvent("wardrobe_item_detail_deleted");
+            captureEvent("wardrobe_item_detail_deleted", { item_id: item.id });
             router.replace("/(tabs)");
           } catch (error) {
             captureError(error, { area: "wardrobe_item_detail_delete_action" });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          } finally {
+            setActiveAction(null);
           }
         },
       },
@@ -176,7 +206,10 @@ export default function ItemDetailScreen() {
           body="Baglanti veya izin tarafinda gecici bir sorun olabilir."
           actionLabel="Tekrar Dene"
           loading={isRefetching}
-          onAction={() => void refetch()}
+          onAction={() => {
+            captureEvent("wardrobe_item_detail_refetch_requested", { item_id: id ?? "invalid" });
+            void refetch();
+          }}
         />
       ) : item ? (
         <>
@@ -222,7 +255,10 @@ export default function ItemDetailScreen() {
                       key={itemCategory.value}
                       title={itemCategory.label}
                       variant={active ? "primary" : "secondary"}
-                      onPress={() => setCategory(itemCategory.value)}
+                      onPress={() => {
+                        captureEvent("wardrobe_item_detail_category_selected", { category: itemCategory.value });
+                        setCategory(itemCategory.value);
+                      }}
                       disabled={isBusy}
                       style={styles.chipButton}
                     />
@@ -251,7 +287,7 @@ export default function ItemDetailScreen() {
               <Input label="Renkler" value={colors} onChangeText={setColors} />
               <Input label="Marka" value={brand} onChangeText={setBrand} />
               <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
-              <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={isUpdating} disabled={isBusy} />
+              <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={activeAction === "save"} disabled={Boolean(activeAction) || isBusy} />
             </Card>
           ) : null}
 
@@ -322,22 +358,22 @@ export default function ItemDetailScreen() {
                 title={item.is_shareable ? "Paylasimi Kapat" : "Paylas"}
                 variant="secondary"
                 onPress={() => void handleShareableToggle()}
-                loading={isUpdating}
-                disabled={isBusy}
+                loading={activeAction === "shareable"}
+                disabled={Boolean(activeAction) || isBusy}
               />
               <Button
                 title={item.is_lendable ? "Odunc Kapat" : "Odunc Verilebilir"}
                 variant="ghost"
                 onPress={() => void handleLendableToggle()}
-                loading={isUpdating}
-                disabled={isBusy}
+                loading={activeAction === "lendable"}
+                disabled={Boolean(activeAction) || isBusy}
               />
             </View>
           </Card>
 
           <View style={styles.actions}>
-            <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={isUpdating} disabled={isBusy} />
-            <Button title="Sil" variant="secondary" onPress={handleDelete} loading={isUpdating} disabled={isBusy} />
+            <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={activeAction === "worn"} disabled={Boolean(activeAction) || isBusy} />
+            <Button title="Sil" variant="secondary" onPress={handleDelete} loading={activeAction === "delete"} disabled={Boolean(activeAction) || isBusy} />
           </View>
         </>
       ) : (

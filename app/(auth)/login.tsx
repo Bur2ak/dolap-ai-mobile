@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -20,15 +20,25 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    captureEvent("auth_login_screen_viewed", { has_return_to: Boolean(returnTo) });
+  }, [returnTo]);
+
   async function handleSubmit() {
+    if (isSubmitting) {
+      return;
+    }
+
     const normalizedEmail = normalizeEmail(email);
 
     if (!isValidEmail(normalizedEmail)) {
+      captureEvent("auth_login_blocked", { reason: "invalid_email" });
       Alert.alert("Email gecersiz", "Gecerli bir email adresi gir.");
       return;
     }
 
     if (!password) {
+      captureEvent("auth_login_blocked", { reason: "missing_password" });
       Alert.alert("Sifre gerekli", "Giris yapmak icin sifreni yaz.");
       return;
     }

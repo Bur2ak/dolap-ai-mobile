@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -44,7 +44,19 @@ export default function AddItemScreen() {
     return CATEGORIES.find((category) => category.value === analysis.category)?.label ?? "Ust";
   }, [analysis.category]);
 
+  useEffect(() => {
+    captureEvent("wardrobe_add_screen_viewed", {
+      step,
+      item_count: items.length,
+      can_create: canCreate,
+    });
+  }, [canCreate, items.length, step]);
+
   function resetDraft() {
+    if (isBusy) {
+      return;
+    }
+
     setStep("select");
     setImageUri(null);
     setThumbnailUri(null);
@@ -58,11 +70,13 @@ export default function AddItemScreen() {
 
   function guardCanStartAdding() {
     if (!canCreate) {
+      captureEvent("wardrobe_add_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Kiyafeti dolaba eklemek icin once giris yapmalisin.");
       return false;
     }
 
     if (isLimitReached("MAX_WARDROBE_ITEMS", items.length)) {
+      captureEvent("wardrobe_add_blocked", { reason: "limit", item_count: items.length });
       Alert.alert("Dolap limiti doldu", "Free plandaki kiyafet limitine ulastin. Daha fazla kiyafet eklemek icin Premium'a gecebilirsin.", [
         { text: "Vazgec", style: "cancel" },
         { text: "Premium'a Gec", onPress: () => router.push("/paywall") },
@@ -75,6 +89,7 @@ export default function AddItemScreen() {
 
   async function handleImageSelected(uri: string | null) {
     if (!uri) {
+      captureEvent("wardrobe_add_image_selection_cancelled");
       return;
     }
 
@@ -100,6 +115,7 @@ export default function AddItemScreen() {
       }
 
       setStep("metadata");
+      captureEvent("wardrobe_add_image_prepared", { background_removed: true });
     } catch (error) {
       captureError(error, { area: "wardrobe_image_prepare" });
       Alert.alert("Gorsel hazirlanamadi", error instanceof Error ? error.message : "Tekrar dene.");
@@ -110,11 +126,13 @@ export default function AddItemScreen() {
 
   function updateCategory(category: ClothingCategory) {
     setAnalysis((current) => ({ ...current, category }));
+    captureEvent("wardrobe_add_category_selected", { category });
   }
 
   function toggleSeason(season: Season) {
     setAnalysis((current) => {
       const hasSeason = current.season.includes(season);
+      captureEvent("wardrobe_add_season_toggled", { enabled: !hasSeason, season });
       return {
         ...current,
         season: hasSeason ? current.season.filter((item) => item !== season) : [...current.season, season],
@@ -125,6 +143,7 @@ export default function AddItemScreen() {
   function toggleShareable() {
     setIsShareable((current) => {
       const nextValue = !current;
+      captureEvent("wardrobe_add_shareable_toggled", { enabled: nextValue });
       if (!nextValue) {
         setIsLendable(false);
       }
@@ -135,6 +154,7 @@ export default function AddItemScreen() {
   function toggleLendable() {
     setIsLendable((current) => {
       const nextValue = !current;
+      captureEvent("wardrobe_add_lendable_toggled", { enabled: nextValue });
       if (nextValue) {
         setIsShareable(true);
       }
@@ -143,16 +163,23 @@ export default function AddItemScreen() {
   }
 
   async function handleSave() {
+    if (isBusy) {
+      return;
+    }
+
     if (!imageUri) {
+      captureEvent("wardrobe_add_save_blocked", { reason: "missing_image" });
       return;
     }
 
     if (!canCreate) {
+      captureEvent("wardrobe_add_save_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Kiyafeti dolaba eklemek icin once giris yapmalisin.");
       return;
     }
 
     if (isLimitReached("MAX_WARDROBE_ITEMS", items.length)) {
+      captureEvent("wardrobe_add_save_blocked", { reason: "limit", item_count: items.length });
       router.push("/paywall");
       return;
     }
@@ -164,6 +191,7 @@ export default function AddItemScreen() {
       subcategory: analysis.subcategory,
     });
     if (metadataError) {
+      captureEvent("wardrobe_add_save_blocked", { reason: "metadata" });
       Alert.alert(metadataError.title, metadataError.message);
       return;
     }
