@@ -40,12 +40,15 @@ export default function RootLayout() {
       const status = await configureRevenueCat(session?.user.id ?? null);
       if (!status.configured) {
         useSubscriptionStore.getState().setRevenueCatPremium(false);
+        captureEvent("revenuecat_sync_skipped", { reason: status.reason ?? "not_configured" });
         return;
       }
 
       const customerInfo = await getRevenueCatCustomerInfo();
       if (mounted) {
-        useSubscriptionStore.getState().setRevenueCatPremium(hasPremiumEntitlement(customerInfo));
+        const premium = hasPremiumEntitlement(customerInfo);
+        useSubscriptionStore.getState().setRevenueCatPremium(premium);
+        captureEvent("revenuecat_sync_completed", { premium });
       }
     }
 
@@ -127,13 +130,21 @@ export default function RootLayout() {
   }, [router]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      useAuthStore.setState({ session: data.session, isLoading: false });
-      if (data.session) {
-        void fetchProfile();
-      }
-      void SplashScreen.hideAsync();
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        useAuthStore.setState({ session: data.session, isLoading: false });
+        if (data.session) {
+          void fetchProfile();
+        }
+      })
+      .catch((error) => {
+        captureError(error, { area: "auth_bootstrap_session" });
+        useAuthStore.setState({ session: null, isLoading: false });
+      })
+      .finally(() => {
+        void SplashScreen.hideAsync();
+      });
 
     const {
       data: { subscription },

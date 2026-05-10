@@ -52,6 +52,7 @@ export default function OutfitScreen() {
   const repeatCandidate = useMemo(() => getRepeatCandidate(items), [items]);
   const capsulePlan = useMemo(() => buildCapsuleWardrobePlan(items), [items]);
   const focusedItem = focusItemId ? items.find((item) => item.id === focusItemId) ?? null : null;
+  const isBusy = isRecommending || isSavingOutfit;
 
   const recommendationInput: OutfitRecommendationInput = {
     event: selectedEvent,
@@ -196,8 +197,9 @@ export default function OutfitScreen() {
               title={focusItemId === repeatCandidate.id ? "Odak Secildi" : "Bu Parcayla Oner"}
               variant="secondary"
               onPress={() => setFocusItemId(repeatCandidate.id)}
+              disabled={isBusy}
             />
-            {focusItemId ? <Button title="Odagi Kaldir" variant="ghost" onPress={() => setFocusItemId(null)} /> : null}
+            {focusItemId ? <Button title="Odagi Kaldir" variant="ghost" onPress={() => setFocusItemId(null)} disabled={isBusy} /> : null}
           </View>
         </Card>
       ) : null}
@@ -238,7 +240,7 @@ export default function OutfitScreen() {
               }
 
               return (
-                <Pressable key={item.id} style={styles.capsuleItem} onPress={() => setFocusItemId(item.id)}>
+                <Pressable key={item.id} style={styles.capsuleItem} onPress={() => setFocusItemId(item.id)} disabled={isBusy}>
                   <CachedImage
                     accessibilityLabel={item.subcategory ?? item.category}
                     fallbackColor={item.dominant_color_hex}
@@ -259,6 +261,7 @@ export default function OutfitScreen() {
                 <Pressable
                   key={idea.name}
                   style={styles.capsuleIdea}
+                  disabled={isBusy}
                   onPress={() => {
                     setSelectedEvent(idea.event);
                     setFocusItemId(idea.item_ids[0] ?? null);
@@ -273,7 +276,7 @@ export default function OutfitScreen() {
             </View>
           ) : null}
 
-          <Button title="Kapsulden Oneri Hazirla" variant="secondary" onPress={handleUseCapsule} />
+          <Button title="Kapsulden Oneri Hazirla" variant="secondary" onPress={handleUseCapsule} disabled={isBusy} />
         </Card>
       ) : null}
 
@@ -284,6 +287,7 @@ export default function OutfitScreen() {
             key={event.value}
             style={[styles.chip, selectedEvent === event.value && styles.activeChip]}
             onPress={() => setSelectedEvent(event.value)}
+            disabled={isBusy}
           >
             <Text variant="label" color={selectedEvent === event.value ? "inverse" : "secondary"}>
               {event.label}
@@ -299,6 +303,7 @@ export default function OutfitScreen() {
             key={mood}
             style={[styles.chip, selectedMood === mood && styles.activeChip]}
             onPress={() => setSelectedMood(mood)}
+            disabled={isBusy}
           >
             <Text variant="label" color={selectedMood === mood ? "inverse" : "secondary"}>
               {mood}
@@ -345,15 +350,15 @@ export default function OutfitScreen() {
                 </View>
               ) : null}
               <View style={styles.suggestionActions}>
-                <Button title="Kaydet" variant="secondary" onPress={() => void handleSaveOutfit(suggestion)} loading={isSavingOutfit} />
-                <Button title="Arkadasa Sor" variant="ghost" onPress={() => void handleAskFriend(suggestion)} loading={isSavingOutfit} />
+                <Button title="Kaydet" variant="secondary" onPress={() => void handleSaveOutfit(suggestion)} loading={isSavingOutfit} disabled={isBusy} />
+                <Button title="Arkadasa Sor" variant="ghost" onPress={() => void handleAskFriend(suggestion)} loading={isSavingOutfit} disabled={isBusy} />
               </View>
             </Card>
           );
         })}
       </View>
 
-      <Button title="Kombin Oner" onPress={handleRecommend} loading={isRecommending} style={styles.cta} />
+      <Button title="Kombin Oner" onPress={handleRecommend} loading={isRecommending} disabled={isBusy} style={styles.cta} />
 
       <View style={styles.results}>
         <Text variant="h3">Kayitli kombinler</Text>

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { deleteEventPlan, fetchEventPlans, recommendEventOutfits, saveEventPlan, updateEventPlan } from "@/lib/api/events";
 import { saveOutfit } from "@/lib/api/outfits";
-import { captureEvent } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { EventPlanInput, OutfitSuggestion, UpdateEventInput } from "@/types";
@@ -19,6 +19,14 @@ export function useEventPlanner() {
 
   const recommendMutation = useMutation({
     mutationFn: (input: EventPlanInput) => recommendEventOutfits(input),
+    onError: (error, input) => {
+      captureError(error, {
+        area: "event_outfit_recommend",
+        event_type: input.event_type,
+        wardrobe_count: input.wardrobe.length,
+        weather_available: Boolean(input.weather),
+      });
+    },
     onSuccess: (suggestions, input) => {
       captureEvent("event_outfit_recommendation_generated", {
         event_type: input.event_type,
@@ -32,6 +40,14 @@ export function useEventPlanner() {
   const saveMutation = useMutation({
     mutationFn: (input: Omit<EventPlanInput, "weather" | "wardrobe"> & { calendar_event_id?: string | null; outfit_id?: string | null }) =>
       saveEventPlan(userId!, input),
+    onError: (error, input) => {
+      captureError(error, {
+        area: "event_plan_save",
+        event_type: input.event_type,
+        has_calendar_event: Boolean(input.calendar_event_id),
+        has_outfit: Boolean(input.outfit_id),
+      });
+    },
     onSuccess: (_event, input) => {
       captureEvent("event_plan_saved", {
         event_type: input.event_type,
@@ -63,6 +79,13 @@ export function useEventPlanner() {
         outfit_id: outfit.id,
       });
     },
+    onError: (error, variables) => {
+      captureError(error, {
+        area: "event_plan_save_suggestion",
+        event_type: variables.input.event_type,
+        item_count: variables.suggestion.items.length,
+      });
+    },
     onSuccess: (_event, variables) => {
       captureEvent("event_plan_saved", {
         event_type: variables.input.event_type,
@@ -75,6 +98,14 @@ export function useEventPlanner() {
   });
   const updateMutation = useMutation({
     mutationFn: ({ eventId, input }: { eventId: string; input: UpdateEventInput }) => updateEventPlan(userId!, eventId, input),
+    onError: (error, variables) => {
+      captureError(error, {
+        area: "event_plan_update",
+        changed_calendar_event: variables.input.calendar_event_id !== undefined,
+        changed_date: variables.input.event_date !== undefined,
+        changed_outfit: variables.input.outfit_id !== undefined,
+      });
+    },
     onSuccess: (_event, variables) => {
       captureEvent("event_plan_updated", {
         changed_calendar_event: variables.input.calendar_event_id !== undefined,
@@ -86,6 +117,9 @@ export function useEventPlanner() {
   });
   const deleteMutation = useMutation({
     mutationFn: (eventId: string) => deleteEventPlan(userId!, eventId),
+    onError: (error) => {
+      captureError(error, { area: "event_plan_delete" });
+    },
     onSuccess: () => {
       captureEvent("event_plan_deleted");
       void queryClient.invalidateQueries({ queryKey: ["event-plans", userId] });

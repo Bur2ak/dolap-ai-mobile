@@ -15,7 +15,7 @@ import {
   toggleOutfitFavorite,
   voteOnOutfit,
 } from "@/lib/api/outfits";
-import { captureEvent } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { OutfitRecommendationInput, OutfitSuggestion, OutfitVoteValue } from "@/types";
@@ -30,6 +30,15 @@ export function useOutfitRecommendation() {
   });
   const mutation = useMutation({
     mutationFn: (input: OutfitRecommendationInput) => recommendOutfits(input),
+    onError: (error, input) => {
+      captureError(error, {
+        area: "outfit_recommend",
+        event: input.event,
+        mood: input.mood,
+        wardrobe_count: input.wardrobe.length,
+        weather_available: Boolean(input.weather),
+      });
+    },
     onSuccess: (suggestions, input) => {
       captureEvent("outfit_recommendation_generated", {
         event: input.event,
@@ -42,6 +51,13 @@ export function useOutfitRecommendation() {
   });
   const saveLocalMutation = useMutation({
     mutationFn: ({ input, suggestion }: { input: OutfitRecommendationInput; suggestion: OutfitSuggestion }) => saveOutfit(userId!, input, suggestion),
+    onError: (error, variables) => {
+      captureError(error, {
+        area: "outfit_save_local",
+        event: variables.input.event,
+        item_count: variables.suggestion.items.length,
+      });
+    },
     onSuccess: (_outfit, variables) => {
       captureEvent("outfit_saved", {
         event: variables.input.event,
@@ -54,6 +70,13 @@ export function useOutfitRecommendation() {
   const saveMutation = useMutation({
     mutationFn: ({ input, suggestion }: { input: OutfitRecommendationInput; suggestion: OutfitSuggestion }) =>
       saveSharedOutfit(userId!, input, suggestion),
+    onError: (error, variables) => {
+      captureError(error, {
+        area: "outfit_save_shared",
+        event: variables.input.event,
+        item_count: variables.suggestion.items.length,
+      });
+    },
     onSuccess: (_outfit, variables) => {
       captureEvent("outfit_saved", {
         event: variables.input.event,
@@ -68,6 +91,12 @@ export function useOutfitRecommendation() {
       const outfit = await saveSharedOutfit(userId!, input, suggestion);
       const notifiedFriendsCount = await askFriendsToVoteOnOutfit(userId!, outfit);
       return { outfit, notifiedFriendsCount };
+    },
+    onError: (error, variables) => {
+      captureError(error, {
+        area: "outfit_friend_vote_request_recommendation",
+        item_count: variables.suggestion.items.length,
+      });
     },
     onSuccess: (result, variables) => {
       captureEvent("outfit_friend_vote_requested", {
@@ -130,12 +159,18 @@ export function useSharedOutfit(outfitId?: string) {
   });
   const voteMutation = useMutation({
     mutationFn: (vote: OutfitVoteValue) => voteOnOutfit(userId!, outfitQuery.data!.outfit, vote),
+    onError: (error, vote) => {
+      captureError(error, { area: "shared_outfit_vote", outfit_id: outfitId ?? "unknown", vote });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["shared-outfit", outfitId] });
     },
   });
   const markWornMutation = useMutation({
     mutationFn: () => markOutfitWorn(userId!, outfitQuery.data!),
+    onError: (error) => {
+      captureError(error, { area: "shared_outfit_mark_worn", outfit_id: outfitId ?? "unknown" });
+    },
     onSuccess: () => {
       captureEvent("outfit_marked_worn", { outfit_id: outfitId ?? "unknown" });
       void queryClient.invalidateQueries({ queryKey: ["shared-outfit", outfitId] });
@@ -145,6 +180,9 @@ export function useSharedOutfit(outfitId?: string) {
   });
   const favoriteMutation = useMutation({
     mutationFn: () => toggleOutfitFavorite(userId!, outfitQuery.data!.outfit),
+    onError: (error) => {
+      captureError(error, { area: "shared_outfit_toggle_favorite", outfit_id: outfitId ?? "unknown" });
+    },
     onSuccess: () => {
       captureEvent("outfit_favorite_toggled", { outfit_id: outfitId ?? "unknown" });
       void queryClient.invalidateQueries({ queryKey: ["shared-outfit", outfitId] });
@@ -153,6 +191,9 @@ export function useSharedOutfit(outfitId?: string) {
   });
   const shareMutation = useMutation({
     mutationFn: () => makeOutfitShareable(userId!, outfitQuery.data!.outfit),
+    onError: (error) => {
+      captureError(error, { area: "shared_outfit_share", outfit_id: outfitId ?? "unknown" });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["shared-outfit", outfitId] });
       void queryClient.invalidateQueries({ queryKey: ["saved-outfits", userId] });
@@ -164,6 +205,9 @@ export function useSharedOutfit(outfitId?: string) {
       const notifiedFriendsCount = await askFriendsToVoteOnOutfit(userId!, outfit);
       return { outfit, notifiedFriendsCount };
     },
+    onError: (error) => {
+      captureError(error, { area: "shared_outfit_ask_friends", outfit_id: outfitId ?? "unknown" });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["shared-outfit", outfitId] });
       void queryClient.invalidateQueries({ queryKey: ["saved-outfits", userId] });
@@ -171,6 +215,9 @@ export function useSharedOutfit(outfitId?: string) {
   });
   const deleteMutation = useMutation({
     mutationFn: () => deleteOutfit(userId!, outfitId!),
+    onError: (error) => {
+      captureError(error, { area: "shared_outfit_delete", outfit_id: outfitId ?? "unknown" });
+    },
     onSuccess: () => {
       captureEvent("outfit_deleted", { outfit_id: outfitId ?? "unknown" });
       void queryClient.removeQueries({ queryKey: ["shared-outfit", outfitId] });
@@ -232,6 +279,9 @@ export function usePublicSharedOutfit(token?: string) {
   });
   const voteMutation = useMutation({
     mutationFn: (vote: OutfitVoteValue) => voteOnOutfit(userId!, outfitQuery.data!.outfit, vote),
+    onError: (error, vote) => {
+      captureError(error, { area: "public_shared_outfit_vote", token: token ?? "unknown", vote });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["shared-outfit-token", token] });
     },

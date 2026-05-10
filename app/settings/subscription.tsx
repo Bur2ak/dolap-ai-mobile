@@ -101,10 +101,10 @@ export default function SubscriptionSettingsScreen() {
       </Card>
 
       <View style={styles.actions}>
-        <Button title={premium ? "Paywall'i Ac" : "Premium'a Gec"} onPress={() => router.push("/paywall")} />
+        <Button title={premium ? "Paywall'i Ac" : "Premium'a Gec"} onPress={() => router.push("/paywall")} disabled={isRefreshing} />
         <Button title="Aboneligi Yenile" variant="secondary" onPress={() => void handleRefreshSubscription()} loading={isRefreshing} disabled={isRefreshing} />
         {localPremiumOverride ? (
-          <Button title="Onizlemeyi Kapat" variant="secondary" onPress={() => setLocalPremiumOverride(false)} />
+          <Button title="Onizlemeyi Kapat" variant="secondary" onPress={() => setLocalPremiumOverride(false)} disabled={isRefreshing} />
         ) : null}
       </View>
     </ScrollView>

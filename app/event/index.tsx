@@ -504,7 +504,7 @@ function EventPlanCard({
           <Input label="Tarih ve saat" value={eventDate} onChangeText={setEventDate} error={eventDate && !isValidEventDate(eventDate) ? eventDateFormatMessage : undefined} />
           <Input label="Lokasyon" value={location} onChangeText={setLocation} />
           <Input label="Not" value={notes} onChangeText={setNotes} />
-          <Button title="Degisiklikleri Kaydet" onPress={handleSave} loading={isSaving} />
+          <Button title="Degisiklikleri Kaydet" onPress={handleSave} loading={isSaving} disabled={isSaving} />
         </View>
       ) : (
         <>
@@ -522,10 +522,10 @@ function EventPlanCard({
             {event.outfit_id ? "Kombin bagli" : event.calendar_event_id ? "Takvime eklendi" : "Sadece Shipirio plani"}
           </Text>
           {!event.calendar_event_id ? (
-            <Button title="Takvime Ekle" variant="secondary" onPress={() => void handleAddToCalendar()} loading={isSaving} />
+            <Button title="Takvime Ekle" variant="secondary" onPress={() => void handleAddToCalendar()} loading={isSaving} disabled={isSaving} />
           ) : null}
           {new Date(event.event_date).getTime() > Date.now() ? (
-            <Button title="Hatirlatici Kur" variant="ghost" onPress={() => void handleScheduleReminder()} loading={isSaving} />
+            <Button title="Hatirlatici Kur" variant="ghost" onPress={() => void handleScheduleReminder()} loading={isSaving} disabled={isSaving} />
           ) : null}
         </>
       )}

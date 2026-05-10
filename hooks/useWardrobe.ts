@@ -9,6 +9,7 @@ import {
   markWardrobeItemWorn,
   updateWardrobeItem,
 } from "@/lib/api/wardrobe";
+import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { CreateWardrobeItemInput, UpdateWardrobeItemInput, WardrobeItem } from "@/types";
@@ -25,27 +26,51 @@ export function useWardrobe() {
 
   const createItemMutation = useMutation({
     mutationFn: (input: CreateWardrobeItemInput) => createWardrobeItem(userId!, input),
+    onError: (error, input) => {
+      captureError(error, {
+        area: "wardrobe_item_create",
+        category: input.category,
+        has_price: input.purchase_price !== null,
+      });
+    },
     onSuccess: () => {
+      captureEvent("wardrobe_item_created");
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });
     },
   });
   const updateItemMutation = useMutation({
     mutationFn: ({ itemId, input }: { itemId: string; input: UpdateWardrobeItemInput }) => updateWardrobeItem(userId!, itemId, input),
+    onError: (error, variables) => {
+      captureError(error, {
+        area: "wardrobe_item_update",
+        changed_category: variables.input.category !== undefined,
+        changed_shareable: variables.input.is_shareable !== undefined,
+      });
+    },
     onSuccess: (item) => {
+      captureEvent("wardrobe_item_updated", { category: item.category });
       queryClient.setQueryData(["wardrobe-item", userId, item.id], item);
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });
     },
   });
   const markWornMutation = useMutation({
     mutationFn: (item: WardrobeItem) => markWardrobeItemWorn(userId!, item),
+    onError: (error, item) => {
+      captureError(error, { area: "wardrobe_item_mark_worn", category: item.category });
+    },
     onSuccess: (item) => {
+      captureEvent("wardrobe_item_marked_worn", { category: item.category });
       queryClient.setQueryData(["wardrobe-item", userId, item.id], item);
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });
     },
   });
   const deleteItemMutation = useMutation({
     mutationFn: (itemId: string) => deleteWardrobeItem(userId!, itemId),
+    onError: (error) => {
+      captureError(error, { area: "wardrobe_item_delete" });
+    },
     onSuccess: () => {
+      captureEvent("wardrobe_item_deleted");
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });
     },
   });
@@ -95,7 +120,15 @@ export function useWardrobeItem(itemId?: string) {
 
   const updateMutation = useMutation({
     mutationFn: (input: UpdateWardrobeItemInput) => updateWardrobeItem(userId!, itemId!, input),
+    onError: (error, input) => {
+      captureError(error, {
+        area: "wardrobe_item_detail_update",
+        changed_category: input.category !== undefined,
+        changed_shareable: input.is_shareable !== undefined,
+      });
+    },
     onSuccess: (item) => {
+      captureEvent("wardrobe_item_updated", { category: item.category });
       queryClient.setQueryData(["wardrobe-item", userId, item.id], item);
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });
     },
@@ -103,7 +136,11 @@ export function useWardrobeItem(itemId?: string) {
 
   const markWornMutation = useMutation({
     mutationFn: (item: WardrobeItem) => markWardrobeItemWorn(userId!, item),
+    onError: (error, item) => {
+      captureError(error, { area: "wardrobe_item_detail_mark_worn", category: item.category });
+    },
     onSuccess: (item) => {
+      captureEvent("wardrobe_item_marked_worn", { category: item.category });
       queryClient.setQueryData(["wardrobe-item", userId, item.id], item);
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });
     },
@@ -111,7 +148,11 @@ export function useWardrobeItem(itemId?: string) {
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteWardrobeItem(userId!, itemId!),
+    onError: (error) => {
+      captureError(error, { area: "wardrobe_item_detail_delete" });
+    },
     onSuccess: () => {
+      captureEvent("wardrobe_item_deleted");
       void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });
     },
   });

@@ -41,27 +41,27 @@ export default function PaywallScreen() {
   const planCards = packages.length > 0 ? packages.map(getPackagePlanCard) : fallbackPlanCards;
 
   const loadPackages = useCallback(async () => {
-      try {
-        setIsLoadingPackages(true);
-        const readiness = getRevenueCatReadiness();
-        if (!readiness.configured) {
-          setPackageLoadReason(readiness.reason ?? "RevenueCat hazir degil.");
-          setPackages([]);
-          captureEvent("paywall_packages_unavailable", { reason: readiness.reason ?? "not_configured" });
-          return;
-        }
-
-        const nextPackages = await getRevenueCatPackages();
-        setPackages(nextPackages);
-        setPackageLoadReason(nextPackages.length > 0 ? null : "RevenueCat teklifleri bos dondu.");
-        captureEvent("paywall_packages_loaded", { package_count: nextPackages.length });
-      } catch (error) {
+    try {
+      setIsLoadingPackages(true);
+      const readiness = getRevenueCatReadiness();
+      if (!readiness.configured) {
+        setPackageLoadReason(readiness.reason ?? "RevenueCat hazir degil.");
         setPackages([]);
-        setPackageLoadReason(error instanceof Error ? error.message : "RevenueCat teklifleri yuklenemedi.");
-        captureError(error, { area: "paywall_packages" });
-      } finally {
-        setIsLoadingPackages(false);
+        captureEvent("paywall_packages_unavailable", { reason: readiness.reason ?? "not_configured" });
+        return;
       }
+
+      const nextPackages = await getRevenueCatPackages();
+      setPackages(nextPackages);
+      setPackageLoadReason(nextPackages.length > 0 ? null : "RevenueCat teklifleri bos dondu.");
+      captureEvent("paywall_packages_loaded", { package_count: nextPackages.length });
+    } catch (error) {
+      setPackages([]);
+      setPackageLoadReason(error instanceof Error ? error.message : "RevenueCat teklifleri yuklenemedi.");
+      captureError(error, { area: "paywall_packages" });
+    } finally {
+      setIsLoadingPackages(false);
+    }
   }, []);
 
   useEffect(() => {
