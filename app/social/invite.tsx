@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Share, StyleSheet, View } from "react-native";
 
 import { PremiumGate } from "@/components/shared/PremiumGate";
@@ -26,6 +26,20 @@ export default function InviteScreen() {
   const totalRewardDays = rewards.reduce((total, reward) => total + reward.reward_days, 0);
   const inviteUrl = createPublicAppLink("/social/friends", { invite: inviteCode });
   const [isSharing, setIsSharing] = useState(false);
+
+  useEffect(() => {
+    captureEvent("invite_screen_viewed", {
+      premium,
+      reward_count: rewards.length,
+      total_reward_days: totalRewardDays,
+      has_username_invite_code: Boolean(profile?.username),
+    });
+  }, [premium, profile?.username, rewards.length, totalRewardDays]);
+
+  function handleRefetchRewards() {
+    captureEvent("invite_rewards_refetch_requested");
+    void refetch();
+  }
 
   async function handleShare() {
     if (isSharing) {
@@ -100,7 +114,7 @@ export default function InviteScreen() {
                 body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
                 actionLabel="Tekrar Dene"
                 loading={isRefetching}
-                onAction={() => void refetch()}
+                onAction={handleRefetchRewards}
               />
             ) : rewards.length > 0 ? (
               rewards.slice(0, 4).map((reward) => <RewardRow key={reward.id} reward={reward} userId={userId} />)
