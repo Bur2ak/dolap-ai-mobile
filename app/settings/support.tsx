@@ -25,18 +25,18 @@ export default function SupportScreen() {
   const privacyUrl = createPublicAppLink("/privacy.html");
   const deleteAccountUrl = createPublicAppLink("/delete-account.html");
 
-  async function openUrl(url: string) {
+  async function openUrl(url: string, label: string) {
     try {
       if (url.startsWith("http")) {
         await WebBrowser.openBrowserAsync(url);
-        captureEvent("support_link_opened", { type: "web" });
+        captureEvent("support_link_opened", { label, type: "web" });
         return;
       }
 
       await Linking.openURL(url);
-      captureEvent("support_link_opened", { type: "mailto" });
+      captureEvent("support_link_opened", { label, type: "mailto" });
     } catch (error) {
-      captureError(error, { area: "support_link_open", url_type: url.startsWith("http") ? "web" : "mailto" });
+      captureError(error, { area: "support_link_open", label, url_type: url.startsWith("http") ? "web" : "mailto" });
       Alert.alert("Acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
@@ -64,7 +64,7 @@ export default function SupportScreen() {
         <Text variant="body" color="secondary">
           {supportEmail}
         </Text>
-        <Button title="E-posta Gonder" onPress={() => void openUrl(`mailto:${supportEmail}?subject=Shipirio%20Destek`)} />
+        <Button title="E-posta Gonder" onPress={() => void openUrl(`mailto:${supportEmail}?subject=Shipirio%20Destek`, "email")} />
       </Card>
 
       <Card style={styles.section}>
@@ -81,9 +81,9 @@ export default function SupportScreen() {
 
       <Card style={styles.section}>
         <Text variant="h3">Web sayfalari</Text>
-        <Button title="Destek Sayfasini Ac" variant="secondary" onPress={() => void openUrl(supportUrl)} />
-        <Button title="Gizlilik Sayfasini Ac" variant="secondary" onPress={() => void openUrl(privacyUrl)} />
-        <Button title="Hesap Silme Bilgisini Ac" variant="secondary" onPress={() => void openUrl(deleteAccountUrl)} />
+        <Button title="Destek Sayfasini Ac" variant="secondary" onPress={() => void openUrl(supportUrl, "support")} />
+        <Button title="Gizlilik Sayfasini Ac" variant="secondary" onPress={() => void openUrl(privacyUrl, "privacy")} />
+        <Button title="Hesap Silme Bilgisini Ac" variant="secondary" onPress={() => void openUrl(deleteAccountUrl, "delete_account")} />
       </Card>
     </ScrollView>
   );

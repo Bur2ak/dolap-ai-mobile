@@ -157,6 +157,7 @@ export default function AccountSettingsScreen() {
   async function openDeletionInfo() {
     try {
       await WebBrowser.openBrowserAsync(deletionInfoUrl);
+      captureEvent("account_deletion_info_opened");
     } catch (error) {
       captureError(error, { area: "account_deletion_info" });
       Alert.alert("Acilamadi", error instanceof Error ? error.message : "Tekrar dene.");

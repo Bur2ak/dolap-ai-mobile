@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import type { PrivacySettings } from "@/types";
 
@@ -42,7 +43,9 @@ export default function PrivacySettingsScreen() {
           [key]: !privacy[key],
         },
       });
+      captureEvent("privacy_setting_toggled", { enabled: !privacy[key], setting: key });
     } catch (error) {
+      captureError(error, { area: "privacy_setting_toggle", setting: key });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setUpdatingKey(null);
@@ -59,6 +62,10 @@ export default function PrivacySettingsScreen() {
 
       <Card style={styles.section}>
         <Text variant="h3">Paylasim tercihleri</Text>
+        <View style={styles.summaryRow}>
+          <StatusPill label="Dolap" enabled={privacy.wardrobe_visible} />
+          <StatusPill label="Istekler" enabled={privacy.allow_friend_requests} />
+        </View>
         {rows.map((row) => {
           const enabled = privacy[row.key];
           const disabled = Boolean(updatingKey);
@@ -78,6 +85,16 @@ export default function PrivacySettingsScreen() {
         })}
       </Card>
     </ScrollView>
+  );
+}
+
+function StatusPill({ label, enabled }: { label: string; enabled: boolean }) {
+  return (
+    <View style={[styles.statusPill, enabled ? styles.statusPillActive : styles.statusPillMuted]}>
+      <Text variant="caption" color={enabled ? "inverse" : "secondary"}>
+        {label}: {enabled ? "Acik" : "Kapali"}
+      </Text>
+    </View>
   );
 }
 
@@ -101,6 +118,22 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: SPACING.md,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  statusPillActive: {
+    backgroundColor: COLORS.primary,
+  },
+  statusPillMuted: {
+    backgroundColor: COLORS.surfaceMuted,
   },
   row: {
     alignItems: "center",

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { captureEvent } from "@/lib/observability";
 
 const settingsRoutes = [
   {
@@ -98,7 +99,14 @@ export default function SettingsScreen() {
                 {item.body}
               </Text>
             </View>
-            <Button title="Ac" variant="ghost" onPress={() => router.push(item.route)} />
+            <Button
+              title="Ac"
+              variant="ghost"
+              onPress={() => {
+                captureEvent("settings_route_opened", { route: item.route, title: item.title });
+                router.push(item.route);
+              }}
+            />
           </Card>
         ))}
       </View>

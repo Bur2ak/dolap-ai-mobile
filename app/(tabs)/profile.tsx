@@ -8,6 +8,7 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useSubscription } from "@/hooks/useSubscription";
+import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import { formatDate } from "@/utils/formatters";
 
@@ -38,8 +39,10 @@ export default function ProfileScreen() {
     try {
       setIsSigningOut(true);
       await signOut();
+      captureEvent("profile_signed_out");
       router.replace("/(auth)/onboarding");
     } catch (error) {
+      captureError(error, { area: "profile_sign_out" });
       Alert.alert("Cikis yapilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSigningOut(false);

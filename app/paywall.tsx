@@ -185,7 +185,16 @@ export default function PaywallScreen() {
             <Text variant="body" color="secondary">
               {packageLoadReason ?? "RevenueCat teklifleri henuz hazir degil. App Store / Google Play urunleri baglandiginda burada gercek planlar gorunecek."}
             </Text>
-            <Button title="Tekrar Dene" variant="secondary" onPress={() => void loadPackages()} disabled={isPurchasing || isRestoring} />
+            <Button
+              title="Tekrar Dene"
+              variant="secondary"
+              onPress={() => {
+                captureEvent("paywall_packages_retry_pressed");
+                void loadPackages();
+              }}
+              loading={isLoadingPackages}
+              disabled={isPurchasing || isRestoring || isLoadingPackages}
+            />
             {__DEV__ ? <Button title="Gelistirme Icin Premium Ac" variant="secondary" onPress={activatePreview} disabled={isPurchasing || isRestoring} /> : null}
           </>
         )}

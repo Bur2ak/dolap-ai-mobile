@@ -60,7 +60,13 @@ export default function NotificationSettingsScreen() {
   async function refreshPushReadiness() {
     try {
       setIsCheckingPush(true);
-      setPushReadiness(await getPushNotificationReadiness());
+      const readiness = await getPushNotificationReadiness();
+      setPushReadiness(readiness);
+      captureEvent("notification_push_readiness_checked", {
+        device_ready: readiness.deviceReady,
+        eas_project_ready: readiness.easProjectReady,
+        granted: readiness.granted,
+      });
     } catch (error) {
       captureError(error, { area: "push_readiness" });
     } finally {
@@ -82,7 +88,9 @@ export default function NotificationSettingsScreen() {
 
   async function togglePreference(key: keyof NotificationPreferences) {
     try {
-      await updatePreferences({ [key]: !preferences[key] });
+      const enabled = !preferences[key];
+      await updatePreferences({ [key]: enabled });
+      captureEvent("notification_preference_toggled", { enabled, preference: key });
     } catch (error) {
       captureError(error, { area: "notification_preference_toggle", preference: key });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
