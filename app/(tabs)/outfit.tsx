@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Share } from "react-native";
 import { StyleSheet, View } from "react-native";
 
@@ -51,10 +51,12 @@ export default function OutfitScreen() {
   const [selectedMood, setSelectedMood] = useState(moods[0]);
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const [dailyUsage, setDailyUsage] = useState<number | null>(null);
+  const [activeSuggestionAction, setActiveSuggestionAction] = useState<{ name: string; action: "save" | "share" } | null>(null);
   const repeatCandidate = useMemo(() => getRepeatCandidate(items), [items]);
   const capsulePlan = useMemo(() => buildCapsuleWardrobePlan(items), [items]);
   const focusedItem = focusItemId ? items.find((item) => item.id === focusItemId) ?? null : null;
   const isBusy = isRecommending || isSavingOutfit;
+  const isActionBusy = isBusy || Boolean(activeSuggestionAction);
 
   const recommendationInput: OutfitRecommendationInput = {
     event: selectedEvent,
@@ -64,13 +66,29 @@ export default function OutfitScreen() {
     wardrobe: items,
   };
 
+  useEffect(() => {
+    captureEvent("outfit_screen_viewed", {
+      capsule_idea_count: capsulePlan.outfit_ideas.length,
+      saved_outfit_count: savedOutfits.length,
+      suggestion_count: suggestions.length,
+      wardrobe_count: items.length,
+      weather_available: Boolean(weather),
+    });
+  }, [capsulePlan.outfit_ideas.length, items.length, savedOutfits.length, suggestions.length, weather]);
+
   async function handleRecommend() {
+    if (isActionBusy) {
+      return;
+    }
+
     if (!userId) {
+      captureEvent("outfit_recommend_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Kombin onermek icin once giris yapmalisin.");
       return;
     }
 
     if (items.length < 2) {
+      captureEvent("outfit_recommend_blocked", { reason: "not_enough_items", wardrobe_count: items.length });
       Alert.alert("Dolap bos", "Kombin onermek icin once en az iki kiyafet eklemelisin.");
       return;
     }
@@ -80,6 +98,7 @@ export default function OutfitScreen() {
         const currentUsage = await getDailyOutfitSuggestionCount(userId);
         setDailyUsage(currentUsage);
         if (isLimitReached("DAILY_OUTFIT_SUGGESTIONS", currentUsage)) {
+          captureEvent("outfit_recommend_blocked", { reason: "daily_limit", usage: currentUsage });
           Alert.alert(
             "Gunluk limit doldu",
             `Free planda gunluk ${formatLimit(limits.DAILY_OUTFIT_SUGGESTIONS)} kombin onerisi kullanabilirsin.`,
@@ -106,11 +125,17 @@ export default function OutfitScreen() {
   }
 
   async function handleAskFriend(suggestion: OutfitSuggestion) {
+    if (isActionBusy) {
+      return;
+    }
+
     if (!userId) {
+      captureEvent("outfit_share_blocked", { reason: "auth", item_count: suggestion.items.length });
       Alert.alert("Giris gerekli", "Kombini paylasmak icin once giris yapmalisin.");
       return;
     }
 
+    setActiveSuggestionAction({ name: suggestion.name, action: "share" });
     try {
       const { outfit, notifiedFriendsCount } = await askFriendsToVote({
         input: recommendationInput,
@@ -130,15 +155,23 @@ export default function OutfitScreen() {
     } catch (error) {
       captureError(error, { area: "outfit_recommendation_share_action", item_count: suggestion.items.length });
       Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveSuggestionAction(null);
     }
   }
 
   async function handleSaveOutfit(suggestion: OutfitSuggestion) {
+    if (isActionBusy) {
+      return;
+    }
+
     if (!userId) {
+      captureEvent("outfit_save_blocked", { reason: "auth", item_count: suggestion.items.length });
       Alert.alert("Giris gerekli", "Kombini kaydetmek icin once giris yapmalisin.");
       return;
     }
 
+    setActiveSuggestionAction({ name: suggestion.name, action: "save" });
     try {
       await saveOutfit({
         input: recommendationInput,
@@ -149,10 +182,16 @@ export default function OutfitScreen() {
     } catch (error) {
       captureError(error, { area: "outfit_recommendation_save_action", item_count: suggestion.items.length });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveSuggestionAction(null);
     }
   }
 
   function handleUseCapsule() {
+    if (isActionBusy) {
+      return;
+    }
+
     const firstIdea = capsulePlan.outfit_ideas[0];
     const firstItemId = firstIdea?.item_ids[0] ?? capsulePlan.core_item_ids[0] ?? null;
 
@@ -230,7 +269,17 @@ export default function OutfitScreen() {
               }}
               disabled={isBusy}
             />
-            {focusItemId ? <Button title="Odagi Kaldir" variant="ghost" onPress={() => setFocusItemId(null)} disabled={isBusy} /> : null}
+            {focusItemId ? (
+              <Button
+                title="Odagi Kaldir"
+                variant="ghost"
+                onPress={() => {
+                  setFocusItemId(null);
+                  captureEvent("outfit_focus_item_cleared");
+                }}
+                disabled={isActionBusy}
+              />
+            ) : null}
           </View>
         </Card>
       ) : null}
@@ -278,7 +327,7 @@ export default function OutfitScreen() {
                     setFocusItemId(item.id);
                     captureEvent("outfit_focus_item_selected", { source: "capsule_core" });
                   }}
-                  disabled={isBusy}
+                  disabled={isActionBusy}
                 >
                   <CachedImage
                     accessibilityLabel={item.subcategory ?? item.category}
@@ -300,7 +349,7 @@ export default function OutfitScreen() {
                 <Pressable
                   key={idea.name}
                   style={styles.capsuleIdea}
-                  disabled={isBusy}
+                  disabled={isActionBusy}
                   onPress={() => {
                     setSelectedEvent(idea.event);
                     setFocusItemId(idea.item_ids[0] ?? null);
@@ -316,7 +365,7 @@ export default function OutfitScreen() {
             </View>
           ) : null}
 
-          <Button title="Kapsulden Oneri Hazirla" variant="secondary" onPress={handleUseCapsule} disabled={isBusy} />
+          <Button title="Kapsulden Oneri Hazirla" variant="secondary" onPress={handleUseCapsule} disabled={isActionBusy} />
         </Card>
       ) : null}
 
@@ -330,7 +379,7 @@ export default function OutfitScreen() {
               setSelectedEvent(event.value);
               captureEvent("outfit_preference_changed", { field: "event", value: event.value });
             }}
-            disabled={isBusy}
+            disabled={isActionBusy}
           >
             <Text variant="label" color={selectedEvent === event.value ? "inverse" : "secondary"}>
               {event.label}
@@ -349,7 +398,7 @@ export default function OutfitScreen() {
               setSelectedMood(mood);
               captureEvent("outfit_preference_changed", { field: "mood", value: mood });
             }}
-            disabled={isBusy}
+            disabled={isActionBusy}
           >
             <Text variant="label" color={selectedMood === mood ? "inverse" : "secondary"}>
               {mood}
@@ -396,15 +445,27 @@ export default function OutfitScreen() {
                 </View>
               ) : null}
               <View style={styles.suggestionActions}>
-                <Button title="Kaydet" variant="secondary" onPress={() => void handleSaveOutfit(suggestion)} loading={isSavingOutfit} disabled={isBusy} />
-                <Button title="Arkadasa Sor" variant="ghost" onPress={() => void handleAskFriend(suggestion)} loading={isSavingOutfit} disabled={isBusy} />
+                <Button
+                  title="Kaydet"
+                  variant="secondary"
+                  onPress={() => void handleSaveOutfit(suggestion)}
+                  loading={activeSuggestionAction?.name === suggestion.name && activeSuggestionAction.action === "save"}
+                  disabled={isActionBusy}
+                />
+                <Button
+                  title="Arkadasa Sor"
+                  variant="ghost"
+                  onPress={() => void handleAskFriend(suggestion)}
+                  loading={activeSuggestionAction?.name === suggestion.name && activeSuggestionAction.action === "share"}
+                  disabled={isActionBusy}
+                />
               </View>
             </Card>
           );
         })}
       </View>
 
-      <Button title="Kombin Oner" onPress={handleRecommend} loading={isRecommending} disabled={isBusy} style={styles.cta} />
+      <Button title="Kombin Oner" onPress={handleRecommend} loading={isRecommending} disabled={isActionBusy} style={styles.cta} />
 
       <View style={styles.results}>
         <Text variant="h3">Kayitli kombinler</Text>
@@ -417,11 +478,21 @@ export default function OutfitScreen() {
             body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
             actionLabel="Tekrar Dene"
             loading={isRefetchingSavedOutfits}
-            onAction={() => void refetchSavedOutfits()}
+            onAction={() => {
+              captureEvent("outfit_saved_refetch_requested");
+              void refetchSavedOutfits();
+            }}
           />
         ) : savedOutfits.length > 0 ? (
           savedOutfits.map((saved) => (
-            <Pressable key={saved.outfit.id} onPress={() => router.push(`/outfit/${saved.outfit.id}`)}>
+            <Pressable
+              key={saved.outfit.id}
+              onPress={() => {
+                captureEvent("outfit_saved_opened", { outfit_id: saved.outfit.id, item_count: saved.items.length });
+                router.push(`/outfit/${saved.outfit.id}`);
+              }}
+              disabled={isActionBusy}
+            >
               <Card style={styles.suggestion}>
                 <Text variant="h3">{saved.outfit.name ?? "Kayitli kombin"}</Text>
                 <Text variant="body" color="secondary">

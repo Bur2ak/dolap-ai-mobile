@@ -23,7 +23,7 @@ import type { EventPlanInput, EventRecord, OutfitSuggestion, StyleCalendarDay, W
 import { formatDateTimeLocal } from "@/utils/formatters";
 import { buildStyleCalendar } from "@/utils/styleCalendar";
 
-const eventDateFormatMessage = "Tarih ve saat YYYY-AA-GGTHH:mm formatinda olmali. Ornek: 2026-05-08T20:00";
+const eventDateFormatMessage = "Tarih ve saat YYYY-AA-GGTHH:mm formatinda ve gelecek bir zaman olmali.";
 
 export default function EventPlannerScreen() {
   const { items } = useWardrobe();
@@ -63,18 +63,36 @@ export default function EventPlannerScreen() {
     wardrobe: items,
   };
 
+  useEffect(() => {
+    captureEvent("event_planner_screen_viewed", {
+      event_count: events.length,
+      suggestion_count: suggestions.length,
+      wardrobe_count: items.length,
+      weather_available: Boolean(weather),
+    });
+  }, [events.length, items.length, suggestions.length, weather]);
+
   async function handleRecommend() {
+    if (isBusy) {
+      return;
+    }
+
     if (!checkGate("EVENT_PLANNING")) {
+      captureEvent("event_recommend_blocked", { reason: "gate" });
       router.push("/paywall");
       return;
     }
 
     if (items.length < 2) {
+      captureEvent("event_recommend_blocked", { reason: "not_enough_items", wardrobe_count: items.length });
       Alert.alert("Dolap bos", "Etkinlik kombini icin once en az iki kiyafet eklemelisin.");
       return;
     }
 
-    if (!validateEventForm(title, eventDate)) {
+    const validationError = getEventFormValidationError(title, eventDate);
+    if (validationError) {
+      captureEvent("event_recommend_blocked", { reason: validationError.reason });
+      Alert.alert(validationError.title, validationError.message);
       return;
     }
 
@@ -87,17 +105,26 @@ export default function EventPlannerScreen() {
   }
 
   async function handleSave() {
+    if (isBusy) {
+      return;
+    }
+
     if (!checkGate("EVENT_PLANNING")) {
+      captureEvent("event_save_blocked", { reason: "gate" });
       router.push("/paywall");
       return;
     }
 
     if (!canSave) {
+      captureEvent("event_save_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Etkinligi kaydetmek icin once giris yapmalisin.");
       return;
     }
 
-    if (!validateEventForm(title, eventDate)) {
+    const validationError = getEventFormValidationError(title, eventDate);
+    if (validationError) {
+      captureEvent("event_save_blocked", { reason: validationError.reason });
+      Alert.alert(validationError.title, validationError.message);
       return;
     }
 
@@ -118,17 +145,26 @@ export default function EventPlannerScreen() {
   }
 
   async function handleSaveToCalendar() {
+    if (isBusy) {
+      return;
+    }
+
     if (!checkGate("EVENT_PLANNING")) {
+      captureEvent("event_calendar_save_blocked", { reason: "gate" });
       router.push("/paywall");
       return;
     }
 
     if (!canSave) {
+      captureEvent("event_calendar_save_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Etkinligi takvime eklemek icin once giris yapmalisin.");
       return;
     }
 
-    if (!validateEventForm(title, eventDate)) {
+    const validationError = getEventFormValidationError(title, eventDate);
+    if (validationError) {
+      captureEvent("event_calendar_save_blocked", { reason: validationError.reason });
+      Alert.alert(validationError.title, validationError.message);
       return;
     }
 
@@ -158,17 +194,26 @@ export default function EventPlannerScreen() {
   }
 
   async function handlePlanSuggestion(suggestion: OutfitSuggestion) {
+    if (isBusy) {
+      return;
+    }
+
     if (!checkGate("EVENT_PLANNING")) {
+      captureEvent("event_suggestion_plan_blocked", { reason: "gate", item_count: suggestion.items.length });
       router.push("/paywall");
       return;
     }
 
     if (!canSave) {
+      captureEvent("event_suggestion_plan_blocked", { reason: "auth", item_count: suggestion.items.length });
       Alert.alert("Giris gerekli", "Kombini planlamak icin once giris yapmalisin.");
       return;
     }
 
-    if (!validateEventForm(title, eventDate)) {
+    const validationError = getEventFormValidationError(title, eventDate);
+    if (validationError) {
+      captureEvent("event_suggestion_plan_blocked", { reason: validationError.reason, item_count: suggestion.items.length });
+      Alert.alert(validationError.title, validationError.message);
       return;
     }
 
@@ -186,7 +231,7 @@ export default function EventPlannerScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Suraya Gidiyorum</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -219,7 +264,15 @@ export default function EventPlannerScreen() {
         {EVENT_TYPES.map((event) => {
           const active = event.value === eventType;
           return (
-            <Pressable key={event.value} style={[styles.chip, active && styles.activeChip]} onPress={() => setEventType(event.value)}>
+            <Pressable
+              key={event.value}
+              style={[styles.chip, active && styles.activeChip]}
+              onPress={() => {
+                setEventType(event.value);
+                captureEvent("event_type_selected", { event_type: event.value });
+              }}
+              disabled={isBusy}
+            >
               <Text variant="label" color={active ? "inverse" : "secondary"}>
                 {event.label}
               </Text>
@@ -228,7 +281,7 @@ export default function EventPlannerScreen() {
         })}
       </View>
 
-      <Input label="Tarih ve saat" value={eventDate} onChangeText={setEventDate} placeholder="2026-05-08T20:00" error={eventDate && !isValidEventDate(eventDate) ? eventDateFormatMessage : undefined} />
+      <Input label="Tarih ve saat" value={eventDate} onChangeText={setEventDate} placeholder={getExampleEventDate()} error={eventDate && !isValidEventDate(eventDate) ? eventDateFormatMessage : undefined} />
       <Input label="Lokasyon" value={location} onChangeText={setLocation} placeholder="Opsiyonel" />
       <Input label="Not" value={notes} onChangeText={setNotes} placeholder="Dress code, mekan, hava notu..." />
 
@@ -300,7 +353,10 @@ export default function EventPlannerScreen() {
             body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
             actionLabel="Tekrar Dene"
             loading={isRefetchingEvents}
-            onAction={() => void refetchEvents()}
+            onAction={() => {
+              captureEvent("event_plans_refetch_requested");
+              void refetchEvents();
+            }}
           />
         ) : events.length > 0 ? (
           events.map((event) => (
@@ -371,6 +427,8 @@ function EventPlanCard({
   const [eventDate, setEventDate] = useState(event.event_date.slice(0, 16));
   const [location, setLocation] = useState(event.location ?? "");
   const [notes, setNotes] = useState(event.notes ?? "");
+  const [activeAction, setActiveAction] = useState<"save" | "calendar" | "reminder" | "delete" | null>(null);
+  const isCardBusy = isSaving || Boolean(activeAction);
 
   useEffect(() => {
     setTitle(event.title);
@@ -381,21 +439,18 @@ function EventPlanCard({
   }, [event]);
 
   async function handleSave() {
-    if (!title.trim()) {
-      Alert.alert("Etkinlik adi gerekli", "Plan icin etkinlik adi bos olamaz.");
+    if (isCardBusy) {
       return;
     }
 
-    if (!isValidEventDate(eventDate)) {
-      Alert.alert("Tarih gecersiz", eventDateFormatMessage);
+    const validationError = getEventFormValidationError(title, eventDate);
+    if (validationError) {
+      captureEvent("event_plan_edit_blocked", { event_id: event.id, reason: validationError.reason });
+      Alert.alert(validationError.title, validationError.message);
       return;
     }
 
-    if (isPastEventDate(eventDate)) {
-      Alert.alert("Tarih gecersiz", "Etkinlik tarihi gecmiste olamaz.");
-      return;
-    }
-
+    setActiveAction("save");
     try {
       await onUpdate({
         eventId: event.id,
@@ -412,10 +467,17 @@ function EventPlanCard({
     } catch (error) {
       captureError(error, { area: "event_plan_edit_save_action", event_id: event.id });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   async function handleAddToCalendar() {
+    if (isCardBusy) {
+      return;
+    }
+
+    setActiveAction("calendar");
     try {
       const calendarEventId = await createCalendarEvent({
         title: event.title,
@@ -441,10 +503,17 @@ function EventPlanCard({
     } catch (error) {
       captureError(error, { area: "event_calendar_add_existing", event_id: event.id });
       Alert.alert("Takvime eklenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   async function handleScheduleReminder() {
+    if (isCardBusy) {
+      return;
+    }
+
+    setActiveAction("reminder");
     try {
       const identifier = await scheduleEventReminder(event);
       captureEvent("event_reminder_scheduled", { event_id: event.id, success: Boolean(identifier) });
@@ -455,16 +524,24 @@ function EventPlanCard({
     } catch (error) {
       captureError(error, { area: "event_reminder_schedule", event_id: event.id });
       Alert.alert("Hatirlatici kurulamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   function handleDelete() {
+    if (isCardBusy) {
+      return;
+    }
+
+    captureEvent("event_plan_delete_prompt_opened", { event_id: event.id });
     Alert.alert("Etkinligi sil", "Bu plan kayitli etkinliklerinden kaldirilacak.", [
       { text: "Vazgec", style: "cancel" },
       {
         text: "Sil",
         style: "destructive",
         onPress: async () => {
+          setActiveAction("delete");
           try {
             await cancelEventReminder(event.id);
             await onDelete(event.id);
@@ -472,6 +549,8 @@ function EventPlanCard({
           } catch (error) {
             captureError(error, { area: "event_plan_delete_action", event_id: event.id });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          } finally {
+            setActiveAction(null);
           }
         },
       },
@@ -488,11 +567,19 @@ function EventPlanCard({
           </Text>
         </View>
         <View style={styles.eventActions}>
-          <Pressable style={styles.iconButton} onPress={() => setIsEditing((value) => !value)} disabled={isSaving}>
+          <Pressable
+            style={styles.iconButton}
+            onPress={() => {
+              const nextValue = !isEditing;
+              captureEvent("event_plan_edit_toggled", { event_id: event.id, is_editing: nextValue });
+              setIsEditing(nextValue);
+            }}
+            disabled={isCardBusy}
+          >
             <Ionicons name={isEditing ? "close-outline" : "create-outline"} size={20} color={COLORS.primary} />
           </Pressable>
-          <Pressable style={styles.iconButton} onPress={handleDelete} disabled={isSaving}>
-            <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+          <Pressable style={[styles.iconButton, activeAction === "delete" ? styles.iconButtonBusy : null]} onPress={handleDelete} disabled={isCardBusy}>
+            <Ionicons name={activeAction === "delete" ? "hourglass-outline" : "trash-outline"} size={20} color={COLORS.danger} />
           </Pressable>
         </View>
       </View>
@@ -505,7 +592,7 @@ function EventPlanCard({
             {EVENT_TYPES.map((option) => {
               const active = option.value === eventType;
               return (
-                <Pressable key={option.value} style={[styles.chip, active && styles.activeChip]} onPress={() => setEventType(option.value)}>
+                <Pressable key={option.value} style={[styles.chip, active && styles.activeChip]} onPress={() => setEventType(option.value)} disabled={isCardBusy}>
                   <Text variant="label" color={active ? "inverse" : "secondary"}>
                     {option.label}
                   </Text>
@@ -516,7 +603,7 @@ function EventPlanCard({
           <Input label="Tarih ve saat" value={eventDate} onChangeText={setEventDate} error={eventDate && !isValidEventDate(eventDate) ? eventDateFormatMessage : undefined} />
           <Input label="Lokasyon" value={location} onChangeText={setLocation} />
           <Input label="Not" value={notes} onChangeText={setNotes} />
-          <Button title="Degisiklikleri Kaydet" onPress={handleSave} loading={isSaving} disabled={isSaving} />
+          <Button title="Degisiklikleri Kaydet" onPress={handleSave} loading={activeAction === "save"} disabled={isCardBusy} />
         </View>
       ) : (
         <>
@@ -534,10 +621,10 @@ function EventPlanCard({
             {event.outfit_id ? "Kombin bagli" : event.calendar_event_id ? "Takvime eklendi" : "Sadece Shipirio plani"}
           </Text>
           {!event.calendar_event_id ? (
-            <Button title="Takvime Ekle" variant="secondary" onPress={() => void handleAddToCalendar()} loading={isSaving} disabled={isSaving} />
+            <Button title="Takvime Ekle" variant="secondary" onPress={() => void handleAddToCalendar()} loading={activeAction === "calendar"} disabled={isCardBusy} />
           ) : null}
           {new Date(event.event_date).getTime() > Date.now() ? (
-            <Button title="Hatirlatici Kur" variant="ghost" onPress={() => void handleScheduleReminder()} loading={isSaving} disabled={isSaving} />
+            <Button title="Hatirlatici Kur" variant="ghost" onPress={() => void handleScheduleReminder()} loading={activeAction === "reminder"} disabled={isCardBusy} />
           ) : null}
         </>
       )}
@@ -559,6 +646,13 @@ function getDefaultEventDate() {
   return formatDateTimeLocal(date);
 }
 
+function getExampleEventDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(20, 0, 0, 0);
+  return formatDateTimeLocal(date);
+}
+
 function isValidEventDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
     return false;
@@ -572,23 +666,20 @@ function isPastEventDate(value: string) {
   return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
 }
 
-function validateEventForm(title: string, eventDate: string) {
+function getEventFormValidationError(title: string, eventDate: string) {
   if (!title.trim()) {
-    Alert.alert("Etkinlik adi gerekli", "Plan icin etkinlik adi bos olamaz.");
-    return false;
+    return { message: "Plan icin etkinlik adi bos olamaz.", reason: "missing_title", title: "Etkinlik adi gerekli" };
   }
 
   if (!isValidEventDate(eventDate)) {
-    Alert.alert("Tarih gecersiz", eventDateFormatMessage);
-    return false;
+    return { message: eventDateFormatMessage, reason: "invalid_date", title: "Tarih gecersiz" };
   }
 
   if (isPastEventDate(eventDate)) {
-    Alert.alert("Tarih gecersiz", "Etkinlik tarihi gecmiste olamaz.");
-    return false;
+    return { message: "Etkinlik tarihi gecmiste olamaz.", reason: "past_date", title: "Tarih gecersiz" };
   }
 
-  return true;
+  return null;
 }
 
 function clearEventDraft(
@@ -730,6 +821,9 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: "center",
     width: 40,
+  },
+  iconButtonBusy: {
+    opacity: 0.6,
   },
   editForm: {
     gap: SPACING.sm,
