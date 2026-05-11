@@ -35,6 +35,7 @@ export default function FriendWardrobeScreen() {
   const [friendOutfitIdea, setFriendOutfitIdea] = useState<FriendOutfitIdea | null>(null);
   const [activeBorrowItemId, setActiveBorrowItemId] = useState<string | null>(null);
   const [isSharingOutfitIdea, setIsSharingOutfitIdea] = useState(false);
+  const isBusy = isRequestingBorrow || Boolean(activeBorrowItemId) || isSharingOutfitIdea;
   const activeLoanByItemId = useMemo(() => {
     const entries = loanRequests
       .filter((request) => request.owner_id === friendId && (request.status === "pending" || request.status === "approved"))
@@ -66,17 +67,29 @@ export default function FriendWardrobeScreen() {
   }, [data?.profile.privacy_settings.wardrobe_visible, friendId, premium, visibleItems.length]);
 
   function handleClearFilters() {
+    if (isBusy) {
+      return;
+    }
+
     setCategory("all");
     setQuery("");
     captureEvent("friend_wardrobe_filters_cleared", { friend_id: friendId });
   }
 
   function handleCategoryChange(value: SharedCategoryFilter) {
+    if (isBusy) {
+      return;
+    }
+
     setCategory(value);
     captureEvent("friend_wardrobe_filter_changed", { friend_id: friendId, filter: "category", value });
   }
 
   function handleGenerateOutfitIdea() {
+    if (isBusy) {
+      return;
+    }
+
     if (visibleItems.length < 2) {
       captureEvent("friend_wardrobe_outfit_idea_blocked", { friend_id: friendId, reason: "not_enough_items" });
       return;
@@ -97,7 +110,8 @@ export default function FriendWardrobeScreen() {
   }
 
   async function handleBorrow(item: WardrobeItem) {
-    if (activeBorrowItemId || isRequestingBorrow) {
+    if (isBusy) {
+      captureEvent("friend_wardrobe_borrow_blocked", { item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -125,7 +139,7 @@ export default function FriendWardrobeScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Arkadas Dolabi</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -170,6 +184,7 @@ export default function FriendWardrobeScreen() {
               onQueryChange={setQuery}
               onShareOutfit={handleShareIdea}
               isSharingOutfit={isSharingOutfitIdea}
+              disabled={isBusy}
             />
           }
           ListEmptyComponent={
@@ -186,7 +201,7 @@ export default function FriendWardrobeScreen() {
               loanRequest={activeLoanByItemId.get(item.id)}
               onBorrow={() => void handleBorrow(item)}
               loading={activeBorrowItemId === item.id}
-              disabled={Boolean(activeBorrowItemId) || isRequestingBorrow}
+              disabled={isBusy}
             />
           )}
         />
@@ -207,6 +222,7 @@ async function handleBorrowRequest(
   input: { dueDate: string; note: string },
 ) {
   if (!isValidBorrowDueDate(input.dueDate)) {
+    captureEvent("friend_wardrobe_borrow_blocked", { item_id: item.id, reason: "invalid_due_date" });
     Alert.alert("Tarih gecersiz", "Iade tarihi YYYY-MM-DD formatinda ve bugunden erken olmamali.");
     return;
   }
@@ -262,6 +278,7 @@ function SharedWardrobeHeader({
   onQueryChange,
   onShareOutfit,
   isSharingOutfit,
+  disabled,
 }: {
   borrowDueDate: string;
   borrowNote: string;
@@ -280,6 +297,7 @@ function SharedWardrobeHeader({
   onQueryChange: (value: string) => void;
   onShareOutfit: (data: FriendWardrobe, idea: FriendOutfitIdea) => Promise<void>;
   isSharingOutfit: boolean;
+  disabled: boolean;
 }) {
   return (
     <View style={styles.listHeader}>
@@ -342,7 +360,7 @@ function SharedWardrobeHeader({
             title={friendOutfitIdea ? "Baska Fikir" : "Kombin Fikri Uret"}
             variant="secondary"
             onPress={onGenerateOutfit}
-            disabled={visibleCount < 2 || isSharingOutfit}
+            disabled={visibleCount < 2 || disabled}
           />
           {friendOutfitIdea ? (
             <Button
@@ -350,7 +368,7 @@ function SharedWardrobeHeader({
               variant="ghost"
               onPress={() => void onShareOutfit(data, friendOutfitIdea)}
               loading={isSharingOutfit}
-              disabled={isSharingOutfit}
+              disabled={disabled}
             />
           ) : null}
         </View>
@@ -375,6 +393,7 @@ function SharedWardrobeHeader({
               title={item.label}
               variant={active ? "primary" : "secondary"}
               onPress={() => onCategoryChange(item.value === "all" ? "all" : (item.value as ClothingCategory))}
+              disabled={disabled}
               style={styles.filterButton}
             />
           );
@@ -388,7 +407,7 @@ function SharedWardrobeHeader({
           <Text variant="caption" color="muted">
             {filteredCount}/{visibleCount} kiyafet gosteriliyor
           </Text>
-          <Pressable accessibilityRole="button" onPress={onClearFilters} style={styles.clearFiltersButton}>
+          <Pressable accessibilityRole="button" onPress={onClearFilters} disabled={disabled} style={[styles.clearFiltersButton, disabled ? styles.disabledAction : null]}>
             <Text variant="caption" color="primary">
               Temizle
             </Text>
@@ -485,6 +504,7 @@ function SharedWardrobeItem({
         captureEvent("friend_wardrobe_item_opened", { item_id: item.id, category: item.category });
         router.push(`/item/${item.id}`);
       }}
+      disabled={disabled}
     >
       <Card style={styles.itemCard}>
         <CachedImage
@@ -567,6 +587,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
+  },
+  disabledAction: {
+    opacity: 0.52,
   },
   avatar: {
     alignItems: "center",

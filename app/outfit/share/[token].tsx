@@ -28,11 +28,13 @@ export default function PublicSharedOutfitScreen() {
   const { userId, sharedOutfit, isLoading, isRefetching, error, refetch, vote, isVoting, canVote } = usePublicSharedOutfit(token);
   const [handledPendingVote, setHandledPendingVote] = useState<string | null>(null);
   const [activeVote, setActiveVote] = useState<OutfitVoteValue | null>(null);
+  const [isApplyingPendingVote, setIsApplyingPendingVote] = useState(false);
   const myVote = sharedOutfit?.votes.find((item) => item.voter_id === userId)?.vote;
   const voteCounts = voteOptions.map((option) => ({
     ...option,
     count: sharedOutfit?.votes.filter((item) => item.vote === option.value).length ?? 0,
   }));
+  const isBusy = isVoting || Boolean(activeVote) || isApplyingPendingVote;
 
   useEffect(() => {
     captureEvent("public_outfit_screen_viewed", {
@@ -43,7 +45,8 @@ export default function PublicSharedOutfitScreen() {
   }, [pendingVote, token, userId]);
 
   async function handleVote(value: OutfitVoteValue) {
-    if (isVoting || activeVote) {
+    if (isBusy) {
+      captureEvent("public_outfit_vote_blocked", { reason: "busy", token, vote: value });
       return;
     }
 
@@ -77,6 +80,7 @@ export default function PublicSharedOutfitScreen() {
     }
 
     setHandledPendingVote(voteValue);
+    setIsApplyingPendingVote(true);
     void vote(voteValue)
       .then(() => {
         captureEvent("public_outfit_vote_submitted", { outfit_id: sharedOutfit?.outfit.id, vote: voteValue, pending_vote: true });
@@ -85,13 +89,16 @@ export default function PublicSharedOutfitScreen() {
       .catch((voteError) => {
         captureError(voteError, { area: "public_outfit_pending_vote", token, vote: voteValue });
         Alert.alert("Oy verilemedi", voteError instanceof Error ? voteError.message : "Tekrar dene.");
+      })
+      .finally(() => {
+        setIsApplyingPendingVote(false);
       });
   }, [canVote, handledPendingVote, isVoting, myVote, pendingVote, sharedOutfit?.outfit.id, token, userId, vote]);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Shipirio Kombini</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -130,7 +137,7 @@ export default function PublicSharedOutfitScreen() {
                       key={option.value}
                       style={[styles.voteButton, myVote === option.value && styles.voteButtonActive, userId && !canVote && styles.voteDisabled]}
                       onPress={() => void handleVote(option.value)}
-                      disabled={isVoting || Boolean(userId && !canVote)}
+                      disabled={isBusy || Boolean(userId && !canVote)}
                     >
                       <Text variant="label" color={myVote === option.value ? "inverse" : "primary"} style={styles.centerText}>
                         {activeVote === option.value ? "Kaydediliyor" : option.label}
@@ -180,16 +187,16 @@ function OutfitItem({ item, outfitId }: { item: WardrobeItem; outfitId: string }
         }}
       >
         <Card style={styles.itemCard}>
-        <CachedImage
-          accessibilityLabel={item.subcategory ?? categoryLabel}
-          fallbackColor={item.dominant_color_hex}
-          sourceUri={item.thumbnail_url ?? item.image_url}
-          style={styles.itemImage}
-        />
-        <Text variant="label">{item.subcategory ?? categoryLabel}</Text>
-        <Text variant="caption" color="muted">
-          {item.brand ?? categoryLabel}
-        </Text>
+          <CachedImage
+            accessibilityLabel={item.subcategory ?? categoryLabel}
+            fallbackColor={item.dominant_color_hex}
+            sourceUri={item.thumbnail_url ?? item.image_url}
+            style={styles.itemImage}
+          />
+          <Text variant="label">{item.subcategory ?? categoryLabel}</Text>
+          <Text variant="caption" color="muted">
+            {item.brand ?? categoryLabel}
+          </Text>
         </Card>
       </Pressable>
     </View>

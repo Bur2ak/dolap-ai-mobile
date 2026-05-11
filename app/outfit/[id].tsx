@@ -78,7 +78,8 @@ export default function SharedOutfitScreen() {
   }, [id]);
 
   async function handleVote(value: OutfitVoteValue) {
-    if (isVoting || !canVote) {
+    if (isBusy || !canVote) {
+      captureEvent("outfit_vote_blocked", { outfit_id: id ?? "invalid", reason: canVote ? "busy" : "not_allowed", vote: value });
       return;
     }
 
@@ -207,7 +208,7 @@ export default function SharedOutfitScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Kombin Detayi</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -221,7 +222,10 @@ export default function SharedOutfitScreen() {
           body="Bu kombin yalnizca kabul edilmis arkadaslara acik olabilir."
           actionLabel="Tekrar Dene"
           loading={isRefetching}
-          onAction={() => void refetch()}
+          onAction={() => {
+            captureEvent("shared_outfit_refetch_requested", { outfit_id: id ?? "invalid" });
+            void refetch();
+          }}
           style={styles.emptyState}
         />
       ) : isLoading ? (
@@ -295,7 +299,7 @@ export default function SharedOutfitScreen() {
                       key={option.value}
                       style={[styles.voteButton, myVote === option.value && styles.voteButtonActive, !canVote && styles.voteDisabled]}
                       onPress={() => void handleVote(option.value)}
-                      disabled={!canVote || isVoting}
+                      disabled={!canVote || isBusy}
                     >
                       <Text variant="label" color={myVote === option.value ? "inverse" : "primary"} style={styles.centerText}>
                         {activeVote === option.value ? "Kaydediliyor" : option.label}
@@ -361,16 +365,16 @@ function OutfitItem({ item, outfitId }: { item: WardrobeItem; outfitId?: string 
         }}
       >
         <Card style={styles.itemCard}>
-        <CachedImage
-          accessibilityLabel={item.subcategory ?? categoryLabel}
-          fallbackColor={item.dominant_color_hex}
-          sourceUri={item.thumbnail_url ?? item.image_url}
-          style={styles.itemImage}
-        />
-        <Text variant="label">{item.subcategory ?? categoryLabel}</Text>
-        <Text variant="caption" color="muted">
-          {item.brand ?? categoryLabel}
-        </Text>
+          <CachedImage
+            accessibilityLabel={item.subcategory ?? categoryLabel}
+            fallbackColor={item.dominant_color_hex}
+            sourceUri={item.thumbnail_url ?? item.image_url}
+            style={styles.itemImage}
+          />
+          <Text variant="label">{item.subcategory ?? categoryLabel}</Text>
+          <Text variant="caption" color="muted">
+            {item.brand ?? categoryLabel}
+          </Text>
         </Card>
       </Pressable>
     </View>
