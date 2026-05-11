@@ -6,7 +6,7 @@ import type { FriendWardrobe, Friendship, LoanRequest, LoanRequestStatus, Referr
 import { formatDateOnly } from "@/utils/formatters";
 
 export async function searchUsers(query: string, currentUserId: string): Promise<UserSearchResult[]> {
-  const normalized = query.trim();
+  const normalized = normalizeUserSearchQuery(query);
   if (!normalized) {
     return [];
   }
@@ -22,6 +22,15 @@ export async function searchUsers(query: string, currentUserId: string): Promise
   }
 
   return (data ?? []) as UserSearchResult[];
+}
+
+function normalizeUserSearchQuery(query: string) {
+  return query
+    .trim()
+    .replace(/^@+/, "")
+    .replace(/[,%()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export async function fetchFriendships(userId: string): Promise<Friendship[]> {

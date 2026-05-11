@@ -38,6 +38,8 @@ export default function FriendsScreen() {
   const [query, setQuery] = useState("");
   const [handledInvite, setHandledInvite] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<{ type: "send" | "accept" | "block" | "delete"; id: string } | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
+  const isBusy = isSearching || isMutating || Boolean(activeAction);
 
   useEffect(() => {
     captureEvent("friends_screen_viewed", {
@@ -59,6 +61,7 @@ export default function FriendsScreen() {
 
     setQuery(inviteQuery);
     setHandledInvite(inviteQuery);
+    setHasSearched(true);
     void searchUsers(inviteQuery).catch((error) => {
       captureError(error, { area: "friend_invite_search" });
       Alert.alert("Davet acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
@@ -66,7 +69,8 @@ export default function FriendsScreen() {
   }, [handledInvite, invite, premium, searchUsers]);
 
   async function handleSearch() {
-    if (isSearching || isMutating || activeAction) {
+    if (isBusy) {
+      captureEvent("friend_search_blocked", { reason: "busy" });
       return;
     }
 
@@ -78,6 +82,7 @@ export default function FriendsScreen() {
 
     try {
       const results = await searchUsers(normalizedQuery);
+      setHasSearched(true);
       captureEvent("friend_search_performed", {
         result_count: Array.isArray(results) ? results.length : 0,
         search_length: normalizedQuery.length,
@@ -89,7 +94,8 @@ export default function FriendsScreen() {
   }
 
   async function handleSend(addresseeId: string) {
-    if (isMutating || activeAction) {
+    if (isBusy) {
+      captureEvent("friend_request_send_blocked", { addressee_id: addresseeId, reason: "busy" });
       return;
     }
 
@@ -107,7 +113,8 @@ export default function FriendsScreen() {
   }
 
   async function handleStatus(friendshipId: string, status: "accepted" | "blocked") {
-    if (isMutating || activeAction) {
+    if (isBusy) {
+      captureEvent("friendship_status_blocked", { friendship_id: friendshipId, reason: "busy", status });
       return;
     }
 
@@ -126,9 +133,30 @@ export default function FriendsScreen() {
     }
   }
 
+  function handleBlock(friendship: Friendship) {
+    const otherUserId = friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id;
+    if (isBusy) {
+      captureEvent("friendship_block_blocked", { friendship_id: friendship.id, reason: "busy" });
+      return;
+    }
+
+    captureEvent("friendship_block_prompt_opened", { friendship_id: friendship.id, other_user_id: otherUserId });
+    Alert.alert("Kullaniciyi engelle", "Bu kullanici ile arkadaslik akisi engellenecek.", [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: "Engelle",
+        style: "destructive",
+        onPress: () => {
+          void handleStatus(friendship.id, "blocked");
+        },
+      },
+    ]);
+  }
+
   function handleDelete(friendship: Friendship) {
     const accepted = friendship.status === "accepted";
-    if (isMutating || activeAction) {
+    if (isBusy) {
+      captureEvent("friendship_delete_blocked", { friendship_id: friendship.id, reason: "busy" });
       return;
     }
 
@@ -157,7 +185,7 @@ export default function FriendsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Arkadaslar</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -168,8 +196,8 @@ export default function FriendsScreen() {
         <>
           <Card style={styles.searchCard}>
             <Text variant="h3">Kullanici ara</Text>
-            <Input label="Kullanici adi veya ad" value={query} onChangeText={setQuery} autoCapitalize="none" />
-            <Button title="Ara" onPress={handleSearch} loading={isSearching} disabled={isSearching || isMutating || Boolean(activeAction)} />
+            <Input label="Kullanici adi veya ad" value={query} onChangeText={setQuery} autoCapitalize="none" editable={!isBusy} />
+            <Button title="Ara" onPress={handleSearch} loading={isSearching} disabled={isBusy} />
             <Button
               title="Davet Linki"
               variant="secondary"
@@ -177,7 +205,7 @@ export default function FriendsScreen() {
                 captureEvent("friends_invite_route_opened");
                 router.push("/social/invite");
               }}
-              disabled={isSearching || isMutating || Boolean(activeAction)}
+              disabled={isBusy}
             />
           </Card>
 
@@ -210,7 +238,7 @@ export default function FriendsScreen() {
                           variant="secondary"
                           onPress={() => void handleStatus(friendship.id, "accepted")}
                           loading={activeAction?.type === "accept" && activeAction.id === friendship.id}
-                          disabled={isMutating || Boolean(activeAction)}
+                          disabled={isBusy}
                           style={styles.compactButton}
                         />
                       ) : accepted ? (
@@ -221,7 +249,7 @@ export default function FriendsScreen() {
                             captureEvent("friend_wardrobe_opened_from_search", { friend_id: user.id });
                             router.push(`/social/${user.id}`);
                           }}
-                          disabled={isMutating || Boolean(activeAction)}
+                          disabled={isBusy}
                           style={styles.compactButton}
                         />
                       ) : (
@@ -230,7 +258,7 @@ export default function FriendsScreen() {
                           variant="secondary"
                           onPress={() => void handleSend(user.id)}
                           loading={activeAction?.type === "send" && activeAction.id === user.id}
-                          disabled={pending || isMutating || Boolean(activeAction)}
+                          disabled={pending || isBusy}
                           style={styles.compactButton}
                         />
                       )}
@@ -238,6 +266,20 @@ export default function FriendsScreen() {
                   </View>
                 );
               })}
+            </Card>
+          ) : hasSearched ? (
+            <Card style={styles.section}>
+              <EmptyState
+                icon="search-outline"
+                title="Sonuc bulunamadi"
+                body="Kullanici adini kontrol edip tekrar arayabilirsin."
+                actionLabel="Aramayi Temizle"
+                onAction={() => {
+                  setQuery("");
+                  setHasSearched(false);
+                  captureEvent("friend_search_cleared");
+                }}
+              />
             </Card>
           ) : null}
 
@@ -264,10 +306,10 @@ export default function FriendsScreen() {
                   friendship={friendship}
                   currentUserId={userId}
                   onAccept={() => void handleStatus(friendship.id, "accepted")}
-                  onBlock={() => void handleStatus(friendship.id, "blocked")}
+                  onBlock={() => handleBlock(friendship)}
                   onDelete={() => handleDelete(friendship)}
                   activeAction={activeAction}
-                  loading={isMutating || Boolean(activeAction)}
+                  loading={isBusy}
                 />
               ))
             ) : (
@@ -344,14 +386,16 @@ function FriendshipRow({
             style={styles.compactButton}
           />
         ) : null}
-        <Button
-          title="Engelle"
-          variant="ghost"
-          onPress={onBlock}
-          loading={activeAction?.type === "block" && activeAction.id === friendship.id}
-          disabled={loading}
-          style={styles.compactButton}
-        />
+        {friendship.status !== "blocked" ? (
+          <Button
+            title="Engelle"
+            variant="ghost"
+            onPress={onBlock}
+            loading={activeAction?.type === "block" && activeAction.id === friendship.id}
+            disabled={loading}
+            style={styles.compactButton}
+          />
+        ) : null}
       </View>
     </View>
   );

@@ -168,7 +168,7 @@ export default function NotificationSettingsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Bildirimler</Text>
         <View style={styles.headerSpacer} />
       </View>

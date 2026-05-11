@@ -41,6 +41,7 @@ export default function LoansScreen() {
   const overdueCount = loanRequests.filter(isLoanOverdue).length;
   const filteredIncoming = filter === "outgoing" ? [] : filterLoanRequests(incoming, filter);
   const filteredOutgoing = filter === "incoming" ? [] : filterLoanRequests(outgoing, filter);
+  const isBusy = Boolean(activeStatusAction) || isUpdating;
 
   useEffect(() => {
     captureEvent("loan_requests_screen_viewed", {
@@ -55,7 +56,8 @@ export default function LoansScreen() {
   }, [activeCount, filter, incoming.length, loanRequests.length, outgoing.length, overdueCount, pendingCount]);
 
   function handleFilter(nextFilter: LoanFilter) {
-    if (activeStatusAction || isUpdating) {
+    if (isBusy) {
+      captureEvent("loan_requests_filter_blocked", { filter: nextFilter, reason: "busy" });
       return;
     }
 
@@ -64,15 +66,38 @@ export default function LoansScreen() {
   }
 
   function handleRefetch() {
+    if (isBusy) {
+      captureEvent("loan_requests_refetch_blocked", { reason: "busy" });
+      return;
+    }
+
     captureEvent("loan_requests_refetch_requested");
     void refetch();
   }
 
-  async function handleStatus(loanRequest: LoanRequest, status: LoanRequestStatus) {
-    if (activeStatusAction || isUpdating) {
+  function handleStatusPrompt(loanRequest: LoanRequest, status: LoanRequestStatus) {
+    if (isBusy) {
+      captureEvent("loan_request_status_blocked", { loan_request_id: loanRequest.id, reason: "busy", status });
       return;
     }
 
+    captureEvent("loan_request_status_prompt_opened", {
+      loan_request_id: loanRequest.id,
+      status,
+    });
+    Alert.alert(getStatusPromptTitle(status), getStatusPromptBody(status), [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: statusLabels[status],
+        style: status === "declined" ? "destructive" : "default",
+        onPress: () => {
+          void handleStatus(loanRequest, status);
+        },
+      },
+    ]);
+  }
+
+  async function handleStatus(loanRequest: LoanRequest, status: LoanRequestStatus) {
     setActiveStatusAction({ id: loanRequest.id, status });
     try {
       await updateLoanRequestStatus({ loanRequest, status });
@@ -93,7 +118,7 @@ export default function LoansScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={Boolean(activeStatusAction) || isUpdating} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Odunc Takibi</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -132,7 +157,7 @@ export default function LoansScreen() {
             title={option.label}
             variant={filter === option.value ? "primary" : "secondary"}
             onPress={() => handleFilter(option.value)}
-            disabled={Boolean(activeStatusAction) || isUpdating}
+            disabled={isBusy}
             style={styles.filterButton}
           />
         ))}
@@ -156,7 +181,7 @@ export default function LoansScreen() {
             empty="Sana gelen odunc istegi yok."
             items={filteredIncoming}
             currentUserId={userId}
-            onStatus={handleStatus}
+            onStatus={handleStatusPrompt}
             activeStatusAction={activeStatusAction}
             isUpdating={isUpdating}
           />
@@ -165,7 +190,7 @@ export default function LoansScreen() {
             empty="Gonderdigin odunc istegi yok."
             items={filteredOutgoing}
             currentUserId={userId}
-            onStatus={handleStatus}
+            onStatus={handleStatusPrompt}
             activeStatusAction={activeStatusAction}
             isUpdating={isUpdating}
           />
@@ -188,7 +213,7 @@ function LoanSection({
   empty: string;
   items: LoanRequest[];
   currentUserId?: string;
-  onStatus: (loanRequest: LoanRequest, status: LoanRequestStatus) => Promise<void>;
+  onStatus: (loanRequest: LoanRequest, status: LoanRequestStatus) => void;
   activeStatusAction: { id: string; status: LoanRequestStatus } | null;
   isUpdating: boolean;
 }) {
@@ -222,7 +247,7 @@ function LoanRequestRow({
 }: {
   loanRequest: LoanRequest;
   currentUserId?: string;
-  onStatus: (loanRequest: LoanRequest, status: LoanRequestStatus) => Promise<void>;
+  onStatus: (loanRequest: LoanRequest, status: LoanRequestStatus) => void;
   activeStatusAction: { id: string; status: LoanRequestStatus } | null;
   isUpdating: boolean;
 }) {
@@ -289,6 +314,38 @@ function LoanRequestRow({
       </View>
     </View>
   );
+}
+
+function getStatusPromptTitle(status: LoanRequestStatus) {
+  if (status === "approved") {
+    return "Odunc istegini kabul et";
+  }
+
+  if (status === "declined") {
+    return "Odunc istegini reddet";
+  }
+
+  if (status === "returned") {
+    return "Iade edildi olarak isaretle";
+  }
+
+  return "Odunc durumunu guncelle";
+}
+
+function getStatusPromptBody(status: LoanRequestStatus) {
+  if (status === "approved") {
+    return "Parca oduncte olarak takip edilecek ve karsi tarafa bildirim gidebilir.";
+  }
+
+  if (status === "declined") {
+    return "Bu istek reddedilecek ve tekrar aktif odunc istegi sayilmayacak.";
+  }
+
+  if (status === "returned") {
+    return "Parca iade edildi olarak kaydedilecek.";
+  }
+
+  return "Bu odunc istegi guncellenecek.";
 }
 
 function filterLoanRequests(items: LoanRequest[], filter: LoanFilter) {
