@@ -47,6 +47,12 @@ export default function PrivacySettingsScreen() {
       return;
     }
 
+    if (!profile) {
+      captureEvent("privacy_setting_toggle_blocked", { reason: "missing_profile", setting: key });
+      Alert.alert("Giris gerekli", "Gizlilik ayarlarini degistirmek icin tekrar giris yapmalisin.");
+      return;
+    }
+
     try {
       setUpdatingKey(key);
       await updateProfile({
@@ -80,7 +86,7 @@ export default function PrivacySettingsScreen() {
         </View>
         {rows.map((row) => {
           const enabled = privacy[row.key];
-          const disabled = Boolean(updatingKey);
+          const disabled = Boolean(updatingKey) || !profile;
           return (
             <Pressable key={row.key} style={[styles.row, disabled && styles.rowDisabled]} onPress={() => void toggle(row.key)} disabled={disabled}>
               <View style={styles.rowCopy}>

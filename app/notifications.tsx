@@ -301,6 +301,11 @@ export default function NotificationsScreen() {
           onAction={
             notifications.length > 0
               ? () => {
+                  if (isBusy) {
+                    captureEvent("notifications_filter_reset_blocked", { reason: "busy" });
+                    return;
+                  }
+
                   captureEvent("notifications_filter_reset");
                   setFilter("all");
                 }

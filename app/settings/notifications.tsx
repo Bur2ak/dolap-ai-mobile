@@ -91,6 +91,7 @@ export default function NotificationSettingsScreen() {
 
   async function handleEnablePush() {
     if (isBusy) {
+      captureEvent("push_enable_blocked", { reason: "busy" });
       return;
     }
 
@@ -107,6 +108,7 @@ export default function NotificationSettingsScreen() {
 
   async function togglePreference(key: keyof NotificationPreferences) {
     if (isBusy) {
+      captureEvent("notification_preference_toggle_blocked", { preference: key, reason: "busy" });
       return;
     }
 
@@ -125,6 +127,7 @@ export default function NotificationSettingsScreen() {
 
   async function handleScheduleSmartReminder() {
     if (isBusy) {
+      captureEvent("smart_outfit_reminder_schedule_blocked", { reason: "busy" });
       return;
     }
 
@@ -148,6 +151,7 @@ export default function NotificationSettingsScreen() {
 
   async function handleCancelSmartReminder() {
     if (isBusy) {
+      captureEvent("smart_outfit_reminder_cancel_blocked", { reason: "busy" });
       return;
     }
 

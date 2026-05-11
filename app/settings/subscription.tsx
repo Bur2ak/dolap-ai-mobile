@@ -71,6 +71,16 @@ export default function SubscriptionSettingsScreen() {
     }
   }
 
+  function handleOpenPaywall() {
+    if (isRefreshing) {
+      captureEvent("subscription_paywall_open_blocked", { reason: "busy" });
+      return;
+    }
+
+    captureEvent("subscription_paywall_opened", { current_plan: planName });
+    router.push("/paywall");
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -116,10 +126,7 @@ export default function SubscriptionSettingsScreen() {
       <View style={styles.actions}>
         <Button
           title={premium ? "Paywall'i Ac" : "Premium'a Gec"}
-          onPress={() => {
-            captureEvent("subscription_paywall_opened", { current_plan: planName });
-            router.push("/paywall");
-          }}
+          onPress={handleOpenPaywall}
           disabled={isRefreshing}
         />
         <Button title="Aboneligi Yenile" variant="secondary" onPress={() => void handleRefreshSubscription()} loading={isRefreshing} disabled={isRefreshing} />

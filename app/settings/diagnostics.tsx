@@ -96,7 +96,7 @@ export default function DiagnosticsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isCheckingPush} />
         <Text variant="h2">Sistem Durumu</Text>
         <View style={styles.headerSpacer} />
       </View>

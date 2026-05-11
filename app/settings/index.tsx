@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useEffect } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -79,6 +80,10 @@ const settingsRoutes = [
 ];
 
 export default function SettingsScreen() {
+  useEffect(() => {
+    captureEvent("settings_screen_viewed", { route_count: settingsRoutes.length });
+  }, []);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>

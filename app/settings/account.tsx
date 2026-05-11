@@ -18,7 +18,7 @@ import { getConfirmPasswordInputError, getPasswordInputError, getUsernameInputEr
 const maxBioLength = 160;
 
 export default function AccountSettingsScreen() {
-  const { profile, updatePassword, updateProfile } = useAuthStore();
+  const { profile, session, updatePassword, updateProfile } = useAuthStore();
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
@@ -48,6 +48,12 @@ export default function AccountSettingsScreen() {
   async function handleSave() {
     if (isBusy) {
       captureEvent("account_profile_save_blocked", { reason: "busy" });
+      return;
+    }
+
+    if (!profile) {
+      captureEvent("account_profile_save_blocked", { reason: "missing_profile" });
+      Alert.alert("Giris gerekli", "Profil bilgilerini guncellemek icin tekrar giris yapmalisin.");
       return;
     }
 
@@ -99,6 +105,12 @@ export default function AccountSettingsScreen() {
       return;
     }
 
+    if (!session) {
+      captureEvent("account_password_change_blocked", { reason: "missing_session" });
+      Alert.alert("Giris gerekli", "Sifreni degistirmek icin tekrar giris yapmalisin.");
+      return;
+    }
+
     if (password.length < 8) {
       captureEvent("account_password_change_blocked", { reason: "short_password" });
       Alert.alert("Sifre kisa", "Yeni sifre en az 8 karakter olmali.");
@@ -132,6 +144,12 @@ export default function AccountSettingsScreen() {
       return;
     }
 
+    if (!profile) {
+      captureEvent("account_deletion_request_blocked", { reason: "missing_profile" });
+      Alert.alert("Giris gerekli", "Hesap silme talebi icin tekrar giris yapmalisin.");
+      return;
+    }
+
     captureEvent("account_deletion_request_prompt_opened");
     Alert.alert(
       "Hesap silme talebi",
@@ -155,6 +173,12 @@ export default function AccountSettingsScreen() {
       return;
     }
 
+    if (!profile) {
+      captureEvent("account_deletion_cancel_blocked", { reason: "missing_profile" });
+      Alert.alert("Giris gerekli", "Hesap silme talebini yonetmek icin tekrar giris yapmalisin.");
+      return;
+    }
+
     captureEvent("account_deletion_cancel_prompt_opened");
     Alert.alert("Silme talebini iptal et", "Hesabin silinmek uzere isaretlenmeyecek.", [
       { text: "Vazgec", style: "cancel" },
@@ -168,6 +192,12 @@ export default function AccountSettingsScreen() {
   }
 
   async function updateDeletionRequest(requested: boolean) {
+    if (!profile) {
+      captureEvent(requested ? "account_deletion_request_blocked" : "account_deletion_cancel_blocked", { reason: "missing_profile" });
+      Alert.alert("Giris gerekli", "Hesap silme talebini yonetmek icin tekrar giris yapmalisin.");
+      return;
+    }
+
     const requestedAt = requested ? new Date() : null;
     const scheduledFor = requestedAt ? new Date(requestedAt) : null;
     scheduledFor?.setDate(scheduledFor.getDate() + 30);
