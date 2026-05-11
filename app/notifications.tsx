@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -36,6 +36,9 @@ const filters: Array<{ label: string; value: NotificationFilter }> = [
 
 export default function NotificationsScreen() {
   const [filter, setFilter] = useState<NotificationFilter>("all");
+  const [activeAction, setActiveAction] = useState<"mark_all" | "delete_read" | null>(null);
+  const [activeDeleteNotificationId, setActiveDeleteNotificationId] = useState<string | null>(null);
+  const [activeOpenNotificationId, setActiveOpenNotificationId] = useState<string | null>(null);
   const {
     notifications,
     unreadCount,
@@ -66,30 +69,56 @@ export default function NotificationsScreen() {
       }),
     [filter, notifications],
   );
+  const isBusy = isUpdating || Boolean(activeAction) || Boolean(activeDeleteNotificationId) || Boolean(activeOpenNotificationId);
+
+  useEffect(() => {
+    captureEvent("notifications_screen_viewed", {
+      notification_count: notifications.length,
+      read_count: readCount,
+      unread_count: unreadCount,
+      visible_count: visibleNotifications.length,
+      filter,
+    });
+  }, [filter, notifications.length, readCount, unreadCount, visibleNotifications.length]);
 
   async function handleMarkAllRead() {
+    if (isBusy || unreadCount === 0) {
+      return;
+    }
+
+    setActiveAction("mark_all");
     try {
       await markAllRead();
       captureEvent("notifications_mark_all_read_pressed", { unread_count: unreadCount });
     } catch (error) {
       captureError(error, { area: "notifications_mark_all_read_action" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
     }
   }
 
   function handleDeleteRead() {
+    if (isBusy || readCount === 0) {
+      return;
+    }
+
+    captureEvent("notifications_delete_read_prompt_opened", { read_count: readCount });
     Alert.alert("Okunanlari temizle", "Okunmus bildirimler kalici olarak silinecek.", [
       { text: "Vazgec", style: "cancel" },
       {
         text: "Temizle",
         style: "destructive",
         onPress: async () => {
+          setActiveAction("delete_read");
           try {
             await deleteRead();
             captureEvent("notifications_delete_read_pressed", { read_count: readCount });
           } catch (error) {
             captureError(error, { area: "notifications_delete_read_action" });
             Alert.alert("Temizlenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          } finally {
+            setActiveAction(null);
           }
         },
       },
@@ -97,18 +126,26 @@ export default function NotificationsScreen() {
   }
 
   function handleDeleteOne(notificationId: string) {
+    if (isBusy) {
+      return;
+    }
+
+    captureEvent("notification_delete_prompt_opened", { notification_id: notificationId });
     Alert.alert("Bildirimi sil", "Bu bildirim kalici olarak silinecek.", [
       { text: "Vazgec", style: "cancel" },
       {
         text: "Sil",
         style: "destructive",
         onPress: async () => {
+          setActiveDeleteNotificationId(notificationId);
           try {
             await deleteOne(notificationId);
             captureEvent("notification_delete_pressed");
           } catch (error) {
             captureError(error, { area: "notification_delete_action", notification_id: notificationId });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          } finally {
+            setActiveDeleteNotificationId(null);
           }
         },
       },
@@ -116,6 +153,11 @@ export default function NotificationsScreen() {
   }
 
   async function handlePress(notification: NotificationRecord) {
+    if (isBusy) {
+      return;
+    }
+
+    setActiveOpenNotificationId(notification.id);
     try {
       if (!notification.is_read) {
         await markRead(notification.id);
@@ -125,13 +167,15 @@ export default function NotificationsScreen() {
     } catch (error) {
       captureError(error, { area: "notification_open_action", notification_id: notification.id, type: notification.type });
       Alert.alert("Acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveOpenNotificationId(null);
     }
   }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Bildirimler</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -144,8 +188,8 @@ export default function NotificationsScreen() {
           </Text>
         </View>
         <View style={styles.summaryActions}>
-          <Button title="Tumunu Oku" variant="secondary" onPress={handleMarkAllRead} loading={isUpdating} disabled={unreadCount === 0} />
-          <Button title="Temizle" variant="ghost" onPress={handleDeleteRead} loading={isUpdating} disabled={readCount === 0} />
+          <Button title="Tumunu Oku" variant="secondary" onPress={handleMarkAllRead} loading={activeAction === "mark_all"} disabled={isBusy || unreadCount === 0} />
+          <Button title="Temizle" variant="ghost" onPress={handleDeleteRead} loading={activeAction === "delete_read"} disabled={isBusy || readCount === 0} />
         </View>
       </Card>
 
@@ -161,7 +205,7 @@ export default function NotificationsScreen() {
                 setFilter(item.value);
                 captureEvent("notifications_filter_changed", { filter: item.value });
               }}
-              disabled={isUpdating}
+              disabled={isBusy}
             >
               <Text variant="caption" color={active ? "inverse" : "secondary"}>
                 {item.label} {count > 0 ? count : ""}
@@ -182,13 +226,16 @@ export default function NotificationsScreen() {
           body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
           actionLabel="Tekrar Dene"
           loading={isRefetching}
-          onAction={() => void refetch()}
+          onAction={() => {
+            captureEvent("notifications_refetch_requested");
+            void refetch();
+          }}
         />
       ) : visibleNotifications.length > 0 ? (
         <View style={styles.list}>
           {visibleNotifications.map((notification) => (
             <Card key={notification.id} style={[styles.notificationCard, !notification.is_read && styles.unreadCard]}>
-              <Pressable style={styles.notificationMain} onPress={() => void handlePress(notification)} disabled={isUpdating}>
+              <Pressable style={styles.notificationMain} onPress={() => void handlePress(notification)} disabled={isBusy}>
                 <View style={styles.iconWrap}>
                   <Ionicons name={iconForNotification(notification.type)} size={22} color={COLORS.primary} />
                 </View>
@@ -209,7 +256,14 @@ export default function NotificationsScreen() {
               </Pressable>
               <View style={styles.trailingActions}>
                 {!notification.is_read ? <View style={styles.unreadDot} /> : null}
-                <Button title="Sil" variant="ghost" onPress={() => handleDeleteOne(notification.id)} disabled={isUpdating} style={styles.deleteButton} />
+                <Button
+                  title="Sil"
+                  variant="ghost"
+                  onPress={() => handleDeleteOne(notification.id)}
+                  loading={activeDeleteNotificationId === notification.id}
+                  disabled={isBusy && activeDeleteNotificationId !== notification.id}
+                  style={styles.deleteButton}
+                />
               </View>
             </Card>
           ))}
@@ -220,7 +274,14 @@ export default function NotificationsScreen() {
           title={notifications.length > 0 ? "Bu filtrede bildirim yok" : "Bildirim yok"}
           body={notifications.length > 0 ? "Farkli bir filtre secerek diger bildirimlere bakabilirsin." : "Yeni gelismeler burada gorunecek."}
           actionLabel={notifications.length > 0 ? "Tumunu Goster" : undefined}
-          onAction={notifications.length > 0 ? () => setFilter("all") : undefined}
+          onAction={
+            notifications.length > 0
+              ? () => {
+                  captureEvent("notifications_filter_reset");
+                  setFilter("all");
+                }
+              : undefined
+          }
         />
       )}
     </ScrollView>

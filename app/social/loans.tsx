@@ -49,11 +49,16 @@ export default function LoansScreen() {
       outgoing_count: outgoing.length,
       pending_count: pendingCount,
       active_count: activeCount,
+      filter,
       overdue_count: overdueCount,
     });
-  }, [activeCount, incoming.length, loanRequests.length, outgoing.length, overdueCount, pendingCount]);
+  }, [activeCount, filter, incoming.length, loanRequests.length, outgoing.length, overdueCount, pendingCount]);
 
   function handleFilter(nextFilter: LoanFilter) {
+    if (activeStatusAction || isUpdating) {
+      return;
+    }
+
     setFilter(nextFilter);
     captureEvent("loan_requests_filter_selected", { filter: nextFilter });
   }
@@ -88,7 +93,7 @@ export default function LoansScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={Boolean(activeStatusAction) || isUpdating} />
         <Text variant="h2">Odunc Takibi</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -127,6 +132,7 @@ export default function LoansScreen() {
             title={option.label}
             variant={filter === option.value ? "primary" : "secondary"}
             onPress={() => handleFilter(option.value)}
+            disabled={Boolean(activeStatusAction) || isUpdating}
             style={styles.filterButton}
           />
         ))}
