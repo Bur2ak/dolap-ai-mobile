@@ -74,6 +74,7 @@ export default function EventPlannerScreen() {
 
   async function handleRecommend() {
     if (isBusy) {
+      captureEvent("event_recommend_blocked", { reason: "busy" });
       return;
     }
 
@@ -106,6 +107,7 @@ export default function EventPlannerScreen() {
 
   async function handleSave() {
     if (isBusy) {
+      captureEvent("event_save_blocked", { reason: "busy" });
       return;
     }
 
@@ -146,6 +148,7 @@ export default function EventPlannerScreen() {
 
   async function handleSaveToCalendar() {
     if (isBusy) {
+      captureEvent("event_calendar_save_blocked", { reason: "busy" });
       return;
     }
 
@@ -195,6 +198,7 @@ export default function EventPlannerScreen() {
 
   async function handlePlanSuggestion(suggestion: OutfitSuggestion) {
     if (isBusy) {
+      captureEvent("event_suggestion_plan_blocked", { reason: "busy", item_count: suggestion.items.length });
       return;
     }
 
@@ -249,15 +253,21 @@ export default function EventPlannerScreen() {
       <StyleCalendarCard
         days={styleCalendar}
         onPlanDay={(day) => {
+          if (isBusy) {
+            captureEvent("style_calendar_day_blocked", { date: day.date, reason: "busy", status: day.status });
+            return;
+          }
+
           setEventType(day.suggested_event_type);
           setEventDate(`${day.date}T09:00`);
           setTitle(day.status === "planned" ? day.title : "");
           setNotes(day.status === "planned" ? day.body : `Stil takvimi: ${day.title}. ${day.body}`);
           captureEvent("style_calendar_day_selected", { date: day.date, status: day.status });
         }}
+        disabled={isBusy}
       />
 
-      <Input label="Etkinlik adi" value={title} onChangeText={setTitle} placeholder="Orn. Cuma aksami yemek" />
+      <Input label="Etkinlik adi" value={title} onChangeText={setTitle} placeholder="Orn. Cuma aksami yemek" editable={!isBusy} />
 
       <Text variant="h3">Etkinlik tipi</Text>
       <View style={styles.wrap}>
@@ -268,6 +278,11 @@ export default function EventPlannerScreen() {
               key={event.value}
               style={[styles.chip, active && styles.activeChip]}
               onPress={() => {
+                if (isBusy) {
+                  captureEvent("event_type_blocked", { event_type: event.value, reason: "busy" });
+                  return;
+                }
+
                 setEventType(event.value);
                 captureEvent("event_type_selected", { event_type: event.value });
               }}
@@ -281,9 +296,9 @@ export default function EventPlannerScreen() {
         })}
       </View>
 
-      <Input label="Tarih ve saat" value={eventDate} onChangeText={setEventDate} placeholder={getExampleEventDate()} error={eventDate && !isValidEventDate(eventDate) ? eventDateFormatMessage : undefined} />
-      <Input label="Lokasyon" value={location} onChangeText={setLocation} placeholder="Opsiyonel" />
-      <Input label="Not" value={notes} onChangeText={setNotes} placeholder="Dress code, mekan, hava notu..." />
+      <Input label="Tarih ve saat" value={eventDate} onChangeText={setEventDate} placeholder={getExampleEventDate()} error={getEventDateInputError(eventDate)} editable={!isBusy} />
+      <Input label="Lokasyon" value={location} onChangeText={setLocation} placeholder="Opsiyonel" editable={!isBusy} />
+      <Input label="Not" value={notes} onChangeText={setNotes} placeholder="Dress code, mekan, hava notu..." editable={!isBusy} />
 
       <View style={styles.actions}>
         <Button title="Kombin Bul" onPress={handleRecommend} loading={isRecommending} disabled={isBusy} />
@@ -366,6 +381,7 @@ export default function EventPlannerScreen() {
               onUpdate={updateEvent}
               onDelete={deleteEvent}
               isSaving={isSaving}
+              disabled={isBusy}
             />
           ))
         ) : (
@@ -376,7 +392,7 @@ export default function EventPlannerScreen() {
   );
 }
 
-function StyleCalendarCard({ days, onPlanDay }: { days: StyleCalendarDay[]; onPlanDay: (day: StyleCalendarDay) => void }) {
+function StyleCalendarCard({ days, onPlanDay, disabled }: { days: StyleCalendarDay[]; onPlanDay: (day: StyleCalendarDay) => void; disabled: boolean }) {
   return (
     <Card style={styles.calendarCard}>
       <View style={styles.calendarHeader}>
@@ -390,7 +406,7 @@ function StyleCalendarCard({ days, onPlanDay }: { days: StyleCalendarDay[]; onPl
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.calendarStrip}>
         {days.map((day) => (
-          <Pressable key={day.date} style={[styles.dayCard, day.status === "planned" && styles.dayCardPlanned]} onPress={() => onPlanDay(day)}>
+          <Pressable key={day.date} style={[styles.dayCard, day.status === "planned" && styles.dayCardPlanned, disabled && styles.disabledAction]} onPress={() => onPlanDay(day)} disabled={disabled}>
             <Text variant="caption" color={day.status === "planned" ? "inverse" : "muted"}>
               {day.day_label}
             </Text>
@@ -415,11 +431,13 @@ function EventPlanCard({
   onUpdate,
   onDelete,
   isSaving,
+  disabled,
 }: {
   event: EventRecord;
   onUpdate: ReturnType<typeof useEventPlanner>["updateEvent"];
   onDelete: ReturnType<typeof useEventPlanner>["deleteEvent"];
   isSaving: boolean;
+  disabled: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(event.title);
@@ -428,7 +446,7 @@ function EventPlanCard({
   const [location, setLocation] = useState(event.location ?? "");
   const [notes, setNotes] = useState(event.notes ?? "");
   const [activeAction, setActiveAction] = useState<"save" | "calendar" | "reminder" | "delete" | null>(null);
-  const isCardBusy = isSaving || Boolean(activeAction);
+  const isCardBusy = disabled || isSaving || Boolean(activeAction);
 
   useEffect(() => {
     setTitle(event.title);
@@ -440,6 +458,7 @@ function EventPlanCard({
 
   async function handleSave() {
     if (isCardBusy) {
+      captureEvent("event_plan_edit_blocked", { event_id: event.id, reason: "busy" });
       return;
     }
 
@@ -474,6 +493,7 @@ function EventPlanCard({
 
   async function handleAddToCalendar() {
     if (isCardBusy) {
+      captureEvent("event_calendar_existing_blocked", { event_id: event.id, reason: "busy" });
       return;
     }
 
@@ -510,6 +530,7 @@ function EventPlanCard({
 
   async function handleScheduleReminder() {
     if (isCardBusy) {
+      captureEvent("event_reminder_blocked", { event_id: event.id, reason: "busy" });
       return;
     }
 
@@ -531,6 +552,7 @@ function EventPlanCard({
 
   function handleDelete() {
     if (isCardBusy) {
+      captureEvent("event_plan_delete_blocked", { event_id: event.id, reason: "busy" });
       return;
     }
 
@@ -570,6 +592,11 @@ function EventPlanCard({
           <Pressable
             style={styles.iconButton}
             onPress={() => {
+              if (isCardBusy) {
+                captureEvent("event_plan_edit_toggle_blocked", { event_id: event.id, reason: "busy" });
+                return;
+              }
+
               const nextValue = !isEditing;
               captureEvent("event_plan_edit_toggled", { event_id: event.id, is_editing: nextValue });
               setIsEditing(nextValue);
@@ -586,13 +613,25 @@ function EventPlanCard({
 
       {isEditing ? (
         <View style={styles.editForm}>
-          <Input label="Etkinlik adi" value={title} onChangeText={setTitle} />
+          <Input label="Etkinlik adi" value={title} onChangeText={setTitle} editable={!isCardBusy} />
           <Text variant="label">Etkinlik tipi</Text>
           <View style={styles.wrap}>
             {EVENT_TYPES.map((option) => {
               const active = option.value === eventType;
               return (
-                <Pressable key={option.value} style={[styles.chip, active && styles.activeChip]} onPress={() => setEventType(option.value)} disabled={isCardBusy}>
+                <Pressable
+                  key={option.value}
+                  style={[styles.chip, active && styles.activeChip, isCardBusy && styles.disabledAction]}
+                  onPress={() => {
+                    if (isCardBusy) {
+                      captureEvent("event_plan_type_blocked", { event_id: event.id, event_type: option.value, reason: "busy" });
+                      return;
+                    }
+
+                    setEventType(option.value);
+                  }}
+                  disabled={isCardBusy}
+                >
                   <Text variant="label" color={active ? "inverse" : "secondary"}>
                     {option.label}
                   </Text>
@@ -600,9 +639,9 @@ function EventPlanCard({
               );
             })}
           </View>
-          <Input label="Tarih ve saat" value={eventDate} onChangeText={setEventDate} error={eventDate && !isValidEventDate(eventDate) ? eventDateFormatMessage : undefined} />
-          <Input label="Lokasyon" value={location} onChangeText={setLocation} />
-          <Input label="Not" value={notes} onChangeText={setNotes} />
+          <Input label="Tarih ve saat" value={eventDate} onChangeText={setEventDate} error={getEventDateInputError(eventDate)} editable={!isCardBusy} />
+          <Input label="Lokasyon" value={location} onChangeText={setLocation} editable={!isCardBusy} />
+          <Input label="Not" value={notes} onChangeText={setNotes} editable={!isCardBusy} />
           <Button title="Degisiklikleri Kaydet" onPress={handleSave} loading={activeAction === "save"} disabled={isCardBusy} />
         </View>
       ) : (
@@ -664,6 +703,22 @@ function isValidEventDate(value: string) {
 function isPastEventDate(value: string) {
   const date = new Date(value);
   return !Number.isNaN(date.getTime()) && date.getTime() < Date.now();
+}
+
+function getEventDateInputError(value: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  if (!isValidEventDate(value)) {
+    return eventDateFormatMessage;
+  }
+
+  if (isPastEventDate(value)) {
+    return "Etkinlik tarihi gecmiste olamaz.";
+  }
+
+  return undefined;
 }
 
 function getEventFormValidationError(title: string, eventDate: string) {
@@ -766,6 +821,9 @@ const styles = StyleSheet.create({
   activeChip: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
+  },
+  disabledAction: {
+    opacity: 0.52,
   },
   actions: {
     gap: SPACING.sm,
