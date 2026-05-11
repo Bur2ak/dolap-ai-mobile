@@ -57,6 +57,29 @@ export default function LoginScreen() {
     }
   }
 
+  function openForgotPassword() {
+    if (isSubmitting) {
+      captureEvent("auth_login_navigation_blocked", { reason: "busy", target: "forgot_password" });
+      return;
+    }
+
+    captureEvent("auth_login_navigation_opened", { target: "forgot_password" });
+    router.push("/(auth)/forgot-password");
+  }
+
+  function openRegister() {
+    if (isSubmitting) {
+      captureEvent("auth_login_navigation_blocked", { reason: "busy", target: "register" });
+      return;
+    }
+
+    captureEvent("auth_login_navigation_opened", { has_return_to: Boolean(returnTo), target: "register" });
+    router.push({
+      pathname: "/(auth)/register",
+      params: returnTo ? { returnTo } : undefined,
+    });
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text variant="h1">Tekrar hos geldin</Text>
@@ -68,18 +91,8 @@ export default function LoginScreen() {
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
         <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry editable={!isSubmitting} />
         <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
-        <Button title="Sifremi unuttum" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} disabled={isSubmitting} />
-        <Button
-          title="Hesabin yok mu? Kayit ol"
-          variant="ghost"
-          onPress={() =>
-            router.push({
-              pathname: "/(auth)/register",
-              params: returnTo ? { returnTo } : undefined,
-            })
-          }
-          disabled={isSubmitting}
-        />
+        <Button title="Sifremi unuttum" variant="ghost" onPress={openForgotPassword} disabled={isSubmitting} />
+        <Button title="Hesabin yok mu? Kayit ol" variant="ghost" onPress={openRegister} disabled={isSubmitting} />
       </View>
     </ScrollView>
   );

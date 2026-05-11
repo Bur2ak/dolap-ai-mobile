@@ -27,6 +27,12 @@ export default function ResetPasswordScreen() {
       return;
     }
 
+    if (!session) {
+      captureEvent("auth_password_reset_complete_blocked", { reason: "missing_session" });
+      Alert.alert("Link gerekli", "Sifre yenilemek icin emailindeki guncel sifirlama linkini acmalisin.");
+      return;
+    }
+
     if (password.length < 8) {
       captureEvent("auth_password_reset_complete_blocked", { reason: "short_password" });
       Alert.alert("Sifre kisa", "Yeni sifre en az 8 karakter olmali.");
@@ -53,6 +59,16 @@ export default function ResetPasswordScreen() {
     }
   }
 
+  function requestNewLink() {
+    if (isSubmitting) {
+      captureEvent("auth_password_reset_navigation_blocked", { reason: "busy", target: "forgot_password" });
+      return;
+    }
+
+    captureEvent("auth_password_reset_navigation_opened", { target: "forgot_password" });
+    router.replace("/(auth)/forgot-password");
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text variant="h1">Yeni sifre belirle</Text>
@@ -65,7 +81,7 @@ export default function ResetPasswordScreen() {
           <Text variant="body" color="secondary">
             Sifre yenilemek icin emailindeki guncel sifirlama linkini acmalisin.
           </Text>
-          <Button title="Yeni Link Iste" variant="secondary" onPress={() => router.replace("/(auth)/forgot-password")} disabled={isSubmitting} />
+          <Button title="Yeni Link Iste" variant="secondary" onPress={requestNewLink} disabled={isSubmitting} />
         </View>
       ) : (
         <View style={styles.form}>

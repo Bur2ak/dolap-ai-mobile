@@ -49,6 +49,16 @@ export default function ForgotPasswordScreen() {
     }
   }
 
+  function openLogin() {
+    if (isSubmitting) {
+      captureEvent("auth_password_reset_navigation_blocked", { reason: "busy", target: "login" });
+      return;
+    }
+
+    captureEvent("auth_password_reset_navigation_opened", { target: "login" });
+    router.back();
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text variant="h1">Sifreni sifirla</Text>
@@ -59,7 +69,7 @@ export default function ForgotPasswordScreen() {
       <View style={styles.form}>
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
         <Button title="Link Gonder" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
-        <Button title="Giris ekranina don" variant="ghost" onPress={() => router.back()} disabled={isSubmitting} />
+        <Button title="Giris ekranina don" variant="ghost" onPress={openLogin} disabled={isSubmitting} />
       </View>
     </ScrollView>
   );

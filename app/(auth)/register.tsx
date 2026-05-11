@@ -76,6 +76,29 @@ export default function RegisterScreen() {
     }
   }
 
+  function openLegalLink(target: "kvkk" | "privacy" | "terms") {
+    if (isSubmitting) {
+      captureEvent("auth_register_legal_link_blocked", { reason: "busy", target });
+      return;
+    }
+
+    captureEvent("auth_register_legal_link_opened", { target });
+    router.push(`/legal/${target}`);
+  }
+
+  function openLogin() {
+    if (isSubmitting) {
+      captureEvent("auth_register_navigation_blocked", { reason: "busy", target: "login" });
+      return;
+    }
+
+    captureEvent("auth_register_navigation_opened", { has_return_to: Boolean(returnTo), target: "login" });
+    router.push({
+      pathname: "/(auth)/login",
+      params: returnTo ? { returnTo } : undefined,
+    });
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text variant="h1">Dolabini kur</Text>
@@ -117,30 +140,21 @@ export default function RegisterScreen() {
           <Button
             title="KVKK"
             variant="ghost"
-            onPress={() => {
-              captureEvent("auth_register_legal_link_opened", { target: "kvkk" });
-              router.push("/legal/kvkk");
-            }}
+            onPress={() => openLegalLink("kvkk")}
             disabled={isSubmitting}
             style={styles.linkButton}
           />
           <Button
             title="Gizlilik"
             variant="ghost"
-            onPress={() => {
-              captureEvent("auth_register_legal_link_opened", { target: "privacy" });
-              router.push("/legal/privacy");
-            }}
+            onPress={() => openLegalLink("privacy")}
             disabled={isSubmitting}
             style={styles.linkButton}
           />
           <Button
             title="Sartlar"
             variant="ghost"
-            onPress={() => {
-              captureEvent("auth_register_legal_link_opened", { target: "terms" });
-              router.push("/legal/terms");
-            }}
+            onPress={() => openLegalLink("terms")}
             disabled={isSubmitting}
             style={styles.linkButton}
           />
@@ -148,12 +162,7 @@ export default function RegisterScreen() {
         <Button
           title="Zaten hesabim var"
           variant="ghost"
-          onPress={() =>
-            router.push({
-              pathname: "/(auth)/login",
-              params: returnTo ? { returnTo } : undefined,
-            })
-          }
+          onPress={openLogin}
           disabled={isSubmitting}
         />
       </View>

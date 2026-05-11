@@ -111,6 +111,11 @@ export default function PaywallScreen() {
   }
 
   async function handlePurchase(revenueCatPackage: PurchasesPackage) {
+    if (isBusy) {
+      captureEvent("purchase_blocked", { reason: "busy", package_id: revenueCatPackage.identifier, source: "confirm" });
+      return;
+    }
+
     setActivePackageId(revenueCatPackage.identifier);
     try {
       setIsPurchasing(true);
@@ -161,6 +166,16 @@ export default function PaywallScreen() {
     } finally {
       setIsRestoring(false);
     }
+  }
+
+  function handleRetryPackages() {
+    if (isBusy) {
+      captureEvent("paywall_packages_retry_blocked", { reason: "busy" });
+      return;
+    }
+
+    captureEvent("paywall_packages_retry_pressed");
+    void loadPackages();
   }
 
   return (
@@ -225,10 +240,7 @@ export default function PaywallScreen() {
             <Button
               title="Tekrar Dene"
               variant="secondary"
-              onPress={() => {
-                captureEvent("paywall_packages_retry_pressed");
-                void loadPackages();
-              }}
+              onPress={handleRetryPackages}
               loading={isLoadingPackages}
               disabled={isBusy}
             />
