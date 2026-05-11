@@ -9,6 +9,7 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
+import { getConfirmPasswordInputError, getPasswordInputError } from "@/utils/validation";
 
 export default function ResetPasswordScreen() {
   const { session, updatePassword } = useAuthStore();
@@ -68,8 +69,8 @@ export default function ResetPasswordScreen() {
         </View>
       ) : (
         <View style={styles.form}>
-          <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry editable={!isSubmitting} />
-          <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry editable={!isSubmitting} />
+          <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry error={getPasswordInputError(password)} editable={!isSubmitting} />
+          <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry error={getConfirmPasswordInputError(password, confirmPassword)} editable={!isSubmitting} />
           <Button title="Sifreyi Yenile" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         </View>
       )}

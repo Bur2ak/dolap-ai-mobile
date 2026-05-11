@@ -10,7 +10,7 @@ import { SPACING } from "@/constants/spacing";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { useAuthStore } from "@/stores/authStore";
-import { isValidEmail, normalizeEmail } from "@/utils/validation";
+import { getEmailInputError, isValidEmail, normalizeEmail } from "@/utils/validation";
 
 export default function LoginScreen() {
   const { returnTo: returnToParam } = useLocalSearchParams<{ returnTo?: string | string[] }>();
@@ -65,7 +65,7 @@ export default function LoginScreen() {
       </Text>
 
       <View style={styles.form}>
-        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" editable={!isSubmitting} />
+        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
         <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry editable={!isSubmitting} />
         <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         <Button title="Sifremi unuttum" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} disabled={isSubmitting} />

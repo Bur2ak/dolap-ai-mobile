@@ -8,6 +8,9 @@ import { deleteWardrobeImagesForUserItem, uploadWardrobeImage } from "@/lib/stor
 import type { CreateWardrobeItemInput, UpdateWardrobeItemInput, WardrobeItem } from "@/types";
 import { formatDateOnly } from "@/utils/formatters";
 
+const validCategories = new Set(["ust", "alt", "elbise", "etek", "dis_giyim", "ayakkabi", "canta", "aksesuar", "ic_giyim", "spor", "diger"]);
+const validSeasons = new Set(["ilkbahar", "yaz", "sonbahar", "kis"]);
+
 export async function fetchWardrobeItems(userId: string): Promise<WardrobeItem[]> {
   try {
     const { data, error } = await supabase
@@ -51,10 +54,11 @@ export async function fetchWardrobeItem(userId: string, itemId: string): Promise
 }
 
 export async function createWardrobeItem(userId: string, input: CreateWardrobeItemInput): Promise<WardrobeItem> {
+  const normalizedInput = normalizeWardrobeItemInput(input, true);
   const itemId = nanoid();
   let imageUrl = input.image_url;
   let thumbnailUrl = input.thumbnail_url ?? null;
-  const socialFlags = normalizeWardrobeSocialFlags(input);
+  const socialFlags = normalizeWardrobeSocialFlags(normalizedInput);
 
   if (input.image_url.startsWith("file:") || input.image_url.startsWith("blob:")) {
     imageUrl = await uploadWardrobeImage(userId, input.image_url, itemId, "image");
@@ -70,13 +74,13 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
       user_id: userId,
       image_url: imageUrl,
       thumbnail_url: thumbnailUrl,
-      category: input.category,
-      subcategory: input.subcategory ?? null,
-      colors: input.colors ?? [],
-      dominant_color_hex: input.dominant_color_hex ?? null,
-      season: input.season ?? [],
-      brand: input.brand ?? null,
-      purchase_price: input.purchase_price ?? null,
+      category: normalizedInput.category,
+      subcategory: normalizedInput.subcategory ?? null,
+      colors: normalizedInput.colors ?? [],
+      dominant_color_hex: normalizedInput.dominant_color_hex ?? null,
+      season: normalizedInput.season ?? [],
+      brand: normalizedInput.brand ?? null,
+      purchase_price: normalizedInput.purchase_price ?? null,
       is_shareable: socialFlags.is_shareable ?? false,
       is_lendable: socialFlags.is_lendable ?? false,
     })
@@ -101,10 +105,11 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
 }
 
 export async function updateWardrobeItem(userId: string, itemId: string, input: UpdateWardrobeItemInput): Promise<WardrobeItem> {
-  const updates = normalizeWardrobeSocialFlags(input);
+  const normalizedInput = normalizeWardrobeItemInput(input, false);
+  const updates = normalizeWardrobeSocialFlags(normalizedInput);
   const { data, error } = await supabase
     .from("wardrobe_items")
-    .update({ ...input, ...updates, updated_at: new Date().toISOString() })
+    .update({ ...normalizedInput, ...updates, updated_at: new Date().toISOString() })
     .eq("user_id", userId)
     .eq("id", itemId)
     .select("*")
@@ -123,6 +128,73 @@ export async function updateWardrobeItem(userId: string, itemId: string, input: 
   });
 
   return item;
+}
+
+function normalizeWardrobeItemInput<T extends CreateWardrobeItemInput | UpdateWardrobeItemInput>(input: T, requireMetadata: boolean): T {
+  const normalized = { ...input };
+
+  if ("image_url" in normalized && typeof normalized.image_url === "string") {
+    normalized.image_url = normalized.image_url.trim();
+    if (requireMetadata && !normalized.image_url) {
+      throw new Error("Kiyafet fotografi gerekli.");
+    }
+  }
+
+  if (normalized.category !== undefined && !validCategories.has(normalized.category)) {
+    throw new Error("Gecerli bir kategori sec.");
+  }
+
+  if (normalized.subcategory !== undefined) {
+    const subcategory = normalized.subcategory?.trim() ?? "";
+    if (!subcategory) {
+      throw new Error("Alt kategori dolabinda parcayi bulmak icin gerekli.");
+    }
+    normalized.subcategory = subcategory.slice(0, 80);
+  } else if (requireMetadata) {
+    throw new Error("Alt kategori dolabinda parcayi bulmak icin gerekli.");
+  }
+
+  if (normalized.colors !== undefined) {
+    const colors = normalized.colors.map((color) => color.trim()).filter(Boolean).slice(0, 8);
+    if (colors.length === 0) {
+      throw new Error("En az bir renk ekle.");
+    }
+    normalized.colors = colors;
+  } else if (requireMetadata) {
+    throw new Error("En az bir renk ekle.");
+  }
+
+  if (normalized.season !== undefined) {
+    const seasons = normalized.season.filter((season, index, allSeasons) => validSeasons.has(season) && allSeasons.indexOf(season) === index);
+    if (seasons.length === 0) {
+      throw new Error("En az bir sezon sec.");
+    }
+    normalized.season = seasons;
+  } else if (requireMetadata) {
+    throw new Error("En az bir sezon sec.");
+  }
+
+  if (normalized.brand !== undefined) {
+    normalized.brand = normalized.brand?.trim().slice(0, 80) || null;
+  }
+
+  if (normalized.dominant_color_hex !== undefined) {
+    const color = normalized.dominant_color_hex?.trim() ?? "";
+    normalized.dominant_color_hex = /^#[0-9a-f]{6}$/i.test(color) ? color : null;
+  }
+
+  if (normalized.purchase_price !== undefined && normalized.purchase_price !== null) {
+    if (!Number.isFinite(normalized.purchase_price) || normalized.purchase_price < 0) {
+      throw new Error("Gecerli bir fiyat gir.");
+    }
+    normalized.purchase_price = Math.round(normalized.purchase_price * 100) / 100;
+  }
+
+  if ("wear_count" in normalized && normalized.wear_count !== undefined) {
+    normalized.wear_count = Math.max(0, Math.trunc(normalized.wear_count));
+  }
+
+  return normalized;
 }
 
 function normalizeWardrobeSocialFlags(input: Pick<UpdateWardrobeItemInput, "is_shareable" | "is_lendable">) {

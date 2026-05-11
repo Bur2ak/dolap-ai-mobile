@@ -20,7 +20,7 @@ import { removeImageBackground } from "@/lib/ai/removeBackground";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { ClothingAnalysisResult, ClothingCategory, Season } from "@/types";
 import { getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
-import { getWardrobeMetadataInputError, parseColorList } from "@/utils/wardrobeValidation";
+import { getColorListInputError, getSubcategoryInputError, getWardrobeMetadataInputError, parseColorList } from "@/utils/wardrobeValidation";
 import { createThumbnail, optimizeImage } from "@/utils/imageUtils";
 
 type Step = "select" | "metadata";
@@ -138,6 +138,27 @@ export default function AddItemScreen() {
 
     setAnalysis((current) => ({ ...current, category }));
     captureEvent("wardrobe_add_category_selected", { category });
+  }
+
+  function updateSubcategory(value: string) {
+    if (isBusy) {
+      captureEvent("wardrobe_add_subcategory_blocked", { reason: "busy" });
+      return;
+    }
+
+    setAnalysis((current) => ({ ...current, subcategory: value }));
+  }
+
+  function updateColors(value: string) {
+    if (isBusy) {
+      captureEvent("wardrobe_add_colors_blocked", { reason: "busy" });
+      return;
+    }
+
+    setAnalysis((current) => ({
+      ...current,
+      colors: parseColorList(value),
+    }));
   }
 
   function toggleSeason(season: Season) {
@@ -356,21 +377,15 @@ export default function AddItemScreen() {
           <Input
             label="Alt kategori"
             value={analysis.subcategory}
-            onChangeText={(value) => setAnalysis((current) => ({ ...current, subcategory: value }))}
+            onChangeText={updateSubcategory}
+            error={getSubcategoryInputError(analysis.subcategory)}
             editable={!isBusy}
           />
           <Input
             label="Renkler"
             value={analysis.colors.join(", ")}
-            onChangeText={(value) =>
-              setAnalysis((current) => ({
-                ...current,
-                colors: value
-                  .split(",")
-                  .map((color) => color.trim())
-                  .filter(Boolean),
-              }))
-            }
+            onChangeText={updateColors}
+            error={getColorListInputError(analysis.colors.join(", "))}
             editable={!isBusy}
           />
           <Input label="Marka" value={brand} onChangeText={setBrand} editable={!isBusy} />

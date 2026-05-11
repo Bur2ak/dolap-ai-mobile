@@ -10,7 +10,7 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
-import { isValidEmail, normalizeEmail } from "@/utils/validation";
+import { getEmailInputError, isValidEmail, normalizeEmail } from "@/utils/validation";
 
 export default function ForgotPasswordScreen() {
   const { resetPassword } = useAuthStore();
@@ -57,7 +57,7 @@ export default function ForgotPasswordScreen() {
       </Text>
 
       <View style={styles.form}>
-        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" editable={!isSubmitting} />
+        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
         <Button title="Link Gonder" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         <Button title="Giris ekranina don" variant="ghost" onPress={() => router.back()} disabled={isSubmitting} />
       </View>

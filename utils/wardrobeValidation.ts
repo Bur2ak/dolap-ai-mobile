@@ -15,6 +15,14 @@ export function parseColorList(value: string) {
     .filter(Boolean);
 }
 
+export function getSubcategoryInputError(value: string) {
+  return value.trim() ? undefined : "Alt kategori gerekli.";
+}
+
+export function getColorListInputError(value: string) {
+  return parseColorList(value).length > 0 ? undefined : "En az bir renk yaz.";
+}
+
 export function getWardrobeMetadataInputError(input: WardrobeMetadataInput) {
   if (!input.subcategory.trim()) {
     return { message: "Alt kategori dolabinda parcayi bulmak icin gerekli.", title: "Alt kategori gerekli" };

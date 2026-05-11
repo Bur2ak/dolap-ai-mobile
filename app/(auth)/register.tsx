@@ -11,7 +11,7 @@ import { SPACING } from "@/constants/spacing";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { useAuthStore } from "@/stores/authStore";
-import { isValidEmail, normalizeEmail } from "@/utils/validation";
+import { getEmailInputError, getPasswordInputError, isValidEmail, normalizeEmail } from "@/utils/validation";
 
 export default function RegisterScreen() {
   const { returnTo: returnToParam } = useLocalSearchParams<{ returnTo?: string | string[] }>();
@@ -85,8 +85,8 @@ export default function RegisterScreen() {
 
       <View style={styles.form}>
         <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isSubmitting} />
-        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" editable={!isSubmitting} />
-        <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry editable={!isSubmitting} />
+        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
+        <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry error={getPasswordInputError(password)} editable={!isSubmitting} />
         <Pressable
           style={styles.consentRow}
           onPress={() =>

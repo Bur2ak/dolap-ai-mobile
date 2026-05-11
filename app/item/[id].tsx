@@ -20,7 +20,7 @@ import type { CareRecommendation, ClothingCategory, Season, SustainabilityInsigh
 import { getCareRecommendations } from "@/utils/care";
 import { getCostPerWearLabel, getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
 import { getSustainabilityInsight } from "@/utils/sustainability";
-import { getWardrobeMetadataInputError, parseColorList } from "@/utils/wardrobeValidation";
+import { getColorListInputError, getSubcategoryInputError, getWardrobeMetadataInputError, parseColorList } from "@/utils/wardrobeValidation";
 
 export default function ItemDetailScreen() {
   const { id: idParam } = useLocalSearchParams<{ id: string | string[] }>();
@@ -304,8 +304,8 @@ export default function ItemDetailScreen() {
                 })}
               </View>
 
-              <Input label="Alt kategori" value={subcategory} onChangeText={setSubcategory} editable={!isActionBusy} />
-              <Input label="Renkler" value={colors} onChangeText={setColors} editable={!isActionBusy} />
+              <Input label="Alt kategori" value={subcategory} onChangeText={setSubcategory} error={getSubcategoryInputError(subcategory)} editable={!isActionBusy} />
+              <Input label="Renkler" value={colors} onChangeText={setColors} error={getColorListInputError(colors)} editable={!isActionBusy} />
               <Input label="Marka" value={brand} onChangeText={setBrand} editable={!isActionBusy} />
               <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} editable={!isActionBusy} />
               <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={activeAction === "save"} disabled={isActionBusy} />

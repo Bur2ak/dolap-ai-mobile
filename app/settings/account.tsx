@@ -13,7 +13,7 @@ import { createPublicAppLink } from "@/lib/links";
 import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import { formatDate, formatDateOnly } from "@/utils/formatters";
-import { isValidUsername, normalizeUsername } from "@/utils/validation";
+import { getConfirmPasswordInputError, getPasswordInputError, getUsernameInputError, isValidUsername, normalizeUsername } from "@/utils/validation";
 
 const maxBioLength = 160;
 
@@ -219,7 +219,7 @@ export default function AccountSettingsScreen() {
       <Card style={styles.form}>
         <Text variant="h3">Profil bilgileri</Text>
         <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isBusy} />
-        <Input label="Kullanici adi" value={username} onChangeText={setUsername} autoCapitalize="none" editable={!isBusy} />
+        <Input label="Kullanici adi" value={username} onChangeText={setUsername} autoCapitalize="none" error={getUsernameInputError(username)} editable={!isBusy} />
         <Text variant="caption" color="muted">
           3-24 karakter; harf, rakam ve alt cizgi kullan.
         </Text>
@@ -232,8 +232,8 @@ export default function AccountSettingsScreen() {
 
       <Card style={styles.form}>
         <Text variant="h3">Guvenlik</Text>
-        <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" editable={!isBusy} />
-        <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoCapitalize="none" editable={!isBusy} />
+        <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" error={getPasswordInputError(password)} editable={!isBusy} />
+        <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoCapitalize="none" error={getConfirmPasswordInputError(password, confirmPassword)} editable={!isBusy} />
         <Text variant="caption" color="muted">
           Sifre en az 8 karakter olmali.
         </Text>
