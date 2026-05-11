@@ -55,6 +55,11 @@ export default function AnalyticsScreen() {
   }, [analytics.sustainability_score, analytics.total_items, analytics.utilization_score, hasBlockingError]);
 
   function handleRefetch() {
+    if (activeMissingPieceKey || isCreatingTracking || isUpdating) {
+      captureEvent("analytics_refetch_blocked", { reason: "busy", has_blocking_error: hasBlockingError });
+      return;
+    }
+
     captureEvent("analytics_refetch_requested", { has_blocking_error: hasBlockingError });
     void refetch();
   }
@@ -62,6 +67,7 @@ export default function AnalyticsScreen() {
   async function handleAddMissingPiece(piece: MissingWardrobePiece) {
     const pieceKey = getMissingPieceKey(piece);
     if (activeMissingPieceKey || isCreatingTracking) {
+      captureEvent("analytics_missing_piece_track_blocked", { reason: "busy", category: piece.category, priority: piece.priority });
       return;
     }
 
@@ -392,7 +398,7 @@ function MissingPiecesCard({
                   variant="secondary"
                   onPress={() => void onAddToTracking(piece)}
                   loading={isActive}
-                  disabled={isAdding && !isActive}
+                  disabled={Boolean(activePieceKey) || isAdding}
                   style={styles.missingAction}
                 />
               </View>
@@ -429,6 +435,7 @@ function DetoxItemList({
 
   async function handleMarkWorn(item: WardrobeItem) {
     if (activeAction || isUpdating) {
+      captureEvent("analytics_detox_action_blocked", { action: "worn", item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -447,6 +454,7 @@ function DetoxItemList({
 
   async function handleLendable(item: WardrobeItem) {
     if (activeAction || isUpdating) {
+      captureEvent("analytics_detox_action_blocked", { action: "lendable", item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -465,6 +473,7 @@ function DetoxItemList({
 
   function handleListingDraft(item: WardrobeItem) {
     if (activeAction || isUpdating) {
+      captureEvent("analytics_detox_action_blocked", { action: "listing", item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -484,6 +493,7 @@ function DetoxItemList({
 
   function handleDelete(item: WardrobeItem) {
     if (activeAction || isUpdating) {
+      captureEvent("analytics_detox_action_blocked", { action: "delete", item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -521,9 +531,15 @@ function DetoxItemList({
             <Pressable
               style={styles.itemRow}
               onPress={() => {
+                if (activeAction || isUpdating) {
+                  captureEvent("analytics_detox_item_open_blocked", { item_id: item.id, reason: "busy" });
+                  return;
+                }
+
                 captureEvent("analytics_detox_item_opened", { item_id: item.id });
                 router.push(`/item/${item.id}`);
               }}
+              disabled={Boolean(activeAction) || isUpdating}
             >
               <View style={[styles.itemDot, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
               <View style={styles.itemText}>

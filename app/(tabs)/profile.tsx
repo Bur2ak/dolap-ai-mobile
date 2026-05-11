@@ -27,12 +27,18 @@ export default function ProfileScreen() {
   }, [premium, profile?.deletion_requested_at, profileIncomplete]);
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
+    if (isSigningOut) {
+      captureEvent("profile_route_blocked", { label, reason: "signing_out" });
+      return;
+    }
+
     captureEvent("profile_route_opened", { label });
     router.push(route);
   }
 
   function handleSignOut() {
     if (isSigningOut) {
+      captureEvent("profile_sign_out_blocked", { reason: "busy" });
       return;
     }
 
@@ -67,6 +73,8 @@ export default function ProfileScreen() {
     }
   }
 
+  const routeDisabled = isSigningOut;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text variant="h1">Profil</Text>
@@ -90,7 +98,7 @@ export default function ProfileScreen() {
           <Text variant="body" color="secondary">
             Planlanan silme tarihi: {profile.deletion_scheduled_for ? formatDate(profile.deletion_scheduled_for) : "30 gun icinde"}. Talebi hesap ayarlarindan iptal edebilirsin.
           </Text>
-          <Button title="Talebi Yonet" variant="secondary" onPress={() => openRoute("/settings/account", "deletion_account")} />
+          <Button title="Talebi Yonet" variant="secondary" onPress={() => openRoute("/settings/account", "deletion_account")} disabled={routeDisabled} />
         </Card>
       ) : null}
 
@@ -102,7 +110,7 @@ export default function ProfileScreen() {
               Sinirsiz dolap, etkinlik planlayici ve gelismis analizleri ac.
             </Text>
           </View>
-          <Button title="Incele" onPress={() => openRoute("/paywall", "paywall")} />
+          <Button title="Incele" onPress={() => openRoute("/paywall", "paywall")} disabled={routeDisabled} />
         </Card>
       ) : null}
 
@@ -112,49 +120,49 @@ export default function ProfileScreen() {
           <Text variant="body" color="secondary">
             Kullanici adi ekleyince davet linkin daha okunur olur; sosyal akislarda arkadaslarin seni daha kolay bulur.
           </Text>
-          <Button title="Tamamla" variant="secondary" onPress={() => openRoute("/settings/account", "complete_profile")} />
+          <Button title="Tamamla" variant="secondary" onPress={() => openRoute("/settings/account", "complete_profile")} disabled={routeDisabled} />
         </Card>
       ) : null}
 
       <View style={styles.menu}>
         <Card>
-          <Button title="Ayarlar" variant="ghost" onPress={() => openRoute("/settings", "settings")} />
+          <Button title="Ayarlar" variant="ghost" onPress={() => openRoute("/settings", "settings")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Hesap Ayarlari" variant="ghost" onPress={() => openRoute("/settings/account", "account")} />
+          <Button title="Hesap Ayarlari" variant="ghost" onPress={() => openRoute("/settings/account", "account")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Gizlilik" variant="ghost" onPress={() => openRoute("/settings/privacy", "privacy")} />
+          <Button title="Gizlilik" variant="ghost" onPress={() => openRoute("/settings/privacy", "privacy")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Arkadaslarim" variant="ghost" onPress={() => openRoute("/social/friends", "friends")} />
+          <Button title="Arkadaslarim" variant="ghost" onPress={() => openRoute("/social/friends", "friends")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Odunc Takibi" variant="ghost" onPress={() => openRoute("/social/loans", "loans")} />
+          <Button title="Odunc Takibi" variant="ghost" onPress={() => openRoute("/social/loans", "loans")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Fiyat Takibi" variant="ghost" onPress={() => openRoute("/price-tracking", "price_tracking")} />
+          <Button title="Fiyat Takibi" variant="ghost" onPress={() => openRoute("/price-tracking", "price_tracking")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Bildirim Ayarlari" variant="ghost" onPress={() => openRoute("/settings/notifications", "notification_settings")} />
+          <Button title="Bildirim Ayarlari" variant="ghost" onPress={() => openRoute("/settings/notifications", "notification_settings")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Bildirim Kutusu" variant="ghost" onPress={() => openRoute("/notifications", "notification_inbox")} />
+          <Button title="Bildirim Kutusu" variant="ghost" onPress={() => openRoute("/notifications", "notification_inbox")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Sistem Durumu" variant="ghost" onPress={() => openRoute("/settings/diagnostics", "diagnostics")} />
+          <Button title="Sistem Durumu" variant="ghost" onPress={() => openRoute("/settings/diagnostics", "diagnostics")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Destek" variant="ghost" onPress={() => openRoute("/settings/support", "support")} />
+          <Button title="Destek" variant="ghost" onPress={() => openRoute("/settings/support", "support")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Aboneligim" variant="ghost" onPress={() => openRoute("/settings/subscription", "subscription")} />
+          <Button title="Aboneligim" variant="ghost" onPress={() => openRoute("/settings/subscription", "subscription")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Almali Miyim?" variant="ghost" onPress={() => openRoute("/buy-decision", "buy_decision")} />
+          <Button title="Almali Miyim?" variant="ghost" onPress={() => openRoute("/buy-decision", "buy_decision")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Suraya Gidiyorum" variant="ghost" onPress={() => openRoute("/event", "event")} />
+          <Button title="Suraya Gidiyorum" variant="ghost" onPress={() => openRoute("/event", "event")} disabled={routeDisabled} />
         </Card>
       </View>
 
