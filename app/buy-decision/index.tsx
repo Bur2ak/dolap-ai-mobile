@@ -356,6 +356,11 @@ export default function BuyDecisionScreen() {
           actionLabel="Tekrar Dene"
           loading={isRefetchingHistory}
           onAction={() => {
+            if (isActionBusy) {
+              captureEvent("buy_decision_history_refetch_blocked", { reason: "busy" });
+              return;
+            }
+
             captureEvent("buy_decision_history_refetch_requested");
             void refetchHistory();
           }}

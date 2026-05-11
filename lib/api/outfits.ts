@@ -33,6 +33,11 @@ export async function recommendOutfits(input: OutfitRecommendationInput): Promis
 }
 
 export async function saveOutfit(userId: string, input: OutfitRecommendationInput, suggestion: OutfitSuggestion, isShareable = false): Promise<OutfitRecord> {
+  const itemIds = normalizeSuggestionItemIds(userId, input.wardrobe, suggestion.items);
+  if (itemIds.length === 0) {
+    throw new Error("Kombin kaydetmek icin dolabindaki en az bir parca gerekli.");
+  }
+
   const { data: outfit, error } = await supabase
     .from("outfits")
     .insert({
@@ -53,7 +58,7 @@ export async function saveOutfit(userId: string, input: OutfitRecommendationInpu
     throwApiError(error, "Kombin kaydedilemedi.");
   }
 
-  const rows = suggestion.items.map((itemId, index) => ({
+  const rows = itemIds.map((itemId, index) => ({
     outfit_id: outfit.id,
     item_id: itemId,
     position: index,
@@ -67,6 +72,20 @@ export async function saveOutfit(userId: string, input: OutfitRecommendationInpu
   }
 
   return outfit as OutfitRecord;
+}
+
+function normalizeSuggestionItemIds(userId: string, wardrobe: WardrobeItem[], itemIds: string[]) {
+  const allowedItemIds = new Set(wardrobe.filter((item) => item.user_id === userId && item.is_active).map((item) => item.id));
+  const seenItemIds = new Set<string>();
+
+  return itemIds.filter((itemId) => {
+    if (!allowedItemIds.has(itemId) || seenItemIds.has(itemId)) {
+      return false;
+    }
+
+    seenItemIds.add(itemId);
+    return true;
+  });
 }
 
 export async function saveSharedOutfit(userId: string, input: OutfitRecommendationInput, suggestion: OutfitSuggestion): Promise<OutfitRecord> {

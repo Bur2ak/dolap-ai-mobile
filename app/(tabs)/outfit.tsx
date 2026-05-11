@@ -78,6 +78,7 @@ export default function OutfitScreen() {
 
   async function handleRecommend() {
     if (isActionBusy) {
+      captureEvent("outfit_recommend_blocked", { reason: "busy" });
       return;
     }
 
@@ -126,6 +127,7 @@ export default function OutfitScreen() {
 
   async function handleAskFriend(suggestion: OutfitSuggestion) {
     if (isActionBusy) {
+      captureEvent("outfit_share_blocked", { reason: "busy", item_count: suggestion.items.length });
       return;
     }
 
@@ -162,6 +164,7 @@ export default function OutfitScreen() {
 
   async function handleSaveOutfit(suggestion: OutfitSuggestion) {
     if (isActionBusy) {
+      captureEvent("outfit_save_blocked", { reason: "busy", item_count: suggestion.items.length });
       return;
     }
 
@@ -189,6 +192,7 @@ export default function OutfitScreen() {
 
   function handleUseCapsule() {
     if (isActionBusy) {
+      captureEvent("outfit_capsule_apply_blocked", { reason: "busy" });
       return;
     }
 
@@ -264,10 +268,15 @@ export default function OutfitScreen() {
               title={focusItemId === repeatCandidate.id ? "Odak Secildi" : "Bu Parcayla Oner"}
               variant="secondary"
               onPress={() => {
+                if (isActionBusy) {
+                  captureEvent("outfit_focus_item_blocked", { source: "repeat_candidate", reason: "busy" });
+                  return;
+                }
+
                 setFocusItemId(repeatCandidate.id);
                 captureEvent("outfit_focus_item_selected", { source: "repeat_candidate" });
               }}
-              disabled={isBusy}
+              disabled={isActionBusy}
             />
             {focusItemId ? (
               <Button
@@ -324,6 +333,11 @@ export default function OutfitScreen() {
                   key={item.id}
                   style={styles.capsuleItem}
                   onPress={() => {
+                    if (isActionBusy) {
+                      captureEvent("outfit_focus_item_blocked", { source: "capsule_core", reason: "busy" });
+                      return;
+                    }
+
                     setFocusItemId(item.id);
                     captureEvent("outfit_focus_item_selected", { source: "capsule_core" });
                   }}
@@ -351,6 +365,11 @@ export default function OutfitScreen() {
                   style={styles.capsuleIdea}
                   disabled={isActionBusy}
                   onPress={() => {
+                    if (isActionBusy) {
+                      captureEvent("outfit_capsule_idea_blocked", { reason: "busy", item_count: idea.item_ids.length });
+                      return;
+                    }
+
                     setSelectedEvent(idea.event);
                     setFocusItemId(idea.item_ids[0] ?? null);
                     captureEvent("outfit_capsule_idea_selected", { item_count: idea.item_ids.length });
@@ -376,6 +395,11 @@ export default function OutfitScreen() {
             key={event.value}
             style={[styles.chip, selectedEvent === event.value && styles.activeChip]}
             onPress={() => {
+              if (isActionBusy) {
+                captureEvent("outfit_preference_blocked", { field: "event", reason: "busy", value: event.value });
+                return;
+              }
+
               setSelectedEvent(event.value);
               captureEvent("outfit_preference_changed", { field: "event", value: event.value });
             }}
@@ -395,6 +419,11 @@ export default function OutfitScreen() {
             key={mood}
             style={[styles.chip, selectedMood === mood && styles.activeChip]}
             onPress={() => {
+              if (isActionBusy) {
+                captureEvent("outfit_preference_blocked", { field: "mood", reason: "busy", value: mood });
+                return;
+              }
+
               setSelectedMood(mood);
               captureEvent("outfit_preference_changed", { field: "mood", value: mood });
             }}
@@ -479,6 +508,11 @@ export default function OutfitScreen() {
             actionLabel="Tekrar Dene"
             loading={isRefetchingSavedOutfits}
             onAction={() => {
+              if (isActionBusy) {
+                captureEvent("outfit_saved_refetch_blocked", { reason: "busy" });
+                return;
+              }
+
               captureEvent("outfit_saved_refetch_requested");
               void refetchSavedOutfits();
             }}
@@ -488,6 +522,11 @@ export default function OutfitScreen() {
             <Pressable
               key={saved.outfit.id}
               onPress={() => {
+                if (isActionBusy) {
+                  captureEvent("outfit_saved_open_blocked", { outfit_id: saved.outfit.id, reason: "busy" });
+                  return;
+                }
+
                 captureEvent("outfit_saved_opened", { outfit_id: saved.outfit.id, item_count: saved.items.length });
                 router.push(`/outfit/${saved.outfit.id}`);
               }}

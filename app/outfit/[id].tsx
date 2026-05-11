@@ -97,6 +97,7 @@ export default function SharedOutfitScreen() {
 
   async function handleMarkWorn() {
     if (isBusy) {
+      captureEvent("shared_outfit_mark_worn_blocked", { outfit_id: id ?? "invalid", reason: "busy" });
       return;
     }
 
@@ -111,6 +112,7 @@ export default function SharedOutfitScreen() {
 
   async function handleToggleFavorite() {
     if (isBusy) {
+      captureEvent("shared_outfit_favorite_blocked", { outfit_id: id ?? "invalid", reason: "busy" });
       return;
     }
 
@@ -125,6 +127,7 @@ export default function SharedOutfitScreen() {
 
   async function handleShareOutfit() {
     if (isBusy) {
+      captureEvent("shared_outfit_share_blocked", { outfit_id: id ?? "invalid", reason: "busy" });
       return;
     }
 
@@ -162,6 +165,7 @@ export default function SharedOutfitScreen() {
 
   async function handleAskFriends() {
     if (isBusy) {
+      captureEvent("shared_outfit_ask_friends_blocked", { outfit_id: id ?? "invalid", reason: "busy" });
       return;
     }
 
@@ -182,6 +186,7 @@ export default function SharedOutfitScreen() {
 
   function handleDeleteOutfit() {
     if (isBusy) {
+      captureEvent("shared_outfit_delete_blocked", { outfit_id: id ?? "invalid", reason: "busy" });
       return;
     }
 
@@ -223,6 +228,11 @@ export default function SharedOutfitScreen() {
           actionLabel="Tekrar Dene"
           loading={isRefetching}
           onAction={() => {
+            if (isBusy) {
+              captureEvent("shared_outfit_refetch_blocked", { outfit_id: id ?? "invalid", reason: "busy" });
+              return;
+            }
+
             captureEvent("shared_outfit_refetch_requested", { outfit_id: id ?? "invalid" });
             void refetch();
           }}
