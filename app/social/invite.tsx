@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Share, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { PremiumGate } from "@/components/shared/PremiumGate";
 import { Button } from "@/components/ui/Button";
@@ -26,6 +26,7 @@ export default function InviteScreen() {
   const totalRewardDays = rewards.reduce((total, reward) => total + reward.reward_days, 0);
   const inviteUrl = createPublicAppLink("/social/friends", { invite: inviteCode });
   const [isSharing, setIsSharing] = useState(false);
+  const isBusy = isSharing || isRefetching;
 
   useEffect(() => {
     captureEvent("invite_screen_viewed", {
@@ -37,12 +38,18 @@ export default function InviteScreen() {
   }, [premium, profile?.username, rewards.length, totalRewardDays]);
 
   function handleRefetchRewards() {
+    if (isBusy) {
+      captureEvent("invite_rewards_refetch_blocked", { reason: "busy" });
+      return;
+    }
+
     captureEvent("invite_rewards_refetch_requested");
     void refetch();
   }
 
   async function handleShare() {
-    if (isSharing) {
+    if (isBusy) {
+      captureEvent("invite_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -50,7 +57,7 @@ export default function InviteScreen() {
       setIsSharing(true);
       const result = await Share.share({
         title: "Shipirio daveti",
-        message: `Shipirio'da arkadas olalim: ${inviteUrl}`,
+        message: `Shipirio'da arkadas olalim. Davet linkim: ${inviteUrl}`,
         url: inviteUrl,
       });
       captureEvent("invite_link_shared", { completed: result.action === Share.sharedAction });
@@ -63,9 +70,9 @@ export default function InviteScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Davet</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -92,7 +99,7 @@ export default function InviteScreen() {
                 {inviteUrl}
               </Text>
             </Card>
-            <Button title="Paylas" onPress={handleShare} loading={isSharing} disabled={isSharing} />
+            <Button title="Paylas" onPress={handleShare} loading={isSharing} disabled={isBusy} />
           </Card>
 
           <Card style={styles.rewardCard}>
@@ -126,7 +133,7 @@ export default function InviteScreen() {
           </Card>
         </>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -154,8 +161,11 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
     flex: 1,
+  },
+  content: {
     gap: SPACING.md,
     padding: SPACING.lg,
+    paddingBottom: SPACING.xl,
     paddingTop: 56,
   },
   header: {

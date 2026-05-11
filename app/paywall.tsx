@@ -79,7 +79,7 @@ export default function PaywallScreen() {
   }, [isLoadingPackages, packages.length]);
 
   function activatePreview() {
-    if (isPurchasing || isRestoring) {
+    if (isBusy) {
       captureEvent("premium_preview_blocked", { reason: "busy" });
       return;
     }
@@ -89,12 +89,28 @@ export default function PaywallScreen() {
     router.back();
   }
 
-  async function handlePurchase(revenueCatPackage: PurchasesPackage) {
-    if (isPurchasing || isRestoring) {
+  function handlePurchasePrompt(revenueCatPackage: PurchasesPackage) {
+    if (isBusy) {
       captureEvent("purchase_blocked", { reason: "busy", package_id: revenueCatPackage.identifier });
       return;
     }
 
+    captureEvent("purchase_prompt_opened", {
+      package_id: revenueCatPackage.identifier,
+      price: revenueCatPackage.product.priceString,
+    });
+    Alert.alert("Premium satin al", `${revenueCatPackage.product.title} planini ${revenueCatPackage.product.priceString} ile baslatmak istiyor musun?`, [
+      { text: "Vazgec", style: "cancel" },
+      {
+        text: "Devam Et",
+        onPress: () => {
+          void handlePurchase(revenueCatPackage);
+        },
+      },
+    ]);
+  }
+
+  async function handlePurchase(revenueCatPackage: PurchasesPackage) {
     setActivePackageId(revenueCatPackage.identifier);
     try {
       setIsPurchasing(true);
@@ -122,7 +138,7 @@ export default function PaywallScreen() {
   }
 
   async function handleRestore() {
-    if (isRestoring || isPurchasing) {
+    if (isBusy) {
       captureEvent("purchase_restore_blocked", { reason: "busy" });
       return;
     }
@@ -150,7 +166,7 @@ export default function PaywallScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isPurchasing || isRestoring} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Shipirio Premium</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -196,7 +212,7 @@ export default function PaywallScreen() {
             <Button
               key={revenueCatPackage.identifier}
               title={`${revenueCatPackage.product.title} - ${revenueCatPackage.product.priceString}`}
-              onPress={() => void handlePurchase(revenueCatPackage)}
+              onPress={() => handlePurchasePrompt(revenueCatPackage)}
               loading={activePackageId === revenueCatPackage.identifier}
               disabled={isBusy}
             />
@@ -216,30 +232,40 @@ export default function PaywallScreen() {
               loading={isLoadingPackages}
               disabled={isBusy}
             />
-            {__DEV__ ? <Button title="Gelistirme Icin Premium Ac" variant="secondary" onPress={activatePreview} disabled={isPurchasing || isRestoring} /> : null}
+            {__DEV__ ? <Button title="Gelistirme Icin Premium Ac" variant="secondary" onPress={activatePreview} disabled={isBusy} /> : null}
           </>
         )}
       </Card>
 
-      <Button title="Aboneligi Geri Yukle" variant="secondary" onPress={() => void handleRestore()} loading={isRestoring} disabled={isBusy && !isRestoring} />
+      <Button title="Aboneligi Geri Yukle" variant="secondary" onPress={() => void handleRestore()} loading={isRestoring} disabled={isBusy} />
       <View style={styles.legalLinks}>
         <Button
           title="Gizlilik Politikasi"
           variant="ghost"
           onPress={() => {
+            if (isBusy) {
+              captureEvent("paywall_legal_link_blocked", { reason: "busy", target: "privacy" });
+              return;
+            }
+
             captureEvent("paywall_legal_link_opened", { target: "privacy" });
             router.push("/legal/privacy");
           }}
-          disabled={isPurchasing || isRestoring}
+          disabled={isBusy}
         />
         <Button
           title="Kullanim Sartlari"
           variant="ghost"
           onPress={() => {
+            if (isBusy) {
+              captureEvent("paywall_legal_link_blocked", { reason: "busy", target: "terms" });
+              return;
+            }
+
             captureEvent("paywall_legal_link_opened", { target: "terms" });
             router.push("/legal/terms");
           }}
-          disabled={isPurchasing || isRestoring}
+          disabled={isBusy}
         />
       </View>
     </ScrollView>

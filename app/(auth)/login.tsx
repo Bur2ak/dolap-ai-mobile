@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -26,6 +26,7 @@ export default function LoginScreen() {
 
   async function handleSubmit() {
     if (isSubmitting) {
+      captureEvent("auth_login_blocked", { reason: "busy" });
       return;
     }
 
@@ -57,15 +58,15 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text variant="h1">Tekrar hos geldin</Text>
       <Text variant="body" color="secondary">
         Dolabina kaldigin yerden devam et.
       </Text>
 
       <View style={styles.form}>
-        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-        <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry />
+        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" editable={!isSubmitting} />
+        <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry editable={!isSubmitting} />
         <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         <Button title="Sifremi unuttum" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} disabled={isSubmitting} />
         <Button
@@ -80,14 +81,17 @@ export default function LoginScreen() {
           disabled={isSubmitting}
         />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: COLORS.background,
+    flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: SPACING.lg,
     gap: SPACING.sm,

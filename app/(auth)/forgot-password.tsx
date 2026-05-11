@@ -1,7 +1,7 @@
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -23,6 +23,7 @@ export default function ForgotPasswordScreen() {
 
   async function handleSubmit() {
     if (isSubmitting) {
+      captureEvent("auth_password_reset_request_blocked", { reason: "busy" });
       return;
     }
 
@@ -49,18 +50,18 @@ export default function ForgotPasswordScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text variant="h1">Sifreni sifirla</Text>
       <Text variant="body" color="secondary">
         Email adresini yaz, sana sifre yenileme linki gonderelim.
       </Text>
 
       <View style={styles.form}>
-        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" editable={!isSubmitting} />
         <Button title="Link Gonder" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         <Button title="Giris ekranina don" variant="ghost" onPress={() => router.back()} disabled={isSubmitting} />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -68,6 +69,9 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
     flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     gap: SPACING.sm,
     justifyContent: "center",
     padding: SPACING.lg,

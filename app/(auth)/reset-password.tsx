@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -22,6 +22,7 @@ export default function ResetPasswordScreen() {
 
   async function handleSubmit() {
     if (isSubmitting) {
+      captureEvent("auth_password_reset_complete_blocked", { reason: "busy" });
       return;
     }
 
@@ -52,7 +53,7 @@ export default function ResetPasswordScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text variant="h1">Yeni sifre belirle</Text>
       <Text variant="body" color="secondary">
         Emailindeki sifirlama linkinden geldiysen hesabina yeni bir sifre tanimlayabilirsin.
@@ -67,12 +68,12 @@ export default function ResetPasswordScreen() {
         </View>
       ) : (
         <View style={styles.form}>
-          <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry />
-          <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
+          <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry editable={!isSubmitting} />
+          <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry editable={!isSubmitting} />
           <Button title="Sifreyi Yenile" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         </View>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -80,6 +81,9 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
     flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     gap: SPACING.sm,
     justifyContent: "center",
     padding: SPACING.lg,

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -29,6 +29,7 @@ export default function RegisterScreen() {
 
   async function handleSubmit() {
     if (isSubmitting) {
+      captureEvent("auth_register_blocked", { reason: "busy" });
       return;
     }
 
@@ -76,20 +77,25 @@ export default function RegisterScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text variant="h1">Dolabini kur</Text>
       <Text variant="body" color="secondary">
         Ilk kiyafetini eklemeden once hesabini hazirlayalim.
       </Text>
 
       <View style={styles.form}>
-        <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} />
-        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-        <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry />
+        <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isSubmitting} />
+        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" editable={!isSubmitting} />
+        <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry editable={!isSubmitting} />
         <Pressable
           style={styles.consentRow}
           onPress={() =>
             setAcceptedLegal((value) => {
+              if (isSubmitting) {
+                captureEvent("auth_register_legal_toggle_blocked", { reason: "busy" });
+                return value;
+              }
+
               captureEvent("auth_register_legal_toggled", { accepted: !value });
               return !value;
             })
@@ -151,14 +157,17 @@ export default function RegisterScreen() {
           disabled={isSubmitting}
         />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: COLORS.background,
+    flex: 1,
+  },
+  content: {
+    flexGrow: 1,
     justifyContent: "center",
     padding: SPACING.lg,
     gap: SPACING.sm,
