@@ -33,6 +33,7 @@ export default function SupportScreen() {
 
   async function openUrl(url: string, label: string) {
     if (openingLink) {
+      captureEvent("support_link_open_blocked", { label, reason: "busy" });
       return;
     }
 
@@ -57,7 +58,7 @@ export default function SupportScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={Boolean(openingLink)} />
         <Text variant="h2">Destek</Text>
         <View style={styles.headerSpacer} />
       </View>

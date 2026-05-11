@@ -27,7 +27,8 @@ export default function AccountSettingsScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isUpdatingDeletion, setIsUpdatingDeletion] = useState(false);
-  const isBusy = isSaving || isSavingPassword || isUpdatingDeletion;
+  const [isOpeningDeletionInfo, setIsOpeningDeletionInfo] = useState(false);
+  const isBusy = isSaving || isSavingPassword || isUpdatingDeletion || isOpeningDeletionInfo;
   const deletionInfoUrl = createPublicAppLink("/delete-account.html");
 
   useEffect(() => {
@@ -53,16 +54,19 @@ export default function AccountSettingsScreen() {
     const trimmedBio = bio.trim();
 
     if (!fullName.trim()) {
+      captureEvent("account_profile_save_blocked", { reason: "missing_name" });
       Alert.alert("Ad Soyad gerekli", "Profilinde gorunecek adini yaz.");
       return;
     }
 
     if (normalizedUsername && !isValidUsername(normalizedUsername)) {
+      captureEvent("account_profile_save_blocked", { reason: "invalid_username" });
       Alert.alert("Kullanici adi gecersiz", "Kullanici adi 3-24 karakter olmali; sadece harf, rakam ve alt cizgi kullan.");
       return;
     }
 
     if (trimmedBio.length > maxBioLength) {
+      captureEvent("account_profile_save_blocked", { reason: "bio_too_long" });
       Alert.alert("Bio uzun", `Bio en fazla ${maxBioLength} karakter olabilir.`);
       return;
     }
@@ -94,11 +98,13 @@ export default function AccountSettingsScreen() {
     }
 
     if (password.length < 8) {
+      captureEvent("account_password_change_blocked", { reason: "short_password" });
       Alert.alert("Sifre kisa", "Yeni sifre en az 8 karakter olmali.");
       return;
     }
 
     if (password !== confirmPassword) {
+      captureEvent("account_password_change_blocked", { reason: "password_mismatch" });
       Alert.alert("Sifreler eslesmiyor", "Iki alana da ayni sifreyi yaz.");
       return;
     }
@@ -181,19 +187,26 @@ export default function AccountSettingsScreen() {
   }
 
   async function openDeletionInfo() {
+    if (isBusy) {
+      return;
+    }
+
     try {
+      setIsOpeningDeletionInfo(true);
       await WebBrowser.openBrowserAsync(deletionInfoUrl);
       captureEvent("account_deletion_info_opened");
     } catch (error) {
       captureError(error, { area: "account_deletion_info" });
       Alert.alert("Acilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsOpeningDeletionInfo(false);
     }
   }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Hesap</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -229,7 +242,7 @@ export default function AccountSettingsScreen() {
             <Text variant="body" color="secondary">
               Hesap silme talebin alindi. Planlanan silme tarihi: {profile.deletion_scheduled_for ? formatDate(profile.deletion_scheduled_for) : "30 gun icinde"}.
             </Text>
-            <Button title="Hesap Silme Bilgisi" variant="ghost" onPress={() => void openDeletionInfo()} disabled={isBusy} />
+            <Button title="Hesap Silme Bilgisi" variant="ghost" onPress={() => void openDeletionInfo()} loading={isOpeningDeletionInfo} disabled={isBusy} />
             <Button title="Silme Talebini Iptal Et" variant="secondary" onPress={handleCancelDeletion} loading={isUpdatingDeletion} disabled={isBusy} />
           </>
         ) : (
@@ -237,7 +250,7 @@ export default function AccountSettingsScreen() {
             <Text variant="body" color="secondary">
               Talep olusturdugunda hesabinin ve iliskili verilerinin kalici silinmesi icin 30 gunluk sure baslar.
             </Text>
-            <Button title="Hesap Silme Bilgisi" variant="secondary" onPress={() => void openDeletionInfo()} disabled={isBusy} />
+            <Button title="Hesap Silme Bilgisi" variant="secondary" onPress={() => void openDeletionInfo()} loading={isOpeningDeletionInfo} disabled={isBusy} />
             <Button title="Hesap Silme Talebi Olustur" variant="ghost" onPress={handleRequestDeletion} loading={isUpdatingDeletion} disabled={isBusy} />
           </>
         )}

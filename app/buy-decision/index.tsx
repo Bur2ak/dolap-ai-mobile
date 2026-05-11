@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -52,10 +52,25 @@ export default function BuyDecisionScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [price, setPrice] = useState("");
   const [monthlyUsage, setMonthlyUsage] = useState<number | null>(null);
+  const [activeImageSource, setActiveImageSource] = useState<"camera" | "library" | null>(null);
+  const [activeDeleteId, setActiveDeleteId] = useState<string | null>(null);
   const isBusy = isPicking || isDeciding || isSaving;
+  const isActionBusy = isBusy || Boolean(activeImageSource) || Boolean(activeDeleteId);
+
+  useEffect(() => {
+    captureEvent("buy_decision_screen_viewed", {
+      history_count: history.length,
+      has_image: Boolean(imageUri),
+      has_result: Boolean(result),
+      monthly_usage: monthlyUsage,
+      premium,
+      wardrobe_count: items.length,
+    });
+  }, [history.length, imageUri, items.length, monthlyUsage, premium, result]);
 
   async function handleImageSelected(uri: string | null) {
     if (!uri) {
+      captureEvent("buy_decision_image_selection_cancelled");
       return;
     }
 
@@ -69,24 +84,35 @@ export default function BuyDecisionScreen() {
   }
 
   function resetDraft() {
+    if (isActionBusy) {
+      return;
+    }
+
     setImageUri(null);
     setPrice("");
     captureEvent("buy_decision_draft_reset");
   }
 
   async function handleAnalyze() {
+    if (isActionBusy) {
+      return;
+    }
+
     if (!imageUri) {
+      captureEvent("buy_decision_analyze_blocked", { reason: "missing_image" });
       Alert.alert("Fotograf gerekli", "Karar motoru icin once fotograf secmelisin.");
       return;
     }
 
     if (!userId) {
+      captureEvent("buy_decision_analyze_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Karar motorunu kullanmak icin once giris yapmalisin.");
       return;
     }
 
     const priceError = getCurrencyInputError(price);
     if (priceError) {
+      captureEvent("buy_decision_analyze_blocked", { reason: "price" });
       Alert.alert("Fiyat gecersiz", priceError);
       return;
     }
@@ -96,6 +122,7 @@ export default function BuyDecisionScreen() {
         const currentUsage = await getMonthlyBuyDecisionCount(userId);
         setMonthlyUsage(currentUsage);
         if (isLimitReached("BUY_DECISIONS_PER_MONTH", currentUsage)) {
+          captureEvent("buy_decision_analyze_blocked", { reason: "monthly_limit", usage: currentUsage });
           Alert.alert(
             "Aylik limit doldu",
             `Free planda ayda ${formatLimit(limits.BUY_DECISIONS_PER_MONTH)} karar analizi kullanabilirsin.`,
@@ -126,17 +153,24 @@ export default function BuyDecisionScreen() {
   }
 
   async function handleSave() {
+    if (isActionBusy) {
+      return;
+    }
+
     if (!result) {
+      captureEvent("buy_decision_save_blocked", { reason: "missing_result" });
       return;
     }
 
     if (!canSave) {
+      captureEvent("buy_decision_save_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Karari kaydetmek icin once giris yapmalisin.");
       return;
     }
 
     const priceError = getCurrencyInputError(price);
     if (priceError) {
+      captureEvent("buy_decision_save_blocked", { reason: "price" });
       Alert.alert("Fiyat gecersiz", priceError);
       return;
     }
@@ -154,7 +188,7 @@ export default function BuyDecisionScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isActionBusy} />
         <Text variant="h2">Almali Miyim?</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -179,22 +213,32 @@ export default function BuyDecisionScreen() {
             title="Kamera"
             onPress={async () => {
               captureEvent("buy_decision_image_source_selected", { source: "camera" });
-              await handleImageSelected(await takePhoto());
+              setActiveImageSource("camera");
+              try {
+                await handleImageSelected(await takePhoto());
+              } finally {
+                setActiveImageSource(null);
+              }
             }}
-            loading={isPicking}
-            disabled={isBusy}
+            loading={activeImageSource === "camera"}
+            disabled={isActionBusy}
           />
           <Button
             title="Galeriden Sec"
             variant="secondary"
             onPress={async () => {
               captureEvent("buy_decision_image_source_selected", { source: "library" });
-              await handleImageSelected(await pickFromLibrary());
+              setActiveImageSource("library");
+              try {
+                await handleImageSelected(await pickFromLibrary());
+              } finally {
+                setActiveImageSource(null);
+              }
             }}
-            loading={isPicking}
-            disabled={isBusy}
+            loading={activeImageSource === "library"}
+            disabled={isActionBusy}
           />
-          {imageUri ? <Button title="Secimi Temizle" variant="ghost" onPress={resetDraft} disabled={isBusy} /> : null}
+          {imageUri ? <Button title="Secimi Temizle" variant="ghost" onPress={resetDraft} disabled={isActionBusy} /> : null}
         </View>
       </Card>
 
@@ -210,7 +254,7 @@ export default function BuyDecisionScreen() {
       ) : null}
 
       <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
-      <Button title="Analiz Et" onPress={handleAnalyze} loading={isDeciding} disabled={!imageUri || isBusy} />
+      <Button title="Analiz Et" onPress={handleAnalyze} loading={isDeciding} disabled={!imageUri || isActionBusy} />
 
       {result ? (
         <Card style={styles.resultCard}>
@@ -280,7 +324,7 @@ export default function BuyDecisionScreen() {
               {result.discount_advice}
             </Text>
           ) : null}
-          <Button title="Karari Kaydet" variant="secondary" onPress={handleSave} loading={isSaving} disabled={isBusy} />
+          <Button title="Karari Kaydet" variant="secondary" onPress={handleSave} loading={isSaving} disabled={isActionBusy} />
         </Card>
       ) : null}
 
@@ -300,10 +344,22 @@ export default function BuyDecisionScreen() {
           body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
           actionLabel="Tekrar Dene"
           loading={isRefetchingHistory}
-          onAction={() => void refetchHistory()}
+          onAction={() => {
+            captureEvent("buy_decision_history_refetch_requested");
+            void refetchHistory();
+          }}
         />
       ) : history.length ? (
-        history.map((decision) => <DecisionHistoryCard key={decision.id} decision={decision} onDelete={deleteDecision} isSaving={isSaving} />)
+        history.map((decision) => (
+          <DecisionHistoryCard
+            key={decision.id}
+            decision={decision}
+            onDelete={deleteDecision}
+            activeDeleteId={activeDeleteId}
+            isBusy={isActionBusy}
+            setActiveDeleteId={setActiveDeleteId}
+          />
+        ))
       ) : (
         <EmptyState icon="bag-handle-outline" title="Kayitli karar yok" body="Analiz sonucunu kaydettiginde burada gorunecek." />
       )}
@@ -314,25 +370,39 @@ export default function BuyDecisionScreen() {
 function DecisionHistoryCard({
   decision,
   onDelete,
-  isSaving,
+  activeDeleteId,
+  isBusy,
+  setActiveDeleteId,
 }: {
   decision: BuyDecisionRecord;
   onDelete: (decisionId: string) => Promise<void>;
-  isSaving: boolean;
+  activeDeleteId: string | null;
+  isBusy: boolean;
+  setActiveDeleteId: (decisionId: string | null) => void;
 }) {
+  const isDeletingThis = activeDeleteId === decision.id;
+
   function handleDelete() {
+    if (isBusy) {
+      return;
+    }
+
+    captureEvent("buy_decision_delete_prompt_opened", { decision_id: decision.id, decision: decision.decision });
     Alert.alert("Karari sil", "Bu karar gecmisinden kaldirilacak.", [
       { text: "Vazgec", style: "cancel" },
       {
         text: "Sil",
         style: "destructive",
         onPress: async () => {
+          setActiveDeleteId(decision.id);
           try {
             await onDelete(decision.id);
             captureEvent("buy_decision_deleted_from_screen", { decision: decision.decision });
           } catch (error) {
             captureError(error, { area: "buy_decision_delete_action", decision_id: decision.id });
             Alert.alert("Silinemedi", error instanceof Error ? error.message : "Tekrar dene.");
+          } finally {
+            setActiveDeleteId(null);
           }
         },
       },
@@ -370,7 +440,7 @@ function DecisionHistoryCard({
           </Text>
         ) : null}
       </View>
-      <Button title="Sil" variant="ghost" onPress={handleDelete} loading={isSaving} disabled={isSaving} />
+      <Button title="Sil" variant="ghost" onPress={handleDelete} loading={isDeletingThis} disabled={isBusy && !isDeletingThis} />
     </Card>
   );
 }
