@@ -68,6 +68,7 @@ export default function FriendWardrobeScreen() {
 
   function handleClearFilters() {
     if (isBusy) {
+      captureEvent("friend_wardrobe_filters_clear_blocked", { friend_id: friendId, reason: "busy" });
       return;
     }
 
@@ -78,6 +79,7 @@ export default function FriendWardrobeScreen() {
 
   function handleCategoryChange(value: SharedCategoryFilter) {
     if (isBusy) {
+      captureEvent("friend_wardrobe_filter_blocked", { friend_id: friendId, reason: "busy", value });
       return;
     }
 
@@ -87,6 +89,7 @@ export default function FriendWardrobeScreen() {
 
   function handleGenerateOutfitIdea() {
     if (isBusy) {
+      captureEvent("friend_wardrobe_outfit_idea_blocked", { friend_id: friendId, reason: "busy" });
       return;
     }
 
@@ -105,6 +108,11 @@ export default function FriendWardrobeScreen() {
   }
 
   function handleRefetch() {
+    if (isBusy) {
+      captureEvent("friend_wardrobe_refetch_blocked", { friend_id: friendId, reason: "busy" });
+      return;
+    }
+
     captureEvent("friend_wardrobe_refetch_requested", { friend_id: friendId });
     void refetch();
   }
@@ -124,7 +132,8 @@ export default function FriendWardrobeScreen() {
   }
 
   async function handleShareIdea(data: FriendWardrobe, idea: FriendOutfitIdea) {
-    if (isSharingOutfitIdea) {
+    if (isBusy || isSharingOutfitIdea) {
+      captureEvent("friend_wardrobe_outfit_share_blocked", { friend_id: data.profile.id, reason: "busy" });
       return;
     }
 
@@ -376,8 +385,16 @@ function SharedWardrobeHeader({
 
       <Card style={styles.borrowSettingsCard}>
         <Text variant="h3">Odunc istegi ayarlari</Text>
-        <Input label="Iade tarihi" value={borrowDueDate} onChangeText={onBorrowDueDateChange} placeholder="YYYY-MM-DD" autoCapitalize="none" />
-        <Input label="Not" value={borrowNote} onChangeText={onBorrowNoteChange} placeholder="Opsiyonel" multiline />
+        <Input
+          label="Iade tarihi"
+          value={borrowDueDate}
+          onChangeText={onBorrowDueDateChange}
+          placeholder="YYYY-MM-DD"
+          autoCapitalize="none"
+          error={getBorrowDueDateInputError(borrowDueDate)}
+          editable={!disabled}
+        />
+        <Input label="Not" value={borrowNote} onChangeText={onBorrowNoteChange} placeholder="Opsiyonel" multiline editable={!disabled} />
       </Card>
 
       <FlatList
@@ -400,7 +417,7 @@ function SharedWardrobeHeader({
         }}
       />
 
-      <Input label="Arkadas dolabinda ara" value={query} onChangeText={onQueryChange} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" />
+      <Input label="Arkadas dolabinda ara" value={query} onChangeText={onQueryChange} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" editable={!disabled} />
 
       {hasActiveFilters ? (
         <View style={styles.filterSummary}>
@@ -482,6 +499,14 @@ function isValidBorrowDueDate(value: string) {
   return Number.isFinite(timestamp) && timestamp >= today.getTime();
 }
 
+function getBorrowDueDateInputError(value: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  return isValidBorrowDueDate(value) ? undefined : "Iade tarihi YYYY-MM-DD formatinda ve bugunden erken olmamali.";
+}
+
 function SharedWardrobeItem({
   item,
   loanRequest,
@@ -501,6 +526,11 @@ function SharedWardrobeItem({
     <Pressable
       style={styles.itemPressable}
       onPress={() => {
+        if (disabled) {
+          captureEvent("friend_wardrobe_item_open_blocked", { item_id: item.id, category: item.category, reason: "busy" });
+          return;
+        }
+
         captureEvent("friend_wardrobe_item_opened", { item_id: item.id, category: item.category });
         router.push(`/item/${item.id}`);
       }}

@@ -98,6 +98,11 @@ export default function LoansScreen() {
   }
 
   async function handleStatus(loanRequest: LoanRequest, status: LoanRequestStatus) {
+    if (isBusy) {
+      captureEvent("loan_request_status_blocked", { loan_request_id: loanRequest.id, reason: "busy", status });
+      return;
+    }
+
     setActiveStatusAction({ id: loanRequest.id, status });
     try {
       await updateLoanRequestStatus({ loanRequest, status });

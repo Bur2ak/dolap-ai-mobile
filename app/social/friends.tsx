@@ -76,6 +76,7 @@ export default function FriendsScreen() {
 
     const normalizedQuery = query.trim();
     if (normalizedQuery.length < 2) {
+      captureEvent("friend_search_blocked", { reason: "short_query", search_length: normalizedQuery.length });
       Alert.alert("Arama kisa", "En az 2 karakter yazarak tekrar dene.");
       return;
     }
@@ -295,6 +296,11 @@ export default function FriendsScreen() {
                 actionLabel="Tekrar Dene"
                 loading={isRefetching}
                 onAction={() => {
+                  if (isBusy) {
+                    captureEvent("friends_refetch_blocked", { reason: "busy" });
+                    return;
+                  }
+
                   captureEvent("friends_refetch_requested");
                   void refetch();
                 }}
@@ -369,6 +375,11 @@ function FriendshipRow({
             title="Dolap"
             variant="secondary"
             onPress={() => {
+              if (loading) {
+                captureEvent("friend_wardrobe_open_blocked", { friend_id: otherUserId, reason: "busy", source: "list" });
+                return;
+              }
+
               captureEvent("friend_wardrobe_opened_from_list", { friend_id: otherUserId });
               router.push(`/social/${otherUserId}`);
             }}

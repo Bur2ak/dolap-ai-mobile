@@ -235,6 +235,9 @@ export async function requestBorrowWardrobeItem(userId: string, item: WardrobeIt
   dueDate.setDate(dueDate.getDate() + 7);
   const note = input.note?.trim().slice(0, 240) || null;
   const dueDateValue = input.dueDate?.trim() || formatDateOnly(dueDate);
+  if (!isValidBorrowDueDate(dueDateValue)) {
+    throw new Error("Iade tarihi YYYY-MM-DD formatinda ve bugunden erken olmamali.");
+  }
 
   const { data: loanRequest, error: loanError } = await supabase
     .from("loan_requests")
@@ -359,4 +362,15 @@ function validateLoanStatusTransition(currentStatus: LoanRequestStatus, nextStat
   if (nextStatus === "returned" && currentStatus !== "approved") {
     throw new Error("Sadece onaylanmis odunc istekleri iade edildi olarak isaretlenebilir.");
   }
+}
+
+function isValidBorrowDueDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const timestamp = new Date(`${value}T00:00:00`).getTime();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Number.isFinite(timestamp) && timestamp >= today.getTime();
 }
