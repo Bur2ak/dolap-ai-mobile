@@ -43,6 +43,7 @@ export default function PrivacySettingsScreen() {
 
   async function toggle(key: keyof PrivacySettings) {
     if (updatingKey) {
+      captureEvent("privacy_setting_toggle_blocked", { reason: "busy", setting: key });
       return;
     }
 
@@ -66,7 +67,7 @@ export default function PrivacySettingsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={Boolean(updatingKey)} />
         <Text variant="h2">Gizlilik</Text>
         <View style={styles.headerSpacer} />
       </View>

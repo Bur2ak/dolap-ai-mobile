@@ -74,7 +74,7 @@ export default function SubscriptionSettingsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isRefreshing} />
         <Text variant="h2">Abonelik</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -128,6 +128,11 @@ export default function SubscriptionSettingsScreen() {
             title="Onizlemeyi Kapat"
             variant="secondary"
             onPress={() => {
+              if (isRefreshing) {
+                captureEvent("premium_preview_deactivate_blocked", { reason: "busy" });
+                return;
+              }
+
               setLocalPremiumOverride(false);
               captureEvent("premium_preview_deactivated");
             }}

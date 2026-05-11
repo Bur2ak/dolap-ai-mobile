@@ -47,6 +47,7 @@ export default function AccountSettingsScreen() {
 
   async function handleSave() {
     if (isBusy) {
+      captureEvent("account_profile_save_blocked", { reason: "busy" });
       return;
     }
 
@@ -94,6 +95,7 @@ export default function AccountSettingsScreen() {
 
   async function handleChangePassword() {
     if (isBusy) {
+      captureEvent("account_password_change_blocked", { reason: "busy" });
       return;
     }
 
@@ -126,6 +128,7 @@ export default function AccountSettingsScreen() {
 
   function handleRequestDeletion() {
     if (isBusy) {
+      captureEvent("account_deletion_request_blocked", { reason: "busy" });
       return;
     }
 
@@ -148,6 +151,7 @@ export default function AccountSettingsScreen() {
 
   function handleCancelDeletion() {
     if (isBusy) {
+      captureEvent("account_deletion_cancel_blocked", { reason: "busy" });
       return;
     }
 
@@ -188,6 +192,7 @@ export default function AccountSettingsScreen() {
 
   async function openDeletionInfo() {
     if (isBusy) {
+      captureEvent("account_deletion_info_blocked", { reason: "busy" });
       return;
     }
 
@@ -213,12 +218,12 @@ export default function AccountSettingsScreen() {
 
       <Card style={styles.form}>
         <Text variant="h3">Profil bilgileri</Text>
-        <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} />
-        <Input label="Kullanici adi" value={username} onChangeText={setUsername} autoCapitalize="none" />
+        <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isBusy} />
+        <Input label="Kullanici adi" value={username} onChangeText={setUsername} autoCapitalize="none" editable={!isBusy} />
         <Text variant="caption" color="muted">
           3-24 karakter; harf, rakam ve alt cizgi kullan.
         </Text>
-        <Input label="Bio" value={bio} onChangeText={setBio} multiline />
+        <Input label="Bio" value={bio} onChangeText={setBio} multiline editable={!isBusy} />
         <Text variant="caption" color={bio.trim().length > maxBioLength ? "danger" : "muted"}>
           {bio.trim().length}/{maxBioLength}
         </Text>
@@ -227,8 +232,8 @@ export default function AccountSettingsScreen() {
 
       <Card style={styles.form}>
         <Text variant="h3">Guvenlik</Text>
-        <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" />
-        <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoCapitalize="none" />
+        <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" editable={!isBusy} />
+        <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoCapitalize="none" editable={!isBusy} />
         <Text variant="caption" color="muted">
           Sifre en az 8 karakter olmali.
         </Text>
