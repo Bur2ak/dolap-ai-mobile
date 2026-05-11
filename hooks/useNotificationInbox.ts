@@ -8,6 +8,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/lib/api/notifications";
+import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
@@ -21,7 +22,7 @@ export function useNotificationInbox() {
     enabled: Boolean(userId),
   });
   const markReadMutation = useMutation({
-    mutationFn: (notificationId: string) => markNotificationRead(userId!, notificationId),
+    mutationFn: (notificationId: string) => markNotificationRead(requireUserId(userId, "notification_mark_read"), notificationId),
     onSuccess: () => {
       captureEvent("notification_marked_read");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
@@ -31,7 +32,7 @@ export function useNotificationInbox() {
     },
   });
   const markAllReadMutation = useMutation({
-    mutationFn: () => markAllNotificationsRead(userId!),
+    mutationFn: () => markAllNotificationsRead(requireUserId(userId, "notifications_mark_all_read")),
     onSuccess: () => {
       captureEvent("notifications_marked_all_read");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
@@ -41,7 +42,7 @@ export function useNotificationInbox() {
     },
   });
   const deleteMutation = useMutation({
-    mutationFn: (notificationId: string) => deleteNotification(userId!, notificationId),
+    mutationFn: (notificationId: string) => deleteNotification(requireUserId(userId, "notification_delete"), notificationId),
     onSuccess: () => {
       captureEvent("notification_deleted");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
@@ -51,7 +52,7 @@ export function useNotificationInbox() {
     },
   });
   const deleteReadMutation = useMutation({
-    mutationFn: () => deleteReadNotifications(userId!),
+    mutationFn: () => deleteReadNotifications(requireUserId(userId, "notifications_delete_read")),
     onSuccess: () => {
       captureEvent("notifications_read_deleted");
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });

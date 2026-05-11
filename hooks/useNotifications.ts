@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 
+import { requireUserId } from "@/lib/authGuards";
 import { cancelOutfitReminders, registerForPushNotifications, scheduleOutfitReminder } from "@/lib/notifications";
 import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
@@ -7,6 +8,7 @@ import type { NotificationPreferences } from "@/types";
 
 export function useNotifications() {
   const profile = useAuthStore((state) => state.profile);
+  const userId = useAuthStore((state) => state.session?.user.id);
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const preferences = profile?.notification_preferences ?? {
     outfit_reminder: true,
@@ -32,6 +34,7 @@ export function useNotifications() {
 
   const updatePreferencesMutation = useMutation({
     mutationFn: async (updates: Partial<NotificationPreferences>) => {
+      requireUserId(userId, "notification_preferences_update");
       const nextPreferences = { ...preferences, ...updates };
       await updateProfile({ notification_preferences: nextPreferences });
 

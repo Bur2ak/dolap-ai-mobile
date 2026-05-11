@@ -9,6 +9,7 @@ import {
   markWardrobeItemWorn,
   updateWardrobeItem,
 } from "@/lib/api/wardrobe";
+import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
@@ -25,7 +26,7 @@ export function useWardrobe() {
   });
 
   const createItemMutation = useMutation({
-    mutationFn: (input: CreateWardrobeItemInput) => createWardrobeItem(userId!, input),
+    mutationFn: (input: CreateWardrobeItemInput) => createWardrobeItem(requireUserId(userId, "wardrobe_item_create"), input),
     onError: (error, input) => {
       captureError(error, {
         area: "wardrobe_item_create",
@@ -39,7 +40,7 @@ export function useWardrobe() {
     },
   });
   const updateItemMutation = useMutation({
-    mutationFn: ({ itemId, input }: { itemId: string; input: UpdateWardrobeItemInput }) => updateWardrobeItem(userId!, itemId, input),
+    mutationFn: ({ itemId, input }: { itemId: string; input: UpdateWardrobeItemInput }) => updateWardrobeItem(requireUserId(userId, "wardrobe_item_update"), itemId, input),
     onError: (error, variables) => {
       captureError(error, {
         area: "wardrobe_item_update",
@@ -54,7 +55,7 @@ export function useWardrobe() {
     },
   });
   const markWornMutation = useMutation({
-    mutationFn: (item: WardrobeItem) => markWardrobeItemWorn(userId!, item),
+    mutationFn: (item: WardrobeItem) => markWardrobeItemWorn(requireUserId(userId, "wardrobe_item_mark_worn"), item),
     onError: (error, item) => {
       captureError(error, { area: "wardrobe_item_mark_worn", category: item.category });
     },
@@ -65,7 +66,7 @@ export function useWardrobe() {
     },
   });
   const deleteItemMutation = useMutation({
-    mutationFn: (itemId: string) => deleteWardrobeItem(userId!, itemId),
+    mutationFn: (itemId: string) => deleteWardrobeItem(requireUserId(userId, "wardrobe_item_delete"), itemId),
     onError: (error) => {
       captureError(error, { area: "wardrobe_item_delete" });
     },
@@ -119,7 +120,7 @@ export function useWardrobeItem(itemId?: string) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (input: UpdateWardrobeItemInput) => updateWardrobeItem(userId!, itemId!, input),
+    mutationFn: (input: UpdateWardrobeItemInput) => updateWardrobeItem(requireUserId(userId, "wardrobe_item_detail_update"), itemId!, input),
     onError: (error, input) => {
       captureError(error, {
         area: "wardrobe_item_detail_update",
@@ -135,7 +136,7 @@ export function useWardrobeItem(itemId?: string) {
   });
 
   const markWornMutation = useMutation({
-    mutationFn: (item: WardrobeItem) => markWardrobeItemWorn(userId!, item),
+    mutationFn: (item: WardrobeItem) => markWardrobeItemWorn(requireUserId(userId, "wardrobe_item_detail_mark_worn"), item),
     onError: (error, item) => {
       captureError(error, { area: "wardrobe_item_detail_mark_worn", category: item.category });
     },
@@ -147,7 +148,7 @@ export function useWardrobeItem(itemId?: string) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => deleteWardrobeItem(userId!, itemId!),
+    mutationFn: () => deleteWardrobeItem(requireUserId(userId, "wardrobe_item_detail_delete"), itemId!),
     onError: (error) => {
       captureError(error, { area: "wardrobe_item_detail_delete" });
     },

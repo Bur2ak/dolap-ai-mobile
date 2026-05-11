@@ -8,6 +8,7 @@ import {
   fetchPriceTrackings,
   updatePriceTracking,
 } from "@/lib/api/priceTracking";
+import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
@@ -24,7 +25,7 @@ export function usePriceTracking() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (input: CreatePriceTrackingInput) => createPriceTracking(userId!, input),
+    mutationFn: (input: CreatePriceTrackingInput) => createPriceTracking(requireUserId(userId, "price_tracking_create"), input),
     onError: (error, input) => {
       captureError(error, {
         area: "price_tracking_create",
@@ -44,7 +45,7 @@ export function usePriceTracking() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (trackingId: string) => deletePriceTracking(userId!, trackingId),
+    mutationFn: (trackingId: string) => deletePriceTracking(requireUserId(userId, "price_tracking_delete"), trackingId),
     onError: (error) => {
       captureError(error, { area: "price_tracking_delete" });
     },
@@ -54,7 +55,7 @@ export function usePriceTracking() {
     },
   });
   const updateMutation = useMutation({
-    mutationFn: ({ trackingId, input }: { trackingId: string; input: UpdatePriceTrackingInput }) => updatePriceTracking(userId!, trackingId, input),
+    mutationFn: ({ trackingId, input }: { trackingId: string; input: UpdatePriceTrackingInput }) => updatePriceTracking(requireUserId(userId, "price_tracking_update"), trackingId, input),
     onError: (error, variables) => {
       captureError(error, {
         area: "price_tracking_update",
