@@ -86,6 +86,7 @@ export function useBuyDecision() {
     userId,
     decide: decisionMutation.mutateAsync,
     result: decisionMutation.data,
+    resetResult: decisionMutation.reset,
     isDeciding: decisionMutation.isPending,
     saveResult: saveMutation.mutateAsync,
     deleteDecision: deleteMutation.mutateAsync,

@@ -37,6 +37,7 @@ export default function BuyDecisionScreen() {
     userId,
     decide,
     result,
+    resetResult,
     isDeciding,
     saveResult,
     deleteDecision,
@@ -69,12 +70,18 @@ export default function BuyDecisionScreen() {
   }, [history.length, imageUri, items.length, monthlyUsage, premium, result]);
 
   async function handleImageSelected(uri: string | null) {
+    if (isActionBusy) {
+      captureEvent("buy_decision_image_selection_blocked", { reason: "busy" });
+      return;
+    }
+
     if (!uri) {
       captureEvent("buy_decision_image_selection_cancelled");
       return;
     }
 
     try {
+      resetResult();
       setImageUri(await optimizeImage(uri));
       captureEvent("buy_decision_image_selected");
     } catch (error) {
@@ -85,16 +92,19 @@ export default function BuyDecisionScreen() {
 
   function resetDraft() {
     if (isActionBusy) {
+      captureEvent("buy_decision_draft_reset_blocked", { reason: "busy" });
       return;
     }
 
     setImageUri(null);
     setPrice("");
+    resetResult();
     captureEvent("buy_decision_draft_reset");
   }
 
   async function handleAnalyze() {
     if (isActionBusy) {
+      captureEvent("buy_decision_analyze_blocked", { reason: "busy" });
       return;
     }
 
@@ -154,6 +164,7 @@ export default function BuyDecisionScreen() {
 
   async function handleSave() {
     if (isActionBusy) {
+      captureEvent("buy_decision_save_blocked", { reason: "busy" });
       return;
     }
 
@@ -253,7 +264,7 @@ export default function BuyDecisionScreen() {
         </Card>
       ) : null}
 
-      <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
+      <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} editable={!isActionBusy} />
       <Button title="Analiz Et" onPress={handleAnalyze} loading={isDeciding} disabled={!imageUri || isActionBusy} />
 
       {result ? (
@@ -384,6 +395,7 @@ function DecisionHistoryCard({
 
   function handleDelete() {
     if (isBusy) {
+      captureEvent("buy_decision_delete_blocked", { decision_id: decision.id, reason: "busy" });
       return;
     }
 

@@ -70,9 +70,38 @@ export async function deletePriceTracking(userId: string, trackingId: string): P
 }
 
 export async function updatePriceTracking(userId: string, trackingId: string, input: UpdatePriceTrackingInput): Promise<PriceTracking> {
+  const updatePayload: Record<string, unknown> = { ...input };
+
+  if (input.current_price !== undefined) {
+    const { data: existingTracking, error: existingError } = await supabase
+      .from("price_tracking")
+      .select("current_price, initial_price, price_history")
+      .eq("user_id", userId)
+      .eq("id", trackingId)
+      .single();
+
+    if (existingError) {
+      throwApiError(existingError, "Fiyat takibi guncellenemedi.");
+    }
+
+    const currentPrice = input.current_price ?? null;
+    const existingCurrentPrice = existingTracking.current_price === null ? null : Number(existingTracking.current_price);
+    const priceChanged = currentPrice !== null && currentPrice !== existingCurrentPrice;
+    if (priceChanged) {
+      updatePayload.price_history = [
+        ...normalizePriceHistory(existingTracking.price_history),
+        { date: new Date().toISOString(), price: currentPrice },
+      ].slice(-24);
+    }
+
+    if (currentPrice !== null && existingTracking.initial_price === null) {
+      updatePayload.initial_price = currentPrice;
+    }
+  }
+
   const { data, error } = await supabase
     .from("price_tracking")
-    .update(input)
+    .update(updatePayload)
     .eq("user_id", userId)
     .eq("id", trackingId)
     .select("*")
@@ -83,6 +112,23 @@ export async function updatePriceTracking(userId: string, trackingId: string, in
   }
 
   return data as PriceTracking;
+}
+
+function normalizePriceHistory(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((entry): entry is { date: string; price: number } => {
+      if (!entry || typeof entry !== "object") {
+        return false;
+      }
+
+      const candidate = entry as { date?: unknown; price?: unknown };
+      return typeof candidate.date === "string" && Number.isFinite(Number(candidate.price));
+    })
+    .map((entry) => ({ date: entry.date, price: Number(entry.price) }));
 }
 
 export async function checkPriceTrackings(): Promise<PriceCheckResult> {

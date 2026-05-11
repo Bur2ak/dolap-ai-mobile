@@ -45,6 +45,7 @@ export default function PriceTrackingScreen() {
   const [activeSmartPieceKey, setActiveSmartPieceKey] = useState<string | null>(null);
   const [activeDeleteId, setActiveDeleteId] = useState<string | null>(null);
   const isBusy = isCreating || isUpdating || isDeleting || isChecking;
+  const isActionBusy = isBusy || Boolean(activeSmartPieceKey) || Boolean(activeDeleteId);
   const targetReadyCount = trackings.filter((tracking) => tracking.current_price !== null && tracking.target_price !== null && tracking.current_price <= tracking.target_price).length;
   const trackedUrlCount = trackings.filter((tracking) => Boolean(tracking.product_url)).length;
 
@@ -57,7 +58,8 @@ export default function PriceTrackingScreen() {
   }, [targetReadyCount, trackedUrlCount, trackings.length]);
 
   async function handleCreate() {
-    if (isBusy) {
+    if (isActionBusy) {
+      captureEvent("price_tracking_create_blocked", { reason: "busy" });
       return;
     }
 
@@ -110,7 +112,8 @@ export default function PriceTrackingScreen() {
 
   async function handleAddSmartSuggestion(piece: MissingWardrobePiece) {
     const pieceKey = getSmartPieceKey(piece);
-    if (isBusy || activeSmartPieceKey) {
+    if (isActionBusy) {
+      captureEvent("price_tracking_smart_suggestion_blocked", { category: piece.category, priority: piece.priority, reason: "busy" });
       return;
     }
 
@@ -155,7 +158,8 @@ export default function PriceTrackingScreen() {
   }
 
   async function handleDelete(id: string) {
-    if (isBusy || activeDeleteId) {
+    if (isActionBusy) {
+      captureEvent("price_tracking_delete_blocked", { reason: "busy", tracking_id: id });
       return;
     }
 
@@ -181,7 +185,8 @@ export default function PriceTrackingScreen() {
   }
 
   async function handleCheckPrices() {
-    if (isBusy) {
+    if (isActionBusy) {
+      captureEvent("price_tracking_check_blocked", { reason: "busy" });
       return;
     }
 
@@ -208,19 +213,19 @@ export default function PriceTrackingScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isActionBusy} />
         <Text variant="h2">Fiyat Takibi</Text>
         <View style={styles.headerSpacer} />
       </View>
 
       <Card style={styles.form}>
         <Text variant="h3">Yeni takip</Text>
-        <Input label="Urun adi" value={productName} onChangeText={setProductName} />
-        <Input label="Magaza" value={store} onChangeText={setStore} />
-        <Input label="Urun linki" value={productUrl} onChangeText={setProductUrl} autoCapitalize="none" autoCorrect={false} error={getOptionalHttpUrlError(productUrl)} />
-        <Input label="Mevcut fiyat" value={currentPrice} onChangeText={setCurrentPrice} keyboardType="decimal-pad" error={getCurrencyInputError(currentPrice)} />
-        <Input label="Hedef fiyat" value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" error={getCurrencyInputError(targetPrice)} />
-        <Button title="Takibe Ekle" onPress={handleCreate} loading={isCreating} disabled={isBusy} />
+        <Input label="Urun adi" value={productName} onChangeText={setProductName} editable={!isActionBusy} />
+        <Input label="Magaza" value={store} onChangeText={setStore} editable={!isActionBusy} />
+        <Input label="Urun linki" value={productUrl} onChangeText={setProductUrl} autoCapitalize="none" autoCorrect={false} error={getOptionalHttpUrlError(productUrl)} editable={!isActionBusy} />
+        <Input label="Mevcut fiyat" value={currentPrice} onChangeText={setCurrentPrice} keyboardType="decimal-pad" error={getCurrencyInputError(currentPrice)} editable={!isActionBusy} />
+        <Input label="Hedef fiyat" value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" error={getCurrencyInputError(targetPrice)} editable={!isActionBusy} />
+        <Button title="Takibe Ekle" onPress={handleCreate} loading={isCreating} disabled={isActionBusy} />
       </Card>
 
       <SmartShoppingListCard
@@ -229,13 +234,13 @@ export default function PriceTrackingScreen() {
         onAdd={handleAddSmartSuggestion}
         activePieceKey={activeSmartPieceKey}
         isAdding={isCreating}
-        disabled={isBusy}
+        disabled={isActionBusy}
       />
 
       <View style={styles.list}>
         <View style={styles.listHeader}>
           <Text variant="h3">Takip listesi</Text>
-          <Button title="Kontrol Et" variant="secondary" onPress={handleCheckPrices} loading={isChecking} disabled={trackings.length === 0 || isBusy} />
+          <Button title="Kontrol Et" variant="secondary" onPress={handleCheckPrices} loading={isChecking} disabled={trackings.length === 0 || isActionBusy} />
         </View>
         {trackings.length > 0 ? (
           <View style={styles.summaryGrid}>
@@ -282,7 +287,7 @@ export default function PriceTrackingScreen() {
               onUpdate={updateTracking}
               isDeleting={isDeleting}
               isUpdating={isUpdating}
-              isBusy={isBusy}
+              isBusy={isActionBusy}
               activeDeleteId={activeDeleteId}
             />
           ))
@@ -399,6 +404,7 @@ function TrackingCard({
 
   async function handleSave() {
     if (isBusy) {
+      captureEvent("price_tracking_update_blocked", { reason: "busy", tracking_id: tracking.id });
       return;
     }
 
@@ -450,6 +456,11 @@ function TrackingCard({
           <Pressable
             style={styles.iconButton}
             onPress={() => {
+              if (isBusy) {
+                captureEvent("price_tracking_edit_blocked", { reason: "busy", tracking_id: tracking.id });
+                return;
+              }
+
               const nextValue = !isEditing;
               captureEvent("price_tracking_edit_toggled", { tracking_id: tracking.id, is_editing: nextValue });
               setIsEditing(nextValue);
@@ -466,11 +477,11 @@ function TrackingCard({
 
       {isEditing ? (
         <View style={styles.editForm}>
-          <Input label="Urun adi" value={name} onChangeText={setName} />
-          <Input label="Magaza" value={store} onChangeText={setStore} />
-          <Input label="Urun linki" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} error={getOptionalHttpUrlError(url)} />
-          <Input label="Mevcut fiyat" value={currentPrice} onChangeText={setCurrentPrice} keyboardType="decimal-pad" error={getCurrencyInputError(currentPrice)} />
-          <Input label="Hedef fiyat" value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" error={getCurrencyInputError(targetPrice)} />
+          <Input label="Urun adi" value={name} onChangeText={setName} editable={!isBusy} />
+          <Input label="Magaza" value={store} onChangeText={setStore} editable={!isBusy} />
+          <Input label="Urun linki" value={url} onChangeText={setUrl} autoCapitalize="none" autoCorrect={false} error={getOptionalHttpUrlError(url)} editable={!isBusy} />
+          <Input label="Mevcut fiyat" value={currentPrice} onChangeText={setCurrentPrice} keyboardType="decimal-pad" error={getCurrencyInputError(currentPrice)} editable={!isBusy} />
+          <Input label="Hedef fiyat" value={targetPrice} onChangeText={setTargetPrice} keyboardType="decimal-pad" error={getCurrencyInputError(targetPrice)} editable={!isBusy} />
           <Button title="Degisiklikleri Kaydet" onPress={handleSave} loading={isUpdating} disabled={isBusy} />
         </View>
       ) : (
@@ -512,7 +523,19 @@ function TrackingCard({
             {tracking.last_checked ? `Son kontrol: ${formatPriceCheckDate(tracking.last_checked)}` : "Henuz otomatik kontrol yapilmadi."}
           </Text>
           {tracking.product_url ? (
-            <Button title="Urun Linkini Ac" variant="ghost" onPress={() => void openProductUrl(tracking)} disabled={isBusy} />
+            <Button
+              title="Urun Linkini Ac"
+              variant="ghost"
+              onPress={() => {
+                if (isBusy) {
+                  captureEvent("price_tracking_product_url_blocked", { reason: "busy", tracking_id: tracking.id });
+                  return;
+                }
+
+                void openProductUrl(tracking);
+              }}
+              disabled={isBusy}
+            />
           ) : null}
         </>
       )}
