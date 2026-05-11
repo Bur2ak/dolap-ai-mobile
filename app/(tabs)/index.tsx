@@ -29,6 +29,7 @@ export default function WardrobeScreen() {
   const { category, season, search, setCategory, setSeason, setSearch } = useWardrobeStore();
   const normalizedQuery = search.trim().toLowerCase();
   const hasActiveFilters = category !== "all" || season !== "all" || Boolean(normalizedQuery);
+  const isBusy = isLoading || isRefetching;
   const filteredItems = items.filter((item) => {
     const categoryMatch = category === "all" || item.category === category;
     const seasonMatch = season === "all" || item.season.includes(season);
@@ -50,6 +51,11 @@ export default function WardrobeScreen() {
   }, [filteredItems.length, hasActiveFilters, items.length]);
 
   function clearFilters(source: "summary" | "empty") {
+    if (isBusy) {
+      captureEvent("wardrobe_filters_clear_blocked", { reason: "busy", source });
+      return;
+    }
+
     setCategory("all");
     setSeason("all");
     setSearch("");
@@ -57,6 +63,11 @@ export default function WardrobeScreen() {
   }
 
   function openAddItem() {
+    if (isBusy) {
+      captureEvent("wardrobe_add_item_blocked", { reason: "busy" });
+      return;
+    }
+
     captureEvent("wardrobe_add_item_opened");
     router.push("/item/add");
   }
@@ -70,7 +81,7 @@ export default function WardrobeScreen() {
             {items.length} kiyafet
           </Text>
         </View>
-        <Pressable style={styles.iconButton} onPress={openAddItem}>
+        <Pressable style={[styles.iconButton, isBusy ? styles.disabledAction : null]} onPress={openAddItem} disabled={isBusy}>
           <Ionicons name="add" size={28} color={COLORS.surface} />
         </Pressable>
       </View>
@@ -87,9 +98,15 @@ export default function WardrobeScreen() {
             <Pressable
               style={[styles.chip, active && styles.activeChip]}
               onPress={() => {
+                if (isBusy) {
+                  captureEvent("wardrobe_filter_blocked", { filter: "category", reason: "busy", value: item.value });
+                  return;
+                }
+
                 setCategory(item.value === "all" ? "all" : (item.value as ClothingCategory));
                 captureEvent("wardrobe_filter_changed", { filter: "category", value: item.value });
               }}
+              disabled={isBusy}
             >
               <Text variant="label" color={active ? "inverse" : "secondary"}>
                 {item.label}
@@ -111,9 +128,15 @@ export default function WardrobeScreen() {
             <Pressable
               style={[styles.seasonChip, active && styles.activeSeasonChip]}
               onPress={() => {
+                if (isBusy) {
+                  captureEvent("wardrobe_filter_blocked", { filter: "season", reason: "busy", value: item.value });
+                  return;
+                }
+
                 setSeason(item.value);
                 captureEvent("wardrobe_filter_changed", { filter: "season", value: item.value });
               }}
+              disabled={isBusy}
             >
               <Text variant="caption" color={active ? "inverse" : "secondary"}>
                 {item.label}
@@ -123,7 +146,7 @@ export default function WardrobeScreen() {
         }}
       />
 
-      <Input label="Dolapta ara" value={search} onChangeText={setSearch} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" />
+      <Input label="Dolapta ara" value={search} onChangeText={setSearch} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" editable={!isBusy} />
       {hasActiveFilters ? (
         <View style={styles.filterSummary}>
           <Text variant="caption" color="muted">
@@ -133,6 +156,7 @@ export default function WardrobeScreen() {
             onPress={() => {
               clearFilters("summary");
             }}
+            disabled={isBusy}
           >
             <Text variant="caption" color="primary">
               Temizle
@@ -167,9 +191,15 @@ export default function WardrobeScreen() {
             <Pressable
               style={styles.itemPressable}
               onPress={() => {
+                if (isBusy) {
+                  captureEvent("wardrobe_item_open_blocked", { item_id: item.id, reason: "busy" });
+                  return;
+                }
+
                 captureEvent("wardrobe_item_opened", { item_id: item.id, category: item.category });
                 router.push(`/item/${item.id}`);
               }}
+              disabled={isBusy}
             >
               <Card style={styles.itemCard}>
                 <CachedImage
@@ -270,6 +300,9 @@ const styles = StyleSheet.create({
   activeChip: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
+  },
+  disabledAction: {
+    opacity: 0.52,
   },
   seasonChip: {
     backgroundColor: COLORS.surface,

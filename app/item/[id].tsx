@@ -35,6 +35,7 @@ export default function ItemDetailScreen() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [activeAction, setActiveAction] = useState<"save" | "worn" | "shareable" | "lendable" | "delete" | null>(null);
   const isBusy = isUpdating;
+  const isActionBusy = Boolean(activeAction) || isBusy;
 
   const categoryLabel = CATEGORIES.find((category) => category.value === item?.category)?.label ?? item?.category;
 
@@ -64,11 +65,17 @@ export default function ItemDetailScreen() {
   }, [id, item]);
 
   function toggleSeason(season: Season) {
+    if (isActionBusy) {
+      captureEvent("wardrobe_item_detail_season_blocked", { reason: "busy", season });
+      return;
+    }
+
     setSeasons((current) => (current.includes(season) ? current.filter((item) => item !== season) : [...current, season]));
   }
 
   async function handleSaveEdits() {
-    if (!item || activeAction || isBusy) {
+    if (!item || isActionBusy) {
+      captureEvent("wardrobe_item_detail_save_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -111,7 +118,8 @@ export default function ItemDetailScreen() {
   }
 
   async function handleMarkWorn() {
-    if (!item || activeAction || isBusy) {
+    if (!item || isActionBusy) {
+      captureEvent("wardrobe_item_detail_mark_worn_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -128,7 +136,8 @@ export default function ItemDetailScreen() {
   }
 
   async function handleShareableToggle() {
-    if (!item || activeAction || isBusy) {
+    if (!item || isActionBusy) {
+      captureEvent("wardrobe_item_shareable_toggle_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -145,7 +154,8 @@ export default function ItemDetailScreen() {
   }
 
   async function handleLendableToggle() {
-    if (!item || activeAction || isBusy) {
+    if (!item || isActionBusy) {
+      captureEvent("wardrobe_item_lendable_toggle_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -162,7 +172,8 @@ export default function ItemDetailScreen() {
   }
 
   function handleDelete() {
-    if (!item || activeAction || isBusy) {
+    if (!item || isActionBusy) {
+      captureEvent("wardrobe_item_detail_delete_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -192,7 +203,7 @@ export default function ItemDetailScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isActionBusy} />
         <Text variant="h2">Kiyafet Detay</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -232,13 +243,18 @@ export default function ItemDetailScreen() {
               title={isEditing ? "Duzenlemeyi Kapat" : "Bilgileri Duzenle"}
               variant="secondary"
               onPress={() => {
+                if (isActionBusy) {
+                  captureEvent("wardrobe_item_detail_edit_blocked", { item_id: item.id, reason: "busy" });
+                  return;
+                }
+
                 setIsEditing((value) => {
                   const nextValue = !value;
                   captureEvent("wardrobe_item_detail_edit_toggled", { enabled: nextValue });
                   return nextValue;
                 });
               }}
-              disabled={isBusy}
+              disabled={isActionBusy}
             />
           </Card>
 
@@ -256,10 +272,15 @@ export default function ItemDetailScreen() {
                       title={itemCategory.label}
                       variant={active ? "primary" : "secondary"}
                       onPress={() => {
+                        if (isActionBusy) {
+                          captureEvent("wardrobe_item_detail_category_blocked", { category: itemCategory.value, item_id: item.id, reason: "busy" });
+                          return;
+                        }
+
                         captureEvent("wardrobe_item_detail_category_selected", { category: itemCategory.value });
                         setCategory(itemCategory.value);
                       }}
-                      disabled={isBusy}
+                      disabled={isActionBusy}
                       style={styles.chipButton}
                     />
                   );
@@ -276,18 +297,18 @@ export default function ItemDetailScreen() {
                       title={season.label}
                       variant={active ? "primary" : "secondary"}
                       onPress={() => toggleSeason(season.value)}
-                      disabled={isBusy}
+                      disabled={isActionBusy}
                       style={styles.chipButton}
                     />
                   );
                 })}
               </View>
 
-              <Input label="Alt kategori" value={subcategory} onChangeText={setSubcategory} />
-              <Input label="Renkler" value={colors} onChangeText={setColors} />
-              <Input label="Marka" value={brand} onChangeText={setBrand} />
-              <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
-              <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={activeAction === "save"} disabled={Boolean(activeAction) || isBusy} />
+              <Input label="Alt kategori" value={subcategory} onChangeText={setSubcategory} editable={!isActionBusy} />
+              <Input label="Renkler" value={colors} onChangeText={setColors} editable={!isActionBusy} />
+              <Input label="Marka" value={brand} onChangeText={setBrand} editable={!isActionBusy} />
+              <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} editable={!isActionBusy} />
+              <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={activeAction === "save"} disabled={isActionBusy} />
             </Card>
           ) : null}
 
@@ -359,21 +380,21 @@ export default function ItemDetailScreen() {
                 variant="secondary"
                 onPress={() => void handleShareableToggle()}
                 loading={activeAction === "shareable"}
-                disabled={Boolean(activeAction) || isBusy}
+                disabled={isActionBusy}
               />
               <Button
                 title={item.is_lendable ? "Odunc Kapat" : "Odunc Verilebilir"}
                 variant="ghost"
                 onPress={() => void handleLendableToggle()}
                 loading={activeAction === "lendable"}
-                disabled={Boolean(activeAction) || isBusy}
+                disabled={isActionBusy}
               />
             </View>
           </Card>
 
           <View style={styles.actions}>
-            <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={activeAction === "worn"} disabled={Boolean(activeAction) || isBusy} />
-            <Button title="Sil" variant="secondary" onPress={handleDelete} loading={activeAction === "delete"} disabled={Boolean(activeAction) || isBusy} />
+            <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={activeAction === "worn"} disabled={isActionBusy} />
+            <Button title="Sil" variant="secondary" onPress={handleDelete} loading={activeAction === "delete"} disabled={isActionBusy} />
           </View>
         </>
       ) : (

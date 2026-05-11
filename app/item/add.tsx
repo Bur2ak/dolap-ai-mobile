@@ -54,6 +54,7 @@ export default function AddItemScreen() {
 
   function resetDraft() {
     if (isBusy) {
+      captureEvent("wardrobe_add_draft_reset_blocked", { reason: "busy" });
       return;
     }
 
@@ -88,6 +89,11 @@ export default function AddItemScreen() {
   }
 
   async function handleImageSelected(uri: string | null) {
+    if (isBusy) {
+      captureEvent("wardrobe_add_image_selection_blocked", { reason: "busy" });
+      return;
+    }
+
     if (!uri) {
       captureEvent("wardrobe_add_image_selection_cancelled");
       return;
@@ -125,11 +131,21 @@ export default function AddItemScreen() {
   }
 
   function updateCategory(category: ClothingCategory) {
+    if (isBusy) {
+      captureEvent("wardrobe_add_category_blocked", { category, reason: "busy" });
+      return;
+    }
+
     setAnalysis((current) => ({ ...current, category }));
     captureEvent("wardrobe_add_category_selected", { category });
   }
 
   function toggleSeason(season: Season) {
+    if (isBusy) {
+      captureEvent("wardrobe_add_season_blocked", { reason: "busy", season });
+      return;
+    }
+
     setAnalysis((current) => {
       const hasSeason = current.season.includes(season);
       captureEvent("wardrobe_add_season_toggled", { enabled: !hasSeason, season });
@@ -141,6 +157,11 @@ export default function AddItemScreen() {
   }
 
   function toggleShareable() {
+    if (isBusy) {
+      captureEvent("wardrobe_add_shareable_blocked", { reason: "busy" });
+      return;
+    }
+
     setIsShareable((current) => {
       const nextValue = !current;
       captureEvent("wardrobe_add_shareable_toggled", { enabled: nextValue });
@@ -152,6 +173,11 @@ export default function AddItemScreen() {
   }
 
   function toggleLendable() {
+    if (isBusy) {
+      captureEvent("wardrobe_add_lendable_blocked", { reason: "busy" });
+      return;
+    }
+
     setIsLendable((current) => {
       const nextValue = !current;
       captureEvent("wardrobe_add_lendable_toggled", { enabled: nextValue });
@@ -164,11 +190,13 @@ export default function AddItemScreen() {
 
   async function handleSave() {
     if (isBusy) {
+      captureEvent("wardrobe_add_save_blocked", { reason: "busy" });
       return;
     }
 
     if (!imageUri) {
       captureEvent("wardrobe_add_save_blocked", { reason: "missing_image" });
+      Alert.alert("Fotograf gerekli", "Kiyafeti kaydetmek icin once fotograf secmelisin.");
       return;
     }
 
@@ -229,7 +257,7 @@ export default function AddItemScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Kiyafet Ekle</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -329,6 +357,7 @@ export default function AddItemScreen() {
             label="Alt kategori"
             value={analysis.subcategory}
             onChangeText={(value) => setAnalysis((current) => ({ ...current, subcategory: value }))}
+            editable={!isBusy}
           />
           <Input
             label="Renkler"
@@ -342,9 +371,10 @@ export default function AddItemScreen() {
                   .filter(Boolean),
               }))
             }
+            editable={!isBusy}
           />
-          <Input label="Marka" value={brand} onChangeText={setBrand} />
-          <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} />
+          <Input label="Marka" value={brand} onChangeText={setBrand} editable={!isBusy} />
+          <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} editable={!isBusy} />
 
           <Card style={styles.socialCard}>
             <Text variant="h3">Sosyal ayarlar</Text>
