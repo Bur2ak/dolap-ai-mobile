@@ -5,8 +5,9 @@ import { supabase } from "@/lib/supabase";
 import type { EventPlanInput, EventRecord, OutfitSuggestion, UpdateEventInput } from "@/types";
 
 export async function recommendEventOutfits(input: EventPlanInput): Promise<OutfitSuggestion[]> {
-  const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("event-outfit", normalizeEventPlanInput(input));
-  return data ?? [];
+  const normalizedInput = normalizeEventPlanInput(input);
+  const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("event-outfit", normalizedInput);
+  return normalizeOutfitSuggestions(data, new Set(normalizedInput.wardrobe.map((item) => item.id)));
 }
 
 export async function fetchEventPlans(userId: string): Promise<EventRecord[]> {
@@ -17,7 +18,7 @@ export async function fetchEventPlans(userId: string): Promise<EventRecord[]> {
     throwApiError(error, "Etkinlikler yuklenemedi.");
   }
 
-  return (data ?? []) as EventRecord[];
+  return (data ?? []).map(normalizeEventRecord).filter((event): event is EventRecord => event !== null);
 }
 
 export async function saveEventPlan(
@@ -45,7 +46,12 @@ export async function saveEventPlan(
     throwApiError(error, "Etkinlik kaydedilemedi.");
   }
 
-  return data as EventRecord;
+  const event = normalizeEventRecord(data);
+  if (!event) {
+    throw new Error("Etkinlik kaydi gecersiz dondu.");
+  }
+
+  return event;
 }
 
 export async function updateEventPlan(userId: string, eventId: string, input: UpdateEventInput): Promise<EventRecord> {
@@ -64,7 +70,12 @@ export async function updateEventPlan(userId: string, eventId: string, input: Up
     throwApiError(error, "Etkinlik guncellenemedi.");
   }
 
-  return data as EventRecord;
+  const event = normalizeEventRecord(data);
+  if (!event) {
+    throw new Error("Etkinlik kaydi gecersiz dondu.");
+  }
+
+  return event;
 }
 
 export async function deleteEventPlan(userId: string, eventId: string): Promise<void> {
@@ -75,6 +86,56 @@ export async function deleteEventPlan(userId: string, eventId: string): Promise<
   if (error) {
     throwApiError(error, "Etkinlik silinemedi.");
   }
+}
+
+function normalizeEventRecord(value: unknown): EventRecord | null {
+  const record = value && typeof value === "object" && !Array.isArray(value) ? (value as Partial<EventRecord>) : {};
+  if (typeof record.id !== "string" || !isUuid(record.id) || typeof record.user_id !== "string" || !isUuid(record.user_id)) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    user_id: record.user_id,
+    outfit_id: typeof record.outfit_id === "string" && isUuid(record.outfit_id) ? record.outfit_id : null,
+    title: normalizeText(record.title, "Etkinlik", 120),
+    event_type: normalizeText(record.event_type, "diger", 40),
+    event_date: normalizeDate(record.event_date),
+    location: typeof record.location === "string" ? normalizeNullableText(record.location, 160) : null,
+    notes: typeof record.notes === "string" ? normalizeNullableText(record.notes, 500) : null,
+    calendar_event_id: typeof record.calendar_event_id === "string" ? normalizeNullableText(record.calendar_event_id, 160) : null,
+    created_at: normalizeDate(record.created_at),
+  };
+}
+
+function normalizeOutfitSuggestions(value: unknown, allowedItemIds: Set<string>): OutfitSuggestion[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((suggestion) => normalizeOutfitSuggestion(suggestion, allowedItemIds))
+    .filter((suggestion): suggestion is OutfitSuggestion => suggestion !== null)
+    .slice(0, 5);
+}
+
+function normalizeOutfitSuggestion(value: unknown, allowedItemIds: Set<string>): OutfitSuggestion | null {
+  const record = value && typeof value === "object" && !Array.isArray(value) ? (value as Partial<OutfitSuggestion>) : {};
+  const items = Array.isArray(record.items)
+    ? [...new Set(record.items.filter((itemId): itemId is string => typeof itemId === "string" && allowedItemIds.has(itemId)))].slice(0, 8)
+    : [];
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return {
+    items,
+    name: normalizeText(record.name, "Etkinlik Kombini", 80),
+    reason: normalizeText(record.reason, "Dolabindaki uyumlu parcalar secildi.", 500),
+    accessory_note: typeof record.accessory_note === "string" ? normalizeNullableText(record.accessory_note, 240) : null,
+    formality_match: typeof record.formality_match === "string" ? normalizeText(record.formality_match, "uygun", 80) : undefined,
+  };
 }
 
 function normalizeEventInput<T extends UpdateEventInput>(input: T, requireRequiredFields: boolean): T {
@@ -141,6 +202,23 @@ function normalizeEventPlanInput(input: EventPlanInput): EventPlanInput {
         }
       : null,
   };
+}
+
+function normalizeText(value: unknown, fallback: string, maxLength: number) {
+  return typeof value === "string" && value.trim() ? value.trim().replace(/\s+/g, " ").slice(0, maxLength) : fallback;
+}
+
+function normalizeNullableText(value: string, maxLength: number) {
+  return value.trim().replace(/\s+/g, " ").slice(0, maxLength) || null;
+}
+
+function normalizeDate(value: unknown) {
+  if (typeof value !== "string") {
+    return new Date().toISOString();
+  }
+
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
 }
 
 function assertUserId(value: string) {
