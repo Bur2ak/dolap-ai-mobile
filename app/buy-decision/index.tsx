@@ -23,7 +23,12 @@ import { optimizeImage } from "@/utils/imageUtils";
 import { buildSimilarWardrobeSummary } from "@/utils/similarWardrobe";
 
 function formatDecisionDate(value: string) {
-  return new Date(value).toLocaleDateString("tr-TR", {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return "Tarih yok";
+  }
+
+  return date.toLocaleDateString("tr-TR", {
     day: "2-digit",
     month: "short",
     year: "numeric",
