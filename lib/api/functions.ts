@@ -10,7 +10,23 @@ export async function invokeFunctionWithRetry<T>(name: string, body: FunctionInv
   let lastError: unknown = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const { data, error } = await supabase.functions.invoke<T>(name, { body });
+    let response: Awaited<ReturnType<typeof supabase.functions.invoke<T>>>;
+    try {
+      response = await supabase.functions.invoke<T>(name, { body });
+    } catch (error) {
+      const functionError = new EdgeFunctionError(getFunctionErrorMessage(name, undefined, null, error));
+      lastError = functionError;
+      captureError(functionError, { area: "edge_function", function_name: name, attempt, status: null });
+
+      if (attempt < maxAttempts && shouldRetryFunctionError(functionError)) {
+        await delay(baseDelayMs * 2 ** (attempt - 1));
+        continue;
+      }
+
+      break;
+    }
+
+    const { data, error } = response;
 
     if (!error) {
       return data ?? null;

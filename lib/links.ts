@@ -13,13 +13,12 @@ export function createPublicAppLink(path: string, queryParams?: Record<string, Q
     return Linking.createURL(cleanPath, cleanQuery ? { queryParams: cleanQuery } : undefined);
   }
 
-  const query = cleanQuery
-    ? Object.entries(cleanQuery)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-        .join("&")
-    : "";
+  const url = new URL(cleanPath, `${siteUrl}/`);
+  Object.entries(cleanQuery ?? {}).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
 
-  return `${siteUrl}${cleanPath}${query ? `?${query}` : ""}`;
+  return url.toString();
 }
 
 function getConfiguredSiteUrl() {
