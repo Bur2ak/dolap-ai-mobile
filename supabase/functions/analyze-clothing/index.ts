@@ -58,11 +58,41 @@ serve(async (req) => {
       return json(fallbackAnalysis("Gemini yaniti beklenen JSON formatinda degildi."));
     }
 
-    return json(JSON.parse(match[0]));
+    return json(normalizeAnalysis(JSON.parse(match[0])));
   } catch (error) {
     return json(fallbackAnalysis(error instanceof Error ? error.message : "Bilinmeyen hata."));
   }
 });
+
+const validCategories = new Set(["ust", "alt", "elbise", "etek", "dis_giyim", "ayakkabi", "canta", "aksesuar", "ic_giyim", "spor", "diger"]);
+const validSeasons = new Set(["ilkbahar", "yaz", "sonbahar", "kis"]);
+
+function normalizeAnalysis(value: unknown) {
+  if (!isRecord(value)) {
+    return fallbackAnalysis("Gemini yaniti beklenen analiz formatinda degildi.");
+  }
+
+  const category = typeof value.category === "string" && validCategories.has(value.category) ? value.category : "diger";
+  const colors = Array.isArray(value.colors)
+    ? value.colors
+        .filter((color): color is string => typeof color === "string" && Boolean(color.trim()))
+        .map((color) => color.trim().toLowerCase().slice(0, 32))
+        .slice(0, 5)
+    : [];
+  const season = Array.isArray(value.season)
+    ? [...new Set(value.season.filter((entry): entry is string => typeof entry === "string" && validSeasons.has(entry)))].slice(0, 4)
+    : [];
+  const dominantColor = typeof value.dominant_color_hex === "string" && /^#[0-9a-f]{6}$/i.test(value.dominant_color_hex.trim()) ? value.dominant_color_hex.trim() : "#12312B";
+
+  return {
+    category,
+    subcategory: typeof value.subcategory === "string" && value.subcategory.trim() ? value.subcategory.trim().slice(0, 80) : "Tanimlanacak parca",
+    colors: colors.length > 0 ? colors : ["belirsiz"],
+    dominant_color_hex: dominantColor,
+    season: season.length > 0 ? season : ["ilkbahar", "yaz"],
+    brand: typeof value.brand === "string" && value.brand.trim() ? value.brand.trim().slice(0, 80) : null,
+  };
+}
 
 function fallbackAnalysis(reason: string) {
   return {
@@ -74,6 +104,10 @@ function fallbackAnalysis(reason: string) {
     brand: null,
     analysis_note: reason,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 async function callGemini(apiKey: string, parts: unknown[], maxOutputTokens: number) {

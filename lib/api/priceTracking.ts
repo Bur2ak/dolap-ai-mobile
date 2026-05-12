@@ -34,17 +34,18 @@ export async function fetchPriceTrackings(userId: string): Promise<PriceTracking
 }
 
 export async function createPriceTracking(userId: string, input: CreatePriceTrackingInput): Promise<PriceTracking> {
-  const priceHistory = input.current_price ? [{ price: input.current_price, date: new Date().toISOString() }] : [];
+  const normalizedInput = normalizePriceTrackingInput(input, true);
+  const priceHistory = normalizedInput.current_price ? [{ price: normalizedInput.current_price, date: new Date().toISOString() }] : [];
   const { data, error } = await supabase
     .from("price_tracking")
     .insert({
       user_id: userId,
-      product_name: input.product_name,
-      product_url: input.product_url ?? null,
-      current_price: input.current_price ?? null,
-      initial_price: input.current_price ?? null,
-      target_price: input.target_price ?? null,
-      store: input.store ?? null,
+      product_name: normalizedInput.product_name,
+      product_url: normalizedInput.product_url ?? null,
+      current_price: normalizedInput.current_price ?? null,
+      initial_price: normalizedInput.current_price ?? null,
+      target_price: normalizedInput.target_price ?? null,
+      store: normalizedInput.store ?? null,
       price_history: priceHistory,
     })
     .select("*")
@@ -70,9 +71,10 @@ export async function deletePriceTracking(userId: string, trackingId: string): P
 }
 
 export async function updatePriceTracking(userId: string, trackingId: string, input: UpdatePriceTrackingInput): Promise<PriceTracking> {
-  const updatePayload: Record<string, unknown> = { ...input };
+  const normalizedInput = normalizePriceTrackingInput(input, false);
+  const updatePayload: Record<string, unknown> = { ...normalizedInput };
 
-  if (input.current_price !== undefined) {
+  if (normalizedInput.current_price !== undefined) {
     const { data: existingTracking, error: existingError } = await supabase
       .from("price_tracking")
       .select("current_price, initial_price, price_history")
@@ -84,7 +86,7 @@ export async function updatePriceTracking(userId: string, trackingId: string, in
       throwApiError(existingError, "Fiyat takibi guncellenemedi.");
     }
 
-    const currentPrice = input.current_price ?? null;
+    const currentPrice = normalizedInput.current_price ?? null;
     const existingCurrentPrice = existingTracking.current_price === null ? null : Number(existingTracking.current_price);
     const priceChanged = currentPrice !== null && currentPrice !== existingCurrentPrice;
     if (priceChanged) {
@@ -129,6 +131,49 @@ function normalizePriceHistory(value: unknown) {
       return typeof candidate.date === "string" && Number.isFinite(Number(candidate.price));
     })
     .map((entry) => ({ date: entry.date, price: Number(entry.price) }));
+}
+
+function normalizePriceTrackingInput<T extends CreatePriceTrackingInput | UpdatePriceTrackingInput>(input: T, requireName: boolean): T {
+  const normalized = { ...input };
+
+  if (normalized.product_name !== undefined) {
+    normalized.product_name = normalized.product_name.trim().replace(/\s+/g, " ").slice(0, 120);
+    if (!normalized.product_name) {
+      throw new Error("Urun adi gerekli.");
+    }
+  } else if (requireName) {
+    throw new Error("Urun adi gerekli.");
+  }
+
+  if (normalized.product_url !== undefined) {
+    normalized.product_url = normalized.product_url?.trim() || null;
+  }
+
+  if (normalized.store !== undefined) {
+    normalized.store = normalized.store?.trim().replace(/\s+/g, " ").slice(0, 80) || null;
+  }
+
+  if (normalized.current_price !== undefined) {
+    normalized.current_price = normalizeOptionalPrice(normalized.current_price);
+  }
+
+  if (normalized.target_price !== undefined) {
+    normalized.target_price = normalizeOptionalPrice(normalized.target_price);
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalPrice(value: number | null | undefined) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error("Gecerli bir fiyat gir.");
+  }
+
+  return Math.round(value * 100) / 100;
 }
 
 export async function checkPriceTrackings(): Promise<PriceCheckResult> {

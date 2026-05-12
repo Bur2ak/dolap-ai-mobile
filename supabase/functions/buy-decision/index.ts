@@ -66,11 +66,44 @@ Yalnizca JSON dondur:
       return json(fallbackDecision(wardrobe, price, "Gemini yaniti beklenen JSON formatinda degildi."));
     }
 
-    return json(JSON.parse(match[0]));
+    return json(normalizeDecision(JSON.parse(match[0]), wardrobe, price));
   } catch (error) {
     return json(fallbackDecision([], null, error instanceof Error ? error.message : "Bilinmeyen hata."));
   }
 });
+
+function normalizeDecision(value: unknown, wardrobe: unknown, price: unknown) {
+  if (!isRecord(value)) {
+    return fallbackDecision(wardrobe, price, "Gemini yaniti beklenen karar formatinda degildi.");
+  }
+
+  const validIds = new Set(
+    (Array.isArray(wardrobe) ? wardrobe : [])
+      .map((item) => (isRecord(item) && typeof item.id === "string" ? item.id : null))
+      .filter((id): id is string => Boolean(id)),
+  );
+  const decision = value.decision === "AL" || value.decision === "BEKLEME" || value.decision === "ALMA" ? value.decision : "BEKLEME";
+  const confidence = typeof value.confidence === "number" && Number.isFinite(value.confidence) ? Math.max(0, Math.min(1, value.confidence)) : 0.55;
+  const similarItems = Array.isArray(value.similar_items_in_wardrobe)
+    ? [...new Set(value.similar_items_in_wardrobe.filter((id): id is string => typeof id === "string" && validIds.has(id)))].slice(0, 5)
+    : [];
+  const combinationCount = typeof value.combination_count === "number" && Number.isFinite(value.combination_count) ? Math.max(0, Math.min(20, Math.round(value.combination_count))) : 0;
+
+  return {
+    decision,
+    confidence,
+    similar_items_in_wardrobe: similarItems,
+    combination_count: combinationCount,
+    cost_per_wear_suggestion: getText(value.cost_per_wear_suggestion, "Kullanim basi maliyet icin bu parcayi kac farkli kombinde kullanacagini kontrol et.", 240),
+    main_reason: getText(value.main_reason, "Dolap uyumu ve ihtiyacina gore dengeli bir karar onerildi.", 180),
+    details: getText(value.details, "Mevcut gardrobunla uyumu, benzer parcalar ve fiyat etkisi birlikte degerlendirildi.", 500),
+    discount_advice: typeof value.discount_advice === "string" ? value.discount_advice.trim().slice(0, 240) || null : null,
+  };
+}
+
+function getText(value: unknown, fallback: string, maxLength: number) {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : fallback;
+}
 
 function fallbackDecision(wardrobe: unknown, price: unknown, reason: string) {
   const items = Array.isArray(wardrobe) ? wardrobe : [];

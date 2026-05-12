@@ -1,4 +1,5 @@
 import { throwApiError } from "@/lib/api/errors";
+import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import type { NotificationPreferences, NotificationRecord } from "@/types";
 
@@ -20,6 +21,7 @@ export async function fetchNotifications(userId: string): Promise<NotificationRe
 }
 
 export async function markNotificationRead(userId: string, notificationId: string): Promise<void> {
+  assertNotificationId(notificationId);
   const { error } = await supabase.from("notifications").update({ is_read: true }).eq("user_id", userId).eq("id", notificationId);
 
   if (error) {
@@ -36,6 +38,7 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
 }
 
 export async function deleteNotification(userId: string, notificationId: string): Promise<void> {
+  assertNotificationId(notificationId);
   const { error } = await supabase.from("notifications").delete().eq("user_id", userId).eq("id", notificationId);
 
   if (error) {
@@ -57,7 +60,7 @@ export async function userAllowsNotification(userId: string, preferenceKey: Noti
 }
 
 export async function filterUsersByNotificationPreference(userIds: string[], preferenceKey: NotificationPreferenceKey): Promise<string[]> {
-  const uniqueUserIds = [...new Set(userIds)].filter(Boolean);
+  const uniqueUserIds = [...new Set(userIds)].filter(isUuid);
   if (uniqueUserIds.length === 0) {
     return [];
   }
@@ -77,4 +80,10 @@ export async function filterUsersByNotificationPreference(userIds: string[], pre
       return preferences?.[preferenceKey] !== false;
     })
     .map((profile) => profile.id as string);
+}
+
+function assertNotificationId(value: string) {
+  if (!isUuid(value)) {
+    throw new Error("Bildirim kaydi gecersiz.");
+  }
 }

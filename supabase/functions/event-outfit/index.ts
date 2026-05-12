@@ -59,11 +59,48 @@ Kurallar:
       return json(fallbackOutfits(wardrobe, title));
     }
 
-    return json(JSON.parse(match[0]));
+    return json(normalizeOutfitSuggestions(JSON.parse(match[0]), wardrobe, title));
   } catch (error) {
     return json(fallbackOutfits([], "Etkinlik"));
   }
 });
+
+function normalizeOutfitSuggestions(value: unknown, wardrobe: unknown, title: unknown) {
+  const items = Array.isArray(wardrobe) ? wardrobe : [];
+  const validIds = new Set(
+    items
+      .map((item) => (isRecord(item) && typeof item.id === "string" ? item.id : null))
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  if (!Array.isArray(value) || validIds.size < 2) {
+    return fallbackOutfits(wardrobe, title);
+  }
+
+  const suggestions = value
+    .map((entry) => {
+      if (!isRecord(entry) || !Array.isArray(entry.items)) {
+        return null;
+      }
+
+      const ids = [...new Set(entry.items.filter((id): id is string => typeof id === "string" && validIds.has(id)))].slice(0, 4);
+      if (ids.length < 2) {
+        return null;
+      }
+
+      return {
+        items: ids,
+        name: typeof entry.name === "string" && entry.name.trim() ? entry.name.trim().slice(0, 80) : "Etkinlik Kombini",
+        reason: typeof entry.reason === "string" && entry.reason.trim() ? entry.reason.trim().slice(0, 360) : "Etkinlik icin dolabindaki uyumlu parcalardan olusturuldu.",
+        accessory_note: typeof entry.accessory_note === "string" ? entry.accessory_note.trim().slice(0, 240) || null : null,
+        formality_match: typeof entry.formality_match === "string" ? entry.formality_match.trim().slice(0, 120) || "Temel uyum" : "Temel uyum",
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 3);
+
+  return suggestions.length > 0 ? suggestions : fallbackOutfits(wardrobe, title);
+}
 
 function fallbackOutfits(wardrobe: unknown, title: unknown) {
   const items = Array.isArray(wardrobe) ? wardrobe : [];

@@ -1,6 +1,7 @@
 import { throwApiError } from "@/lib/api/errors";
 import { userAllowsNotification } from "@/lib/api/notifications";
 import { captureError, captureEvent } from "@/lib/observability";
+import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import type { FriendWardrobe, Friendship, LoanRequest, LoanRequestStatus, ReferralReward, UserSearchResult, WardrobeItem } from "@/types";
 import { formatDateOnly } from "@/utils/formatters";
@@ -11,11 +12,15 @@ export async function searchUsers(query: string, currentUserId: string): Promise
     return [];
   }
 
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized);
+  if (!isUuid(currentUserId)) {
+    throw new Error("Oturum bilgisi gecersiz. Tekrar giris yapmayi dene.");
+  }
+
+  const queryIsUuid = isUuid(normalized);
   const queryBuilder = supabase.from("profiles").select("id, username, full_name, avatar_url").neq("id", currentUserId).limit(10);
-  const { data, error } = isUuid
+  const { data, error } = queryIsUuid
     ? await queryBuilder.eq("id", normalized)
-    : await queryBuilder.or(`username.ilike.%${normalized}%,full_name.ilike.%${normalized}%`);
+    : await queryBuilder.or(`username.ilike.${toIlikePattern(normalized)},full_name.ilike.${toIlikePattern(normalized)}`);
 
   if (error) {
     throwApiError(error, "Kullanici aramasi yapilamadi.");
@@ -28,9 +33,14 @@ function normalizeUserSearchQuery(query: string) {
   return query
     .trim()
     .replace(/^@+/, "")
-    .replace(/[,%()]/g, " ")
+    .replace(/[,%()\\]/g, " ")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .slice(0, 80);
+}
+
+function toIlikePattern(value: string) {
+  return `*${value.replace(/\*/g, " ").trim()}*`;
 }
 
 export async function fetchFriendships(userId: string): Promise<Friendship[]> {

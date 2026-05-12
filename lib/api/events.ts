@@ -22,17 +22,18 @@ export async function saveEventPlan(
   userId: string,
   input: Omit<EventPlanInput, "weather" | "wardrobe"> & { calendar_event_id?: string | null; outfit_id?: string | null },
 ): Promise<EventRecord> {
+  const normalizedInput = normalizeEventInput(input, true);
   const { data, error } = await supabase
     .from("events")
     .insert({
       user_id: userId,
-      title: input.title,
-      event_type: input.event_type,
-      event_date: input.event_date,
-      location: input.location,
-      notes: input.notes,
-      calendar_event_id: input.calendar_event_id ?? null,
-      outfit_id: input.outfit_id ?? null,
+      title: normalizedInput.title,
+      event_type: normalizedInput.event_type,
+      event_date: normalizedInput.event_date,
+      location: normalizedInput.location,
+      notes: normalizedInput.notes,
+      calendar_event_id: normalizedInput.calendar_event_id ?? null,
+      outfit_id: normalizedInput.outfit_id ?? null,
     })
     .select("*")
     .single();
@@ -45,9 +46,10 @@ export async function saveEventPlan(
 }
 
 export async function updateEventPlan(userId: string, eventId: string, input: UpdateEventInput): Promise<EventRecord> {
+  const normalizedInput = normalizeEventInput(input, false);
   const { data, error } = await supabase
     .from("events")
-    .update(input)
+    .update(normalizedInput)
     .eq("user_id", userId)
     .eq("id", eventId)
     .select("*")
@@ -66,4 +68,46 @@ export async function deleteEventPlan(userId: string, eventId: string): Promise<
   if (error) {
     throwApiError(error, "Etkinlik silinemedi.");
   }
+}
+
+function normalizeEventInput<T extends UpdateEventInput>(input: T, requireRequiredFields: boolean): T {
+  const normalized = { ...input };
+
+  if (normalized.title !== undefined) {
+    normalized.title = normalized.title.trim().replace(/\s+/g, " ").slice(0, 120);
+    if (!normalized.title) {
+      throw new Error("Etkinlik adi gerekli.");
+    }
+  } else if (requireRequiredFields) {
+    throw new Error("Etkinlik adi gerekli.");
+  }
+
+  if (normalized.event_type !== undefined) {
+    normalized.event_type = normalized.event_type.trim().replace(/\s+/g, " ").slice(0, 40);
+    if (!normalized.event_type) {
+      throw new Error("Etkinlik tipi gerekli.");
+    }
+  } else if (requireRequiredFields) {
+    throw new Error("Etkinlik tipi gerekli.");
+  }
+
+  if (normalized.event_date !== undefined) {
+    const eventDate = new Date(normalized.event_date);
+    if (!Number.isFinite(eventDate.getTime())) {
+      throw new Error("Gecerli bir etkinlik tarihi gir.");
+    }
+    normalized.event_date = eventDate.toISOString();
+  } else if (requireRequiredFields) {
+    throw new Error("Etkinlik tarihi gerekli.");
+  }
+
+  if (normalized.location !== undefined) {
+    normalized.location = normalized.location?.trim().replace(/\s+/g, " ").slice(0, 160) || null;
+  }
+
+  if (normalized.notes !== undefined) {
+    normalized.notes = normalized.notes?.trim().slice(0, 500) || null;
+  }
+
+  return normalized;
 }

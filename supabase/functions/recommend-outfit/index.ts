@@ -60,11 +60,47 @@ Format:
       return json(fallbackOutfits(wardrobe, event, mood, focus_item_id));
     }
 
-    return json(JSON.parse(match[0]));
+    return json(normalizeOutfitSuggestions(JSON.parse(match[0]), wardrobe, focus_item_id));
   } catch (error) {
     return json(fallbackOutfits([], "kombin", "rahat", null));
   }
 });
+
+function normalizeOutfitSuggestions(value: unknown, wardrobe: unknown, focusItemId: unknown) {
+  const items = Array.isArray(wardrobe) ? wardrobe : [];
+  const validIds = new Set(
+    items
+      .map((item) => (isRecord(item) && typeof item.id === "string" ? item.id : null))
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  if (!Array.isArray(value) || validIds.size < 2) {
+    return fallbackOutfits(wardrobe, "kombin", "rahat", focusItemId);
+  }
+
+  const suggestions = value
+    .map((entry) => {
+      if (!isRecord(entry) || !Array.isArray(entry.items)) {
+        return null;
+      }
+
+      const ids = [...new Set(entry.items.filter((id): id is string => typeof id === "string" && validIds.has(id)))].slice(0, 4);
+      if (ids.length < 2) {
+        return null;
+      }
+
+      return {
+        items: ids,
+        name: typeof entry.name === "string" && entry.name.trim() ? entry.name.trim().slice(0, 80) : "Shipirio Kombini",
+        reason: typeof entry.reason === "string" && entry.reason.trim() ? entry.reason.trim().slice(0, 360) : "Dolabindaki uyumlu parcalardan olusturuldu.",
+        accessory_note: typeof entry.accessory_note === "string" ? entry.accessory_note.trim().slice(0, 240) || null : null,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 3);
+
+  return suggestions.length > 0 ? suggestions : fallbackOutfits(wardrobe, "kombin", "rahat", focusItemId);
+}
 
 function fallbackOutfits(wardrobe: unknown, event: unknown, mood: unknown, focusItemId: unknown) {
   const items = Array.isArray(wardrobe) ? wardrobe : [];
