@@ -2,7 +2,8 @@ import { nanoid } from "nanoid/non-secure";
 
 import { throwApiError } from "@/lib/api/errors";
 import { cacheWardrobeItems, getCachedWardrobeItems } from "@/lib/offlineCache";
-import { captureEvent } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
+import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import { deleteWardrobeImagesForUserItem, uploadWardrobeImage } from "@/lib/storage/supabaseStorage";
 import type { CreateWardrobeItemInput, UpdateWardrobeItemInput, WardrobeItem } from "@/types";
@@ -10,8 +11,11 @@ import { formatDateOnly } from "@/utils/formatters";
 
 const validCategories = new Set(["ust", "alt", "elbise", "etek", "dis_giyim", "ayakkabi", "canta", "aksesuar", "ic_giyim", "spor", "diger"]);
 const validSeasons = new Set(["ilkbahar", "yaz", "sonbahar", "kis"]);
+const maxPurchasePrice = 10_000_000;
 
 export async function fetchWardrobeItems(userId: string): Promise<WardrobeItem[]> {
+  assertUserId(userId);
+
   try {
     const { data, error } = await supabase
       .from("wardrobe_items")
@@ -38,6 +42,9 @@ export async function fetchWardrobeItems(userId: string): Promise<WardrobeItem[]
 }
 
 export async function fetchWardrobeItem(userId: string, itemId: string): Promise<WardrobeItem> {
+  assertUserId(userId);
+  assertItemId(itemId);
+
   const { data, error } = await supabase
     .from("wardrobe_items")
     .select("*")
@@ -54,6 +61,7 @@ export async function fetchWardrobeItem(userId: string, itemId: string): Promise
 }
 
 export async function createWardrobeItem(userId: string, input: CreateWardrobeItemInput): Promise<WardrobeItem> {
+  assertUserId(userId);
   const normalizedInput = normalizeWardrobeItemInput(input, true);
   const itemId = nanoid();
   let imageUrl = input.image_url;
@@ -88,6 +96,7 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
     .single();
 
   if (error) {
+    await cleanupUploadedImages(userId, [imageUrl, thumbnailUrl]);
     throwApiError(error, "Kiyafet kaydedilemedi.");
   }
 
@@ -105,6 +114,9 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
 }
 
 export async function updateWardrobeItem(userId: string, itemId: string, input: UpdateWardrobeItemInput): Promise<WardrobeItem> {
+  assertUserId(userId);
+  assertItemId(itemId);
+
   const normalizedInput = normalizeWardrobeItemInput(input, false);
   const updates = normalizeWardrobeSocialFlags(normalizedInput);
   const { data, error } = await supabase
@@ -155,7 +167,7 @@ function normalizeWardrobeItemInput<T extends CreateWardrobeItemInput | UpdateWa
   }
 
   if (normalized.colors !== undefined) {
-    const colors = normalized.colors.map((color) => color.trim()).filter(Boolean).slice(0, 8);
+    const colors = [...new Set(normalized.colors.map((color) => color.trim().toLowerCase()).filter(Boolean))].slice(0, 8);
     if (colors.length === 0) {
       throw new Error("En az bir renk ekle.");
     }
@@ -184,7 +196,7 @@ function normalizeWardrobeItemInput<T extends CreateWardrobeItemInput | UpdateWa
   }
 
   if (normalized.purchase_price !== undefined && normalized.purchase_price !== null) {
-    if (!Number.isFinite(normalized.purchase_price) || normalized.purchase_price < 0) {
+    if (!Number.isFinite(normalized.purchase_price) || normalized.purchase_price < 0 || normalized.purchase_price > maxPurchasePrice) {
       throw new Error("Gecerli bir fiyat gir.");
     }
     normalized.purchase_price = Math.round(normalized.purchase_price * 100) / 100;
@@ -222,6 +234,7 @@ function normalizeWardrobeSocialFlags(input: Pick<UpdateWardrobeItemInput, "is_s
 }
 
 export async function markWardrobeItemWorn(userId: string, item: WardrobeItem): Promise<WardrobeItem> {
+  assertItemId(item.id);
   return updateWardrobeItem(userId, item.id, {
     wear_count: item.wear_count + 1,
     last_worn: formatDateOnly(new Date()),
@@ -229,6 +242,9 @@ export async function markWardrobeItemWorn(userId: string, item: WardrobeItem): 
 }
 
 export async function deleteWardrobeItem(userId: string, itemId: string): Promise<void> {
+  assertUserId(userId);
+  assertItemId(itemId);
+
   const item = await fetchWardrobeItem(userId, itemId);
   const { error } = await supabase
     .from("wardrobe_items")
@@ -242,4 +258,29 @@ export async function deleteWardrobeItem(userId: string, itemId: string): Promis
 
   await deleteWardrobeImagesForUserItem(userId, [item.image_url, item.thumbnail_url]);
   captureEvent("wardrobe_item_deleted", { category: item.category, had_image: Boolean(item.image_url) });
+}
+
+async function cleanupUploadedImages(userId: string, urls: Array<string | null | undefined>) {
+  const uploadedUrls = urls.filter((url): url is string => typeof url === "string" && url.includes("/storage/v1/object/public/"));
+  if (uploadedUrls.length === 0) {
+    return;
+  }
+
+  try {
+    await deleteWardrobeImagesForUserItem(userId, uploadedUrls);
+  } catch (error) {
+    captureError(error, { area: "wardrobe_item_create_cleanup", uploaded_count: uploadedUrls.length });
+  }
+}
+
+function assertUserId(value: string) {
+  if (!isUuid(value)) {
+    throw new Error("Oturum bilgisi gecersiz. Tekrar giris yapmayi dene.");
+  }
+}
+
+function assertItemId(value: string) {
+  if (!isUuid(value)) {
+    throw new Error("Kiyafet kaydi gecersiz.");
+  }
 }

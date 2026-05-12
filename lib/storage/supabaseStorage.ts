@@ -3,8 +3,14 @@ import { captureError } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 
 const wardrobeImagesBucket = "wardrobe-images";
+const maxUploadBytes = 8 * 1024 * 1024;
 
 async function uriToBlob(uri: string): Promise<Blob> {
+  const trimmedUri = uri.trim();
+  if (!trimmedUri) {
+    throw new Error("Gorsel yolu bos.");
+  }
+
   const response = await fetch(uri);
   if (!response.ok) {
     throw new Error(`Gorsel okunamadi (${response.status}).`);
@@ -15,15 +21,20 @@ async function uriToBlob(uri: string): Promise<Blob> {
     throw new Error("Gorsel dosyasi bos gorunuyor.");
   }
 
+  if (blob.size > maxUploadBytes) {
+    throw new Error("Gorsel dosyasi cok buyuk.");
+  }
+
   return blob;
 }
 
 export async function uploadWardrobeImage(userId: string, localUri: string, itemId: string, suffix = "image") {
-  const imageType = getImageUploadType(localUri);
+  const normalizedUri = localUri.trim();
+  const imageType = getImageUploadType(normalizedUri);
   const path = `${userId}/${itemId}-${suffix}.${imageType.extension}`;
   let blob: Blob;
   try {
-    blob = await uriToBlob(localUri);
+    blob = await uriToBlob(normalizedUri);
   } catch (error) {
     captureError(error, { area: "wardrobe_image_read", user_id: userId, item_id: itemId, suffix });
     throwApiError(error, "Gorsel okunamadi.");

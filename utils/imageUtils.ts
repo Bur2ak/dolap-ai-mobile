@@ -1,8 +1,9 @@
 import * as ImageManipulator from "expo-image-manipulator";
 
 export async function optimizeImage(uri: string): Promise<string> {
+  const normalizedUri = normalizeImageUri(uri);
   const result = await ImageManipulator.manipulateAsync(
-    uri,
+    normalizedUri,
     [{ resize: { width: 800 } }],
     {
       compress: 0.8,
@@ -14,8 +15,9 @@ export async function optimizeImage(uri: string): Promise<string> {
 }
 
 export async function createThumbnail(uri: string): Promise<string> {
+  const normalizedUri = normalizeImageUri(uri);
   const result = await ImageManipulator.manipulateAsync(
-    uri,
+    normalizedUri,
     [{ resize: { width: 240 } }],
     {
       compress: 0.72,
@@ -24,4 +26,13 @@ export async function createThumbnail(uri: string): Promise<string> {
   );
 
   return result.uri;
+}
+
+function normalizeImageUri(uri: string) {
+  const normalizedUri = uri.trim();
+  if (!normalizedUri) {
+    throw new Error("Gorsel yolu bos.");
+  }
+
+  return normalizedUri;
 }
