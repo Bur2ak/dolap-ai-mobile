@@ -6,7 +6,10 @@ const DAY_MS = 86_400_000;
 
 export function buildStyleCalendar(events: EventRecord[], items: WardrobeItem[], startDate = new Date()): StyleCalendarDay[] {
   const upcomingEvents = events
-    .filter((event) => new Date(event.event_date).getTime() >= startOfDay(startDate).getTime())
+    .filter((event) => {
+      const timestamp = new Date(event.event_date).getTime();
+      return Number.isFinite(timestamp) && timestamp >= startOfDay(startDate).getTime();
+    })
     .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime());
 
   return Array.from({ length: 7 }, (_, index) => {

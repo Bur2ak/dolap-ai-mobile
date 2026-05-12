@@ -14,6 +14,10 @@ export async function createCalendarEvent(input: Omit<EventPlanInput, "weather" 
   }
 
   const startDate = new Date(input.event_date);
+  if (!Number.isFinite(startDate.getTime()) || startDate.getTime() < Date.now() - 60_000) {
+    throw new Error("Gecerli ve gelecek bir etkinlik tarihi gerekli.");
+  }
+
   const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
   const result = await Calendar.createEventInCalendarAsync({
     title: input.title,

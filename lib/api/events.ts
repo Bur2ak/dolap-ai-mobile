@@ -1,14 +1,16 @@
 import { invokeFunctionWithRetry } from "@/lib/api/functions";
 import { throwApiError } from "@/lib/api/errors";
+import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import type { EventPlanInput, EventRecord, OutfitSuggestion, UpdateEventInput } from "@/types";
 
 export async function recommendEventOutfits(input: EventPlanInput): Promise<OutfitSuggestion[]> {
-  const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("event-outfit", input);
+  const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("event-outfit", normalizeEventPlanInput(input));
   return data ?? [];
 }
 
 export async function fetchEventPlans(userId: string): Promise<EventRecord[]> {
+  assertUserId(userId);
   const { data, error } = await supabase.from("events").select("*").eq("user_id", userId).order("event_date", { ascending: true });
 
   if (error) {
@@ -22,6 +24,7 @@ export async function saveEventPlan(
   userId: string,
   input: Omit<EventPlanInput, "weather" | "wardrobe"> & { calendar_event_id?: string | null; outfit_id?: string | null },
 ): Promise<EventRecord> {
+  assertUserId(userId);
   const normalizedInput = normalizeEventInput(input, true);
   const { data, error } = await supabase
     .from("events")
@@ -46,6 +49,8 @@ export async function saveEventPlan(
 }
 
 export async function updateEventPlan(userId: string, eventId: string, input: UpdateEventInput): Promise<EventRecord> {
+  assertUserId(userId);
+  assertEventId(eventId);
   const normalizedInput = normalizeEventInput(input, false);
   const { data, error } = await supabase
     .from("events")
@@ -63,6 +68,8 @@ export async function updateEventPlan(userId: string, eventId: string, input: Up
 }
 
 export async function deleteEventPlan(userId: string, eventId: string): Promise<void> {
+  assertUserId(userId);
+  assertEventId(eventId);
   const { error } = await supabase.from("events").delete().eq("user_id", userId).eq("id", eventId);
 
   if (error) {
@@ -96,6 +103,9 @@ function normalizeEventInput<T extends UpdateEventInput>(input: T, requireRequir
     if (!Number.isFinite(eventDate.getTime())) {
       throw new Error("Gecerli bir etkinlik tarihi gir.");
     }
+    if (eventDate.getTime() < Date.now() - 60_000) {
+      throw new Error("Etkinlik tarihi gecmiste olamaz.");
+    }
     normalized.event_date = eventDate.toISOString();
   } else if (requireRequiredFields) {
     throw new Error("Etkinlik tarihi gerekli.");
@@ -110,4 +120,37 @@ function normalizeEventInput<T extends UpdateEventInput>(input: T, requireRequir
   }
 
   return normalized;
+}
+
+function normalizeEventPlanInput(input: EventPlanInput): EventPlanInput {
+  return {
+    ...input,
+    event_type: input.event_type.trim().replace(/\s+/g, " ").slice(0, 40) || "diger",
+    location: input.location?.trim().replace(/\s+/g, " ").slice(0, 160) || null,
+    notes: input.notes?.trim().slice(0, 500) || null,
+    title: input.title.trim().replace(/\s+/g, " ").slice(0, 120) || "Etkinlik",
+    wardrobe: input.wardrobe.filter((item) => item.is_active && isUuid(item.id)).slice(0, 100),
+    weather: input.weather
+      ? {
+          ...input.weather,
+          city: input.weather.city.trim().replace(/\s+/g, " ").slice(0, 80),
+          description: input.weather.description.trim().replace(/\s+/g, " ").slice(0, 120),
+          feels_like: Number.isFinite(input.weather.feels_like) ? Math.round(input.weather.feels_like * 10) / 10 : 0,
+          humidity: Number.isFinite(input.weather.humidity) ? Math.max(0, Math.min(100, Math.round(input.weather.humidity))) : 0,
+          temp: Number.isFinite(input.weather.temp) ? Math.round(input.weather.temp * 10) / 10 : 0,
+        }
+      : null,
+  };
+}
+
+function assertUserId(value: string) {
+  if (!isUuid(value)) {
+    throw new Error("Oturum bilgisi gecersiz. Tekrar giris yapmayi dene.");
+  }
+}
+
+function assertEventId(value: string) {
+  if (!isUuid(value)) {
+    throw new Error("Etkinlik kaydi gecersiz.");
+  }
 }
