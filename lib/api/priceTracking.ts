@@ -1,7 +1,10 @@
 import { throwApiError } from "@/lib/api/errors";
 import { invokeFunctionWithRetry } from "@/lib/api/functions";
 import { supabase } from "@/lib/supabase";
+import { normalizeOptionalHttpUrl } from "@/utils/validation";
 import type { CreatePriceTrackingInput, PriceTracking, UpdatePriceTrackingInput } from "@/types";
+
+const maxTrackedPrice = 10_000_000;
 
 export interface PriceCheckResult {
   checked: number;
@@ -146,7 +149,7 @@ function normalizePriceTrackingInput<T extends CreatePriceTrackingInput | Update
   }
 
   if (normalized.product_url !== undefined) {
-    normalized.product_url = normalized.product_url?.trim() || null;
+    normalized.product_url = normalizeOptionalHttpUrl(normalized.product_url ?? "");
   }
 
   if (normalized.store !== undefined) {
@@ -169,7 +172,7 @@ function normalizeOptionalPrice(value: number | null | undefined) {
     return null;
   }
 
-  if (!Number.isFinite(value) || value < 0) {
+  if (!Number.isFinite(value) || value < 0 || value > maxTrackedPrice) {
     throw new Error("Gecerli bir fiyat gir.");
   }
 
