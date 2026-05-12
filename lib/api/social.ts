@@ -44,6 +44,7 @@ function toIlikePattern(value: string) {
 }
 
 export async function fetchFriendships(userId: string): Promise<Friendship[]> {
+  assertUserId(userId);
   const { data, error } = await supabase
     .from("friendships")
     .select("*, requester:profiles!friendships_requester_id_fkey(*), addressee:profiles!friendships_addressee_id_fkey(*)")
@@ -58,6 +59,9 @@ export async function fetchFriendships(userId: string): Promise<Friendship[]> {
 }
 
 export async function sendFriendRequest(userId: string, addresseeId: string): Promise<void> {
+  assertUserId(userId);
+  assertUserId(addresseeId);
+
   if (userId === addresseeId) {
     throw new Error("Kendine arkadaslik istegi gonderemezsin.");
   }
@@ -123,6 +127,9 @@ function getFriendshipConflictMessage(status: string, outgoing: boolean) {
 }
 
 export async function updateFriendshipStatus(userId: string, friendshipId: string, status: "accepted" | "blocked"): Promise<{ referralRewarded: boolean }> {
+  assertUserId(userId);
+  assertRecordId(friendshipId, "Arkadaslik kaydi gecersiz.");
+
   const { error } = await supabase
     .from("friendships")
     .update({ status, updated_at: new Date().toISOString() })
@@ -151,6 +158,9 @@ export async function updateFriendshipStatus(userId: string, friendshipId: strin
 }
 
 export async function deleteFriendship(userId: string, friendshipId: string): Promise<void> {
+  assertUserId(userId);
+  assertRecordId(friendshipId, "Arkadaslik kaydi gecersiz.");
+
   const { error } = await supabase
     .from("friendships")
     .delete()
@@ -165,6 +175,7 @@ export async function deleteFriendship(userId: string, friendshipId: string): Pr
 }
 
 export async function fetchReferralRewards(userId: string): Promise<ReferralReward[]> {
+  assertUserId(userId);
   const { data, error } = await supabase
     .from("referral_rewards")
     .select("*, referrer:profiles!referral_rewards_referrer_id_fkey(*), referred:profiles!referral_rewards_referred_id_fkey(*)")
@@ -179,6 +190,7 @@ export async function fetchReferralRewards(userId: string): Promise<ReferralRewa
 }
 
 export async function fetchFriendWardrobe(friendId: string): Promise<FriendWardrobe> {
+  assertUserId(friendId);
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, username, full_name, avatar_url, bio, privacy_settings")
@@ -213,6 +225,10 @@ export interface BorrowWardrobeItemInput {
 }
 
 export async function requestBorrowWardrobeItem(userId: string, item: WardrobeItem, input: BorrowWardrobeItemInput = {}): Promise<LoanRequest> {
+  assertUserId(userId);
+  assertUserId(item.user_id);
+  assertRecordId(item.id, "Kiyafet kaydi gecersiz.");
+
   if (item.user_id === userId) {
     throw new Error("Kendi parcana odunc istegi gonderemezsin.");
   }
@@ -246,7 +262,7 @@ export async function requestBorrowWardrobeItem(userId: string, item: WardrobeIt
   const note = input.note?.trim().slice(0, 240) || null;
   const dueDateValue = input.dueDate?.trim() || formatDateOnly(dueDate);
   if (!isValidBorrowDueDate(dueDateValue)) {
-    throw new Error("Iade tarihi YYYY-MM-DD formatinda ve bugunden erken olmamali.");
+    throw new Error("Iade tarihi YYYY-MM-DD formatinda, bugunden erken ve 1 yildan ileri olmamali.");
   }
 
   const { data: loanRequest, error: loanError } = await supabase
@@ -295,6 +311,7 @@ export async function requestBorrowWardrobeItem(userId: string, item: WardrobeIt
 }
 
 export async function fetchLoanRequests(userId: string): Promise<LoanRequest[]> {
+  assertUserId(userId);
   const { data, error } = await supabase
     .from("loan_requests")
     .select("*, item:wardrobe_items(*), owner:profiles!loan_requests_owner_id_fkey(*), requester:profiles!loan_requests_requester_id_fkey(*)")
@@ -309,6 +326,9 @@ export async function fetchLoanRequests(userId: string): Promise<LoanRequest[]> 
 }
 
 export async function updateLoanRequestStatus(userId: string, loanRequest: LoanRequest, status: LoanRequestStatus): Promise<LoanRequest> {
+  assertUserId(userId);
+  assertRecordId(loanRequest.id, "Odunc kaydi gecersiz.");
+  assertUserId(loanRequest.requester_id);
   validateLoanStatusTransition(loanRequest.status, status);
 
   const updates = {
@@ -382,5 +402,19 @@ function isValidBorrowDueDate(value: string) {
   const timestamp = new Date(`${value}T00:00:00`).getTime();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return Number.isFinite(timestamp) && timestamp >= today.getTime();
+  const maxDueDate = new Date(today);
+  maxDueDate.setFullYear(maxDueDate.getFullYear() + 1);
+  return Number.isFinite(timestamp) && timestamp >= today.getTime() && timestamp <= maxDueDate.getTime();
+}
+
+function assertUserId(value: string) {
+  if (!isUuid(value)) {
+    throw new Error("Oturum bilgisi gecersiz. Tekrar giris yapmayi dene.");
+  }
+}
+
+function assertRecordId(value: string, message: string) {
+  if (!isUuid(value)) {
+    throw new Error(message);
+  }
 }
