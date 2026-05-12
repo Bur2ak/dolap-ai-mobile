@@ -50,5 +50,6 @@ function hasActiveProfilePremium(tier: string, expiresAt: string | null): boolea
     return true;
   }
 
-  return new Date(expiresAt).getTime() > Date.now();
+  const expiresAtTimestamp = new Date(expiresAt).getTime();
+  return Number.isFinite(expiresAtTimestamp) && expiresAtTimestamp > Date.now();
 }

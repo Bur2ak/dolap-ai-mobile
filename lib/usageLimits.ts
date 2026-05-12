@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { captureError } from "@/lib/observability";
+import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import { formatDateOnly } from "@/utils/formatters";
 
@@ -8,6 +9,7 @@ const dailyOutfitSuggestionPrefix = "shipirio:daily-outfit-suggestions";
 const monthlyBuyDecisionPrefix = "shipirio:monthly-buy-decisions";
 const dailyOutfitMetric = "daily_outfit_suggestions";
 const monthlyBuyDecisionMetric = "monthly_buy_decisions";
+const maxLocalUsageCount = 10_000;
 
 interface DailyUsageRecord {
   date: string;
@@ -20,6 +22,7 @@ interface MonthlyUsageRecord {
 }
 
 export async function getDailyOutfitSuggestionCount(userId: string): Promise<number> {
+  assertUserId(userId);
   const remoteCount = await getRemoteUsageCount(userId, dailyOutfitMetric, getTodayKey());
   if (remoteCount !== null) {
     return remoteCount;
@@ -30,6 +33,7 @@ export async function getDailyOutfitSuggestionCount(userId: string): Promise<num
 }
 
 export async function incrementDailyOutfitSuggestionCount(userId: string): Promise<number> {
+  assertUserId(userId);
   const remoteCount = await incrementRemoteUsageCount(userId, dailyOutfitMetric, getTodayKey());
   if (remoteCount !== null) {
     await writeUsageRecord(getDailyOutfitSuggestionKey(userId), { date: getTodayKey(), count: remoteCount }, {
@@ -51,6 +55,7 @@ export async function incrementDailyOutfitSuggestionCount(userId: string): Promi
 }
 
 export async function getMonthlyBuyDecisionCount(userId: string): Promise<number> {
+  assertUserId(userId);
   const remoteCount = await getRemoteUsageCount(userId, monthlyBuyDecisionMetric, getMonthKey());
   if (remoteCount !== null) {
     return remoteCount;
@@ -61,6 +66,7 @@ export async function getMonthlyBuyDecisionCount(userId: string): Promise<number
 }
 
 export async function incrementMonthlyBuyDecisionCount(userId: string): Promise<number> {
+  assertUserId(userId);
   const remoteCount = await incrementRemoteUsageCount(userId, monthlyBuyDecisionMetric, getMonthKey());
   if (remoteCount !== null) {
     await writeUsageRecord(getMonthlyBuyDecisionKey(userId), { month: getMonthKey(), count: remoteCount }, {
@@ -190,7 +196,7 @@ function normalizeUsageCount(value: unknown) {
     return null;
   }
 
-  return Math.floor(value);
+  return Math.min(maxLocalUsageCount, Math.floor(value));
 }
 
 function getDailyOutfitSuggestionKey(userId: string) {
@@ -207,4 +213,10 @@ function getTodayKey() {
 
 function getMonthKey() {
   return formatDateOnly(new Date()).slice(0, 7);
+}
+
+function assertUserId(value: string) {
+  if (!isUuid(value)) {
+    throw new Error("Oturum bilgisi gecersiz. Tekrar giris yapmayi dene.");
+  }
 }

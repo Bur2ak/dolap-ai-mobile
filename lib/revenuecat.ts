@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import type { CustomerInfo, PurchasesPackage } from "react-native-purchases";
 
 import { publicEnv } from "@/lib/env";
+import { isUuid } from "@/lib/routeParams";
 
 const PREMIUM_ENTITLEMENT = "premium";
 
@@ -49,7 +50,7 @@ export async function configureRevenueCat(appUserID: string | null): Promise<Rev
   }
 
   const apiKey = getRevenueCatApiKey()!;
-  const normalizedUserId = appUserID ?? null;
+  const normalizedUserId = appUserID && isUuid(appUserID) ? appUserID : null;
   const { default: Purchases, LOG_LEVEL } = await import("react-native-purchases");
   await Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
 
