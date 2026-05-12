@@ -1,20 +1,24 @@
 import type { ClothingCategory, DistributionPoint, MissingWardrobePiece, StyleProfile, WardrobeAnalytics, WardrobeGoal, WardrobeItem } from "@/types";
 import { getSustainabilityInsight } from "@/utils/sustainability";
 
+const validCategories = new Set<ClothingCategory>(["ust", "alt", "elbise", "etek", "dis_giyim", "ayakkabi", "canta", "aksesuar", "ic_giyim", "spor", "diger"]);
+const validSeasons = new Set(["ilkbahar", "yaz", "sonbahar", "kis"]);
+
 export function calculateWardrobeAnalytics(items: WardrobeItem[]): WardrobeAnalytics {
-  const totalValue = items.reduce((sum, item) => sum + (item.purchase_price ?? 0), 0);
-  const wornItems = items.filter((item) => item.wear_count > 0 && item.purchase_price);
+  const safeItems = items.map(normalizeAnalyticsItem).filter((item): item is WardrobeItem => item !== null);
+  const totalValue = safeItems.reduce((sum, item) => sum + (item.purchase_price ?? 0), 0);
+  const wornItems = safeItems.filter((item) => item.wear_count > 0 && item.purchase_price);
   const totalCostPerWear = wornItems.reduce((sum, item) => sum + (item.purchase_price ?? 0) / item.wear_count, 0);
   const avgCostPerWear = wornItems.length > 0 ? totalCostPerWear / wornItems.length : 0;
   const currentMonth = new Date().toISOString().slice(0, 7);
   const inactiveSince = Date.now() - 90 * 24 * 60 * 60 * 1000;
-  const monthlySpending = items
+  const monthlySpending = safeItems
     .filter((item) => item.created_at?.slice(0, 7) === currentMonth)
     .reduce((sum, item) => sum + (item.purchase_price ?? 0), 0);
 
-  const neverWorn = items.filter((item) => item.wear_count === 0);
-  const inactiveItems = items.filter((item) => !item.last_worn || new Date(item.last_worn).getTime() < inactiveSince);
-  const mostWorn = [...items].sort((a, b) => b.wear_count - a.wear_count).slice(0, 5);
+  const neverWorn = safeItems.filter((item) => item.wear_count === 0);
+  const inactiveItems = safeItems.filter((item) => !item.last_worn || getSafeTimestamp(item.last_worn) < inactiveSince);
+  const mostWorn = [...safeItems].sort((a, b) => b.wear_count - a.wear_count).slice(0, 5);
   const highValueUnused = [...neverWorn]
     .filter((item) => item.purchase_price)
     .sort((a, b) => Number(b.purchase_price ?? 0) - Number(a.purchase_price ?? 0))
@@ -22,8 +26,8 @@ export function calculateWardrobeAnalytics(items: WardrobeItem[]): WardrobeAnaly
   const suggestionsToRemove = [...neverWorn]
     .sort((a, b) => Number(b.purchase_price ?? 0) - Number(a.purchase_price ?? 0))
     .slice(0, 5);
-  const utilizationScore = items.length > 0 ? Math.round((items.filter((item) => item.wear_count > 0).length / items.length) * 100) : 0;
-  const sustainabilityInsights = items.map((item) => ({ insight: getSustainabilityInsight(item), item }));
+  const utilizationScore = safeItems.length > 0 ? Math.round((safeItems.filter((item) => item.wear_count > 0).length / safeItems.length) * 100) : 0;
+  const sustainabilityInsights = safeItems.map((item) => ({ insight: getSustainabilityInsight(item), item }));
   const sustainabilityScore =
     sustainabilityInsights.length > 0
       ? Math.round(sustainabilityInsights.reduce((sum, entry) => sum + entry.insight.score, 0) / sustainabilityInsights.length)
@@ -35,26 +39,84 @@ export function calculateWardrobeAnalytics(items: WardrobeItem[]): WardrobeAnaly
     .slice(0, 4);
 
   return {
-    total_items: items.length,
-    total_value: totalValue,
-    avg_cost_per_wear: avgCostPerWear,
-    monthly_spending: monthlySpending,
+    total_items: safeItems.length,
+    total_value: roundMoney(totalValue),
+    avg_cost_per_wear: roundMoney(avgCostPerWear),
+    monthly_spending: roundMoney(monthlySpending),
     utilization_score: utilizationScore,
     sustainability_score: sustainabilityScore,
     inactive_items_count: inactiveItems.length,
     most_worn: mostWorn,
     never_worn: neverWorn.slice(0, 5),
-    category_distribution: toDistribution(items.map((item) => item.category)),
-    color_distribution: toColorDistribution(items),
-    season_distribution: toDistribution(items.flatMap((item) => item.season)),
-    brand_distribution: toDistribution(items.map((item) => item.brand ?? "").filter(Boolean)).slice(0, 6),
-    style_profile: calculateStyleProfile(items),
-    missing_pieces: calculateMissingPieces(items),
-    weekly_goals: calculateWeeklyGoals(items, utilizationScore, sustainabilityScore),
+    category_distribution: toDistribution(safeItems.map((item) => item.category)),
+    color_distribution: toColorDistribution(safeItems),
+    season_distribution: toDistribution(safeItems.flatMap((item) => item.season)),
+    brand_distribution: toDistribution(safeItems.map((item) => item.brand ?? "").filter(Boolean)).slice(0, 6),
+    style_profile: calculateStyleProfile(safeItems),
+    missing_pieces: calculateMissingPieces(safeItems),
+    weekly_goals: calculateWeeklyGoals(safeItems, utilizationScore, sustainabilityScore),
     sustainability_focus_items: sustainabilityFocusItems,
     high_value_unused: highValueUnused,
     suggestions_to_remove: suggestionsToRemove,
   };
+}
+
+function normalizeAnalyticsItem(item: WardrobeItem): WardrobeItem | null {
+  if (!item || typeof item.id !== "string" || typeof item.user_id !== "string") {
+    return null;
+  }
+
+  const purchasePrice = Number(item.purchase_price);
+  const wearCount = Number(item.wear_count);
+  const category = validCategories.has(item.category) ? item.category : "diger";
+  const seasons = Array.isArray(item.season)
+    ? item.season.filter((season, index, allSeasons) => typeof season === "string" && validSeasons.has(season) && allSeasons.indexOf(season) === index)
+    : [];
+  const colors = Array.isArray(item.colors)
+    ? [...new Set(item.colors.filter((color) => typeof color === "string" && color.trim().length > 0).map((color) => color.trim().toLocaleLowerCase("tr-TR")))].slice(0, 8)
+    : [];
+
+  return {
+    ...item,
+    brand: typeof item.brand === "string" && item.brand.trim() ? item.brand.trim().slice(0, 80) : null,
+    category,
+    colors,
+    created_at: normalizeDate(item.created_at),
+    dominant_color_hex: typeof item.dominant_color_hex === "string" && /^#[0-9a-f]{6}$/i.test(item.dominant_color_hex.trim()) ? item.dominant_color_hex.trim() : null,
+    last_worn: normalizeNullableDate(item.last_worn),
+    purchase_price: Number.isFinite(purchasePrice) && purchasePrice >= 0 && purchasePrice <= 10_000_000 ? roundMoney(purchasePrice) : null,
+    season: seasons as WardrobeItem["season"],
+    subcategory: typeof item.subcategory === "string" && item.subcategory.trim() ? item.subcategory.trim().slice(0, 80) : null,
+    updated_at: normalizeDate(item.updated_at),
+    wear_count: Number.isFinite(wearCount) ? Math.max(0, Math.min(10_000, Math.trunc(wearCount))) : 0,
+  };
+}
+
+function normalizeDate(value: unknown) {
+  if (typeof value !== "string") {
+    return new Date().toISOString();
+  }
+
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
+}
+
+function normalizeNullableDate(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? value : null;
+}
+
+function getSafeTimestamp(value: string) {
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function roundMoney(value: number) {
+  return Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
 }
 
 function calculateWeeklyGoals(items: WardrobeItem[], utilizationScore: number, sustainabilityScore: number): WardrobeGoal[] {
