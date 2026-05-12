@@ -51,9 +51,14 @@ const requiredFiles = [
   "app/legal/terms.tsx",
 ];
 const placeholderFragments = ["your-", "placeholder", "YOUR_"];
+const expectedFunctionNames = requiredFiles
+  .filter((file) => file.startsWith("supabase/functions/") && file.endsWith("/index.ts"))
+  .map((file) => file.split("/")[2])
+  .sort();
 
 const failures = [];
 const warnings = [];
+const deployFunctionsScript = readTextFile(path.join(root, "scripts/deploy-functions.sh"));
 
 for (const key of requiredPublicEnv) {
   if (!hasRealValue(env[key])) {
@@ -87,6 +92,7 @@ for (const file of requiredFiles) {
 
 validateAppConfig(appConfig, failures, warnings);
 validatePackageJson(packageJson, warnings);
+validateFunctionDeployment(deployFunctionsScript, expectedFunctionNames, failures, warnings);
 
 const migrationDir = path.join(root, "supabase/migrations");
 const migrations = fs.existsSync(migrationDir) ? fs.readdirSync(migrationDir).filter((file) => file.endsWith(".sql")).sort() : [];
@@ -147,6 +153,19 @@ function readJsonFile(filePath) {
   }
 }
 
+function readTextFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return "";
+  }
+
+  try {
+    return fs.readFileSync(filePath, "utf8");
+  } catch (error) {
+    failures.push(`${path.relative(root, filePath)} okunamadi: ${error.message}`);
+    return "";
+  }
+}
+
 function validateAppConfig(config, failures, warnings) {
   const iosBundleId = config.ios?.bundleIdentifier;
   const androidPackage = config.android?.package;
@@ -189,6 +208,45 @@ function validatePackageJson(pkg, warnings) {
   if (!dependencies["expo-image"]) {
     warnings.push("expo-image dependency yok; cache'li gorsel render beklenen kaliteyi vermeyebilir.");
   }
+}
+
+function validateFunctionDeployment(scriptContent, expectedNames, failures, warnings) {
+  const functionDir = path.join(root, "supabase/functions");
+  const actualNames = fs.existsSync(functionDir)
+    ? fs
+        .readdirSync(functionDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name)
+        .sort()
+    : [];
+
+  const scriptNames = extractDeployFunctionNames(scriptContent);
+  for (const name of expectedNames) {
+    if (!actualNames.includes(name)) {
+      failures.push(`supabase/functions/${name} klasoru bulunamadi.`);
+    }
+
+    if (!scriptNames.includes(name)) {
+      warnings.push(`${name} deploy-functions.sh icinde deploy edilmiyor.`);
+    }
+  }
+
+  for (const name of actualNames) {
+    if (!expectedNames.includes(name)) {
+      warnings.push(`${name} function klasoru preflight kritik dosya listesine eklenmemis.`);
+    }
+  }
+}
+
+function extractDeployFunctionNames(scriptContent) {
+  if (!scriptContent) {
+    return [];
+  }
+
+  return [...scriptContent.matchAll(/^\s*([a-z0-9-]+)\s*$/gm)]
+    .map((match) => match[1])
+    .filter((name) => name !== "functions")
+    .sort();
 }
 
 function hasRealValue(value) {
