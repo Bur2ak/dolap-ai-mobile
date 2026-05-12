@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { deleteBuyDecision, fetchBuyDecisionHistory, requestBuyDecision, saveBuyDecisionResult } from "@/lib/api/buyDecision";
+import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
@@ -40,7 +41,7 @@ export function useBuyDecision() {
 
   const saveMutation = useMutation({
     mutationFn: ({ result, imageUri, price }: { result: BuyDecisionResult; imageUri: string | null; price: number | null }) =>
-      saveBuyDecisionResult(userId!, result, imageUri, price),
+      saveBuyDecisionResult(requireUserId(userId, "buy_decision_save"), result, imageUri, price),
     onError: (error, variables) => {
       captureError(error, {
         area: "buy_decision_save",
@@ -55,7 +56,7 @@ export function useBuyDecision() {
     },
   });
   const deleteMutation = useMutation({
-    mutationFn: (decisionId: string) => deleteBuyDecision(userId!, decisionId),
+    mutationFn: (decisionId: string) => deleteBuyDecision(requireUserId(userId, "buy_decision_delete"), decisionId),
     onError: (error) => {
       captureError(error, { area: "buy_decision_delete" });
     },

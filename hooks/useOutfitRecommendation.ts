@@ -15,6 +15,7 @@ import {
   toggleOutfitFavorite,
   voteOnOutfit,
 } from "@/lib/api/outfits";
+import { requireUserId, requireValue } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
@@ -50,7 +51,7 @@ export function useOutfitRecommendation() {
     },
   });
   const saveLocalMutation = useMutation({
-    mutationFn: ({ input, suggestion }: { input: OutfitRecommendationInput; suggestion: OutfitSuggestion }) => saveOutfit(userId!, input, suggestion),
+    mutationFn: ({ input, suggestion }: { input: OutfitRecommendationInput; suggestion: OutfitSuggestion }) => saveOutfit(requireUserId(userId, "outfit_save_local"), input, suggestion),
     onError: (error, variables) => {
       captureError(error, {
         area: "outfit_save_local",
@@ -69,7 +70,7 @@ export function useOutfitRecommendation() {
   });
   const saveMutation = useMutation({
     mutationFn: ({ input, suggestion }: { input: OutfitRecommendationInput; suggestion: OutfitSuggestion }) =>
-      saveSharedOutfit(userId!, input, suggestion),
+      saveSharedOutfit(requireUserId(userId, "outfit_save_shared"), input, suggestion),
     onError: (error, variables) => {
       captureError(error, {
         area: "outfit_save_shared",
@@ -88,8 +89,9 @@ export function useOutfitRecommendation() {
   });
   const askFriendsMutation = useMutation({
     mutationFn: async ({ input, suggestion }: { input: OutfitRecommendationInput; suggestion: OutfitSuggestion }) => {
-      const outfit = await saveSharedOutfit(userId!, input, suggestion);
-      const notifiedFriendsCount = await askFriendsToVoteOnOutfit(userId!, outfit);
+      const requiredUserId = requireUserId(userId, "outfit_friend_vote_request_recommendation");
+      const outfit = await saveSharedOutfit(requiredUserId, input, suggestion);
+      const notifiedFriendsCount = await askFriendsToVoteOnOutfit(requiredUserId, outfit);
       return { outfit, notifiedFriendsCount };
     },
     onError: (error, variables) => {
@@ -158,7 +160,7 @@ export function useSharedOutfit(outfitId?: string) {
     enabled: Boolean(outfitId),
   });
   const voteMutation = useMutation({
-    mutationFn: (vote: OutfitVoteValue) => voteOnOutfit(userId!, outfitQuery.data!.outfit, vote),
+    mutationFn: (vote: OutfitVoteValue) => voteOnOutfit(requireUserId(userId, "shared_outfit_vote"), requireValue(outfitQuery.data, "shared_outfit_vote").outfit, vote),
     onError: (error, vote) => {
       captureError(error, { area: "shared_outfit_vote", outfit_id: outfitId ?? "unknown", vote });
     },
@@ -167,7 +169,7 @@ export function useSharedOutfit(outfitId?: string) {
     },
   });
   const markWornMutation = useMutation({
-    mutationFn: () => markOutfitWorn(userId!, outfitQuery.data!),
+    mutationFn: () => markOutfitWorn(requireUserId(userId, "shared_outfit_mark_worn"), requireValue(outfitQuery.data, "shared_outfit_mark_worn")),
     onError: (error) => {
       captureError(error, { area: "shared_outfit_mark_worn", outfit_id: outfitId ?? "unknown" });
     },
@@ -179,7 +181,7 @@ export function useSharedOutfit(outfitId?: string) {
     },
   });
   const favoriteMutation = useMutation({
-    mutationFn: () => toggleOutfitFavorite(userId!, outfitQuery.data!.outfit),
+    mutationFn: () => toggleOutfitFavorite(requireUserId(userId, "shared_outfit_toggle_favorite"), requireValue(outfitQuery.data, "shared_outfit_toggle_favorite").outfit),
     onError: (error) => {
       captureError(error, { area: "shared_outfit_toggle_favorite", outfit_id: outfitId ?? "unknown" });
     },
@@ -190,7 +192,7 @@ export function useSharedOutfit(outfitId?: string) {
     },
   });
   const shareMutation = useMutation({
-    mutationFn: () => makeOutfitShareable(userId!, outfitQuery.data!.outfit),
+    mutationFn: () => makeOutfitShareable(requireUserId(userId, "shared_outfit_share"), requireValue(outfitQuery.data, "shared_outfit_share").outfit),
     onError: (error) => {
       captureError(error, { area: "shared_outfit_share", outfit_id: outfitId ?? "unknown" });
     },
@@ -201,8 +203,9 @@ export function useSharedOutfit(outfitId?: string) {
   });
   const askFriendsMutation = useMutation({
     mutationFn: async () => {
-      const outfit = await makeOutfitShareable(userId!, outfitQuery.data!.outfit);
-      const notifiedFriendsCount = await askFriendsToVoteOnOutfit(userId!, outfit);
+      const requiredUserId = requireUserId(userId, "shared_outfit_ask_friends");
+      const outfit = await makeOutfitShareable(requiredUserId, requireValue(outfitQuery.data, "shared_outfit_ask_friends").outfit);
+      const notifiedFriendsCount = await askFriendsToVoteOnOutfit(requiredUserId, outfit);
       return { outfit, notifiedFriendsCount };
     },
     onError: (error) => {
@@ -214,7 +217,7 @@ export function useSharedOutfit(outfitId?: string) {
     },
   });
   const deleteMutation = useMutation({
-    mutationFn: () => deleteOutfit(userId!, outfitId!),
+    mutationFn: () => deleteOutfit(requireUserId(userId, "shared_outfit_delete"), requireValue(outfitId, "shared_outfit_delete", "Kombin linki gecersiz.")),
     onError: (error) => {
       captureError(error, { area: "shared_outfit_delete", outfit_id: outfitId ?? "unknown" });
     },
@@ -278,7 +281,7 @@ export function usePublicSharedOutfit(token?: string) {
     enabled: Boolean(token),
   });
   const voteMutation = useMutation({
-    mutationFn: (vote: OutfitVoteValue) => voteOnOutfit(userId!, outfitQuery.data!.outfit, vote),
+    mutationFn: (vote: OutfitVoteValue) => voteOnOutfit(requireUserId(userId, "public_shared_outfit_vote"), requireValue(outfitQuery.data, "public_shared_outfit_vote").outfit, vote),
     onError: (error, vote) => {
       captureError(error, { area: "public_shared_outfit_vote", token: token ?? "unknown", vote });
     },

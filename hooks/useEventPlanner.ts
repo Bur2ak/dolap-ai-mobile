@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { deleteEventPlan, fetchEventPlans, recommendEventOutfits, saveEventPlan, updateEventPlan } from "@/lib/api/events";
 import { saveOutfit } from "@/lib/api/outfits";
+import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
@@ -39,7 +40,7 @@ export function useEventPlanner() {
 
   const saveMutation = useMutation({
     mutationFn: (input: Omit<EventPlanInput, "weather" | "wardrobe"> & { calendar_event_id?: string | null; outfit_id?: string | null }) =>
-      saveEventPlan(userId!, input),
+      saveEventPlan(requireUserId(userId, "event_plan_save"), input),
     onError: (error, input) => {
       captureError(error, {
         area: "event_plan_save",
@@ -59,8 +60,9 @@ export function useEventPlanner() {
   });
   const saveSuggestionMutation = useMutation({
     mutationFn: async ({ input, suggestion }: { input: EventPlanInput; suggestion: OutfitSuggestion }) => {
+      const requiredUserId = requireUserId(userId, "event_plan_save_suggestion");
       const outfit = await saveOutfit(
-        userId!,
+        requiredUserId,
         {
           event: input.event_type,
           mood: input.notes ?? "Etkinlik",
@@ -70,7 +72,7 @@ export function useEventPlanner() {
         suggestion,
       );
 
-      return saveEventPlan(userId!, {
+      return saveEventPlan(requiredUserId, {
         title: input.title,
         event_type: input.event_type,
         event_date: input.event_date,
@@ -97,7 +99,7 @@ export function useEventPlanner() {
     },
   });
   const updateMutation = useMutation({
-    mutationFn: ({ eventId, input }: { eventId: string; input: UpdateEventInput }) => updateEventPlan(userId!, eventId, input),
+    mutationFn: ({ eventId, input }: { eventId: string; input: UpdateEventInput }) => updateEventPlan(requireUserId(userId, "event_plan_update"), eventId, input),
     onError: (error, variables) => {
       captureError(error, {
         area: "event_plan_update",
@@ -116,7 +118,7 @@ export function useEventPlanner() {
     },
   });
   const deleteMutation = useMutation({
-    mutationFn: (eventId: string) => deleteEventPlan(userId!, eventId),
+    mutationFn: (eventId: string) => deleteEventPlan(requireUserId(userId, "event_plan_delete"), eventId),
     onError: (error) => {
       captureError(error, { area: "event_plan_delete" });
     },
