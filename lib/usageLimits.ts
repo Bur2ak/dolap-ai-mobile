@@ -32,13 +32,21 @@ export async function getDailyOutfitSuggestionCount(userId: string): Promise<num
 export async function incrementDailyOutfitSuggestionCount(userId: string): Promise<number> {
   const remoteCount = await incrementRemoteUsageCount(userId, dailyOutfitMetric, getTodayKey());
   if (remoteCount !== null) {
-    await AsyncStorage.setItem(getDailyOutfitSuggestionKey(userId), JSON.stringify({ date: getTodayKey(), count: remoteCount }));
+    await writeUsageRecord(getDailyOutfitSuggestionKey(userId), { date: getTodayKey(), count: remoteCount }, {
+      area: "usage_counter_daily_cache_write",
+      metric: dailyOutfitMetric,
+      user_id: userId,
+    });
     return remoteCount;
   }
 
   const record = await getDailyUsageRecord(userId);
   const nextCount = record.count + 1;
-  await AsyncStorage.setItem(getDailyOutfitSuggestionKey(userId), JSON.stringify({ date: getTodayKey(), count: nextCount }));
+  await writeUsageRecord(getDailyOutfitSuggestionKey(userId), { date: getTodayKey(), count: nextCount }, {
+    area: "usage_counter_daily_local_write",
+    metric: dailyOutfitMetric,
+    user_id: userId,
+  });
   return nextCount;
 }
 
@@ -55,13 +63,21 @@ export async function getMonthlyBuyDecisionCount(userId: string): Promise<number
 export async function incrementMonthlyBuyDecisionCount(userId: string): Promise<number> {
   const remoteCount = await incrementRemoteUsageCount(userId, monthlyBuyDecisionMetric, getMonthKey());
   if (remoteCount !== null) {
-    await AsyncStorage.setItem(getMonthlyBuyDecisionKey(userId), JSON.stringify({ month: getMonthKey(), count: remoteCount }));
+    await writeUsageRecord(getMonthlyBuyDecisionKey(userId), { month: getMonthKey(), count: remoteCount }, {
+      area: "usage_counter_monthly_cache_write",
+      metric: monthlyBuyDecisionMetric,
+      user_id: userId,
+    });
     return remoteCount;
   }
 
   const record = await getMonthlyUsageRecord(userId);
   const nextCount = record.count + 1;
-  await AsyncStorage.setItem(getMonthlyBuyDecisionKey(userId), JSON.stringify({ month: getMonthKey(), count: nextCount }));
+  await writeUsageRecord(getMonthlyBuyDecisionKey(userId), { month: getMonthKey(), count: nextCount }, {
+    area: "usage_counter_monthly_local_write",
+    metric: monthlyBuyDecisionMetric,
+    user_id: userId,
+  });
   return nextCount;
 }
 
@@ -77,12 +93,13 @@ async function getRemoteUsageCount(userId: string, metric: string, periodKey: st
       return null;
     }
 
-    if (typeof data !== "number") {
+    const count = normalizeUsageCount(data);
+    if (count === null) {
       captureError(new Error("Usage counter read returned a non-number value."), { area: "usage_counter_read", metric, period_key: periodKey, user_id: userId });
       return null;
     }
 
-    return data;
+    return count;
   } catch (error) {
     captureError(error, { area: "usage_counter_read", metric, period_key: periodKey, user_id: userId });
     return null;
@@ -101,12 +118,13 @@ async function incrementRemoteUsageCount(userId: string, metric: string, periodK
       return null;
     }
 
-    if (typeof data !== "number") {
+    const count = normalizeUsageCount(data);
+    if (count === null) {
       captureError(new Error("Usage counter increment returned a non-number value."), { area: "usage_counter_increment", metric, period_key: periodKey, user_id: userId });
       return null;
     }
 
-    return data;
+    return count;
   } catch (error) {
     captureError(error, { area: "usage_counter_increment", metric, period_key: periodKey, user_id: userId });
     return null;
@@ -123,11 +141,12 @@ async function getDailyUsageRecord(userId: string): Promise<DailyUsageRecord> {
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<DailyUsageRecord>;
-    if (parsed.date !== today || typeof parsed.count !== "number") {
+    const count = normalizeUsageCount(parsed.count);
+    if (parsed.date !== today || count === null) {
       return fallback;
     }
 
-    return { date: today, count: parsed.count };
+    return { date: today, count };
   } catch {
     return fallback;
   }
@@ -143,14 +162,35 @@ async function getMonthlyUsageRecord(userId: string): Promise<MonthlyUsageRecord
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<MonthlyUsageRecord>;
-    if (parsed.month !== month || typeof parsed.count !== "number") {
+    const count = normalizeUsageCount(parsed.count);
+    if (parsed.month !== month || count === null) {
       return fallback;
     }
 
-    return { month, count: parsed.count };
+    return { month, count };
   } catch {
     return fallback;
   }
+}
+
+async function writeUsageRecord(
+  key: string,
+  value: DailyUsageRecord | MonthlyUsageRecord,
+  context: Record<string, string | number | boolean | null | undefined>,
+) {
+  try {
+    await AsyncStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    captureError(error, context);
+  }
+}
+
+function normalizeUsageCount(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+
+  return Math.floor(value);
 }
 
 function getDailyOutfitSuggestionKey(userId: string) {
