@@ -646,7 +646,12 @@ function getTargetProgress(currentPrice: number | null, initialPrice: number | n
 }
 
 function formatPriceCheckDate(value: string) {
-  return new Date(value).toLocaleString("tr-TR", {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return "Tarih yok";
+  }
+
+  return date.toLocaleString("tr-TR", {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
