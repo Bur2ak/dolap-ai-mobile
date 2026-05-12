@@ -10,6 +10,10 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return json({ imageBase64: null, mimeType: null, skipped: true, error: "Method not allowed" }, 405);
+  }
+
   try {
     const apiKey = Deno.env.get("REMOVE_BG_API_KEY");
     if (!apiKey) {
@@ -19,6 +23,10 @@ serve(async (req) => {
     const { imageBase64 } = await req.json();
     if (typeof imageBase64 !== "string" || imageBase64.length === 0) {
       return json({ error: "imageBase64 is required" }, 400);
+    }
+
+    if (imageBase64.length > 12_000_000) {
+      return json({ error: "imageBase64 is too large" }, 413);
     }
 
     const formData = new FormData();

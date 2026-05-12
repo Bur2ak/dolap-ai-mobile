@@ -28,6 +28,10 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -139,7 +143,7 @@ async function checkTracking(
   const targetPrice = normalizePrice(tracking.target_price);
   const changed = previousPrice === null || previousPrice !== detectedPrice;
   const history = Array.isArray(tracking.price_history) ? tracking.price_history : [];
-  const nextHistory = changed ? [...history, { price: detectedPrice, date: checkedAt }] : history;
+  const nextHistory = (changed ? [...history, { price: detectedPrice, date: checkedAt }] : history).slice(-24);
   const shouldNotify =
     targetPrice !== null &&
     detectedPrice <= targetPrice &&
@@ -255,6 +259,7 @@ async function fetchPrice(url: string) {
       headers: {
         "User-Agent": "ShipirioPriceBot/1.0",
       },
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {
@@ -274,6 +279,11 @@ function normalizeHttpUrl(value: string) {
       return null;
     }
 
+    if (url.username || url.password) {
+      return null;
+    }
+
+    url.hash = "";
     return url.toString();
   } catch (_error) {
     return null;
@@ -295,7 +305,7 @@ function extractPrice(html: string) {
 }
 
 function normalizePrice(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0 && value <= 10_000_000) {
     return Number(value.toFixed(2));
   }
 
@@ -310,7 +320,7 @@ function normalizePrice(value: unknown) {
     .replace(",", ".");
   const parsed = Number(cleaned);
 
-  if (!Number.isFinite(parsed) || parsed <= 0) {
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 10_000_000) {
     return null;
   }
 

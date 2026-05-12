@@ -10,6 +10,10 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return json({ sent: false, error: "Method not allowed" }, 405);
+  }
+
   try {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const authorization = req.headers.get("Authorization");
@@ -20,9 +24,9 @@ serve(async (req) => {
 
     const body = await req.json();
     const pushToken = typeof body.push_token === "string" ? body.push_token : "";
-    const title = typeof body.title === "string" ? body.title : "Shipirio";
-    const messageBody = typeof body.body === "string" ? body.body : "";
-    const data = isRecord(body.data) ? body.data : {};
+    const title = normalizeText(body.title, "Shipirio", 80);
+    const messageBody = normalizeText(body.body, "", 180);
+    const data = sanitizeData(body.data);
 
     if (!isExpoPushToken(pushToken)) {
       return json({ sent: false, reason: "missing_or_invalid_push_token" });
@@ -63,6 +67,22 @@ serve(async (req) => {
 
 function isExpoPushToken(token: string) {
   return /^ExponentPushToken\[[^\]]+\]$/.test(token) || /^ExpoPushToken\[[^\]]+\]$/.test(token);
+}
+
+function normalizeText(value: unknown, fallback: string, maxLength: number) {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : fallback;
+}
+
+function sanitizeData(value: unknown) {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, entry]) => typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean" || entry === null)
+      .slice(0, 20),
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
