@@ -1,9 +1,10 @@
 export function formatCurrency(value: number): string {
-  return `${Math.round(value).toLocaleString("tr-TR")} TL`;
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return `${Math.round(safeValue).toLocaleString("tr-TR")} TL`;
 }
 
 export function parseCurrencyInput(value: string): number | null {
-  const normalized = value.trim().replace(",", ".");
+  const normalized = value.trim().replace(/\s/g, "").replace(",", ".");
   if (!normalized) {
     return null;
   }
@@ -13,11 +14,11 @@ export function parseCurrencyInput(value: string): number | null {
   }
 
   const parsed = Number(normalized);
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 10_000_000) {
     throw new Error("Gecerli bir fiyat gir.");
   }
 
-  return parsed;
+  return Math.round(parsed * 100) / 100;
 }
 
 export function getCurrencyInputError(value: string): string | undefined {
@@ -30,11 +31,17 @@ export function getCurrencyInputError(value: string): string | undefined {
 }
 
 export function formatNumber(value: number): string {
-  return Math.round(value).toLocaleString("tr-TR");
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return Math.round(safeValue).toLocaleString("tr-TR");
 }
 
 export function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString("tr-TR", {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return "Tarih yok";
+  }
+
+  return date.toLocaleDateString("tr-TR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -64,6 +71,10 @@ export function formatRelativeDueDate(value: string | null): string {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dueDate = new Date(value);
+  if (!Number.isFinite(dueDate.getTime())) {
+    return "Iade tarihi yok";
+  }
+
   dueDate.setHours(0, 0, 0, 0);
   const diffDays = Math.round((dueDate.getTime() - today.getTime()) / 86_400_000);
 

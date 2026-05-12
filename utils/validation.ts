@@ -1,5 +1,6 @@
 export function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  const normalized = normalizeEmail(value);
+  return normalized.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
 }
 
 export function getEmailInputError(value: string): string | undefined {
@@ -15,7 +16,7 @@ export function normalizeEmail(value: string): string {
 }
 
 export function normalizeUsername(value: string): string {
-  return value.trim().toLowerCase();
+  return value.trim().toLowerCase().replace(/^@+/, "");
 }
 
 export function isValidUsername(value: string): boolean {
@@ -54,6 +55,10 @@ export function normalizeOptionalHttpUrl(value: string): string | null {
     return null;
   }
 
+  if (trimmed.length > 500) {
+    throw new Error("Urun linki cok uzun.");
+  }
+
   const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 
   try {
@@ -62,10 +67,11 @@ export function normalizeOptionalHttpUrl(value: string): string | null {
       throw new Error("Urun linki http veya https ile baslamali.");
     }
 
-    if (!url.hostname.includes(".")) {
+    if (!url.hostname.includes(".") || url.username || url.password) {
       throw new Error("Gecerli bir urun linki gir.");
     }
 
+    url.hash = "";
     return url.toString();
   } catch (error) {
     if (error instanceof Error) {

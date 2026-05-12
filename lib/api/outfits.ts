@@ -4,6 +4,8 @@ import { throwApiError } from "@/lib/api/errors";
 import { invokeFunctionWithRetry } from "@/lib/api/functions";
 import { filterUsersByNotificationPreference, userAllowsNotification } from "@/lib/api/notifications";
 import { cacheOutfitSuggestions, getCachedOutfitSuggestions } from "@/lib/offlineCache";
+import { captureError } from "@/lib/observability";
+import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import type { Friendship, OutfitRecommendationInput, OutfitRecord, OutfitSuggestion, OutfitVoteValue, SharedOutfit, WardrobeItem } from "@/types";
 import { formatDateOnly } from "@/utils/formatters";
@@ -37,17 +39,18 @@ export async function saveOutfit(userId: string, input: OutfitRecommendationInpu
   if (itemIds.length === 0) {
     throw new Error("Kombin kaydetmek icin dolabindaki en az bir parca gerekli.");
   }
+  const normalizedSuggestion = normalizeOutfitSuggestion(suggestion);
 
   const { data: outfit, error } = await supabase
     .from("outfits")
     .insert({
       user_id: userId,
-      name: suggestion.name,
-      event_type: input.event,
+      name: normalizedSuggestion.name,
+      event_type: input.event.trim().slice(0, 80),
       weather_temp: input.weather?.temp ?? null,
       weather_description: input.weather?.description ?? null,
-      mood: input.mood,
-      ai_reasoning: suggestion.reason,
+      mood: input.mood.trim().slice(0, 80),
+      ai_reasoning: normalizedSuggestion.reason,
       is_shareable: isShareable,
       share_token: isShareable ? nanoid(12) : null,
     })
@@ -67,6 +70,7 @@ export async function saveOutfit(userId: string, input: OutfitRecommendationInpu
   if (rows.length > 0) {
     const { error: itemsError } = await supabase.from("outfit_items").insert(rows);
     if (itemsError) {
+      await cleanupOutfitAfterFailedItemInsert(userId, outfit.id);
       throwApiError(itemsError, "Kombin parcalari kaydedilemedi.");
     }
   }
@@ -86,6 +90,22 @@ function normalizeSuggestionItemIds(userId: string, wardrobe: WardrobeItem[], it
     seenItemIds.add(itemId);
     return true;
   });
+}
+
+function normalizeOutfitSuggestion(suggestion: OutfitSuggestion): OutfitSuggestion {
+  return {
+    ...suggestion,
+    accessory_note: suggestion.accessory_note?.trim().slice(0, 240) || null,
+    name: suggestion.name.trim().replace(/\s+/g, " ").slice(0, 80) || "Shipirio Kombini",
+    reason: suggestion.reason.trim().slice(0, 500) || "Dolabindaki uyumlu parcalardan olusturuldu.",
+  };
+}
+
+async function cleanupOutfitAfterFailedItemInsert(userId: string, outfitId: string) {
+  const { error } = await supabase.from("outfits").delete().eq("id", outfitId).eq("user_id", userId);
+  if (error) {
+    captureError(error, { area: "outfit_cleanup_after_item_insert", outfit_id: outfitId });
+  }
 }
 
 export async function saveSharedOutfit(userId: string, input: OutfitRecommendationInput, suggestion: OutfitSuggestion): Promise<OutfitRecord> {
@@ -128,7 +148,7 @@ export async function askFriendsToVoteOnOutfit(userId: string, outfit: OutfitRec
 
   const friendIds = ((friendships ?? []) as Friendship[])
     .map((friendship) => (friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id))
-    .filter((friendId, index, allFriendIds) => friendId !== userId && allFriendIds.indexOf(friendId) === index);
+    .filter((friendId, index, allFriendIds) => isUuid(friendId) && friendId !== userId && allFriendIds.indexOf(friendId) === index);
 
   if (friendIds.length === 0) {
     return 0;
@@ -172,14 +192,7 @@ export async function fetchUserOutfits(userId: string): Promise<SharedOutfit[]> 
     throwApiError(error, "Kayitli kombinler yuklenemedi.");
   }
 
-  const results = [];
-
-  for (const outfit of (outfits ?? []) as OutfitRecord[]) {
-    const sharedOutfit = await fetchSharedOutfit(outfit.id);
-    results.push(sharedOutfit);
-  }
-
-  return results;
+  return Promise.all(((outfits ?? []) as OutfitRecord[]).map((outfit) => fetchSharedOutfit(outfit.id)));
 }
 
 export async function fetchSharedOutfit(outfitId: string): Promise<SharedOutfit> {
@@ -237,6 +250,10 @@ export async function fetchSharedOutfitByToken(token: string): Promise<SharedOut
 }
 
 export async function voteOnOutfit(userId: string, outfit: OutfitRecord, vote: OutfitVoteValue): Promise<void> {
+  if (vote !== "yes" && vote !== "no" && vote !== "love") {
+    throw new Error("Oy degeri gecersiz.");
+  }
+
   const { error } = await supabase.from("outfit_votes").upsert(
     {
       outfit_id: outfit.id,
@@ -263,7 +280,7 @@ export async function voteOnOutfit(userId: string, outfit: OutfitRecord, vote: O
     });
 
     if (notificationError) {
-      throwApiError(notificationError, "Oy bildirimi olusturulamadi.");
+      captureError(notificationError, { area: "outfit_vote_notification", outfit_id: outfit.id, owner_id: outfit.user_id });
     }
   }
 }

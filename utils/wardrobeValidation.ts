@@ -9,14 +9,16 @@ interface WardrobeMetadataInput {
 }
 
 export function parseColorList(value: string) {
-  return value
-    .split(",")
-    .map((color) => color.trim())
-    .filter(Boolean);
+  return [...new Set(
+    value
+      .split(",")
+      .map((color) => color.trim().toLowerCase())
+      .filter(Boolean),
+  )].slice(0, 8);
 }
 
 export function getSubcategoryInputError(value: string) {
-  return value.trim() ? undefined : "Alt kategori gerekli.";
+  return value.trim().length > 80 ? "Alt kategori en fazla 80 karakter olmali." : value.trim() ? undefined : "Alt kategori gerekli.";
 }
 
 export function getColorListInputError(value: string) {
@@ -26,6 +28,10 @@ export function getColorListInputError(value: string) {
 export function getWardrobeMetadataInputError(input: WardrobeMetadataInput) {
   if (!input.subcategory.trim()) {
     return { message: "Alt kategori dolabinda parcayi bulmak icin gerekli.", title: "Alt kategori gerekli" };
+  }
+
+  if (input.subcategory.trim().length > 80) {
+    return { message: "Alt kategori en fazla 80 karakter olmali.", title: "Alt kategori uzun" };
   }
 
   if (parseColorList(input.colorsText).length === 0) {
