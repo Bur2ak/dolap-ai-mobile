@@ -184,6 +184,11 @@ export default function ItemDetailScreen() {
         text: "Sil",
         style: "destructive",
         onPress: async () => {
+          if (isActionBusy) {
+            captureEvent("wardrobe_item_detail_delete_blocked", { item_id: item.id, reason: "busy_after_confirm" });
+            return;
+          }
+
           setActiveAction("delete");
           try {
             await deleteItem();
@@ -218,6 +223,11 @@ export default function ItemDetailScreen() {
           actionLabel="Tekrar Dene"
           loading={isRefetching}
           onAction={() => {
+            if (isActionBusy) {
+              captureEvent("wardrobe_item_detail_refetch_blocked", { item_id: id ?? "invalid", reason: "busy" });
+              return;
+            }
+
             captureEvent("wardrobe_item_detail_refetch_requested", { item_id: id ?? "invalid" });
             void refetch();
           }}
