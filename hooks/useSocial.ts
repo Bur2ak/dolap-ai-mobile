@@ -15,7 +15,7 @@ import {
   updateLoanRequestStatus,
 } from "@/lib/api/social";
 import { requireUserId } from "@/lib/authGuards";
-import { captureError } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { LoanRequest, LoanRequestStatus, WardrobeItem } from "@/types";
@@ -54,7 +54,13 @@ export function useSocial() {
       void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
       void queryClient.invalidateQueries({ queryKey: ["referral-rewards", userId] });
       void queryClient.invalidateQueries({ queryKey: ["profile", userId] });
-      void useAuthStore.getState().fetchProfile();
+      void useAuthStore
+        .getState()
+        .fetchProfile()
+        .catch((error) => {
+          captureError(error, { area: "friendship_profile_refresh" });
+        });
+      captureEvent("friendship_status_updated_locally");
     },
     onError: (error, variables) => {
       captureError(error, { area: "friendship_status_update", status: variables.status });
@@ -114,9 +120,9 @@ export function useFriendWardrobe(friendId?: string) {
   const queryClient = useQueryClient();
   const userId = useAuthStore((state) => state.session?.user.id);
   const wardrobeQuery = useQuery({
-    queryKey: ["friend-wardrobe", friendId],
+    queryKey: ["friend-wardrobe", userId, friendId],
     queryFn: () => fetchFriendWardrobe(friendId!),
-    enabled: Boolean(friendId),
+    enabled: Boolean(userId && friendId),
   });
   const loanRequestsQuery = useQuery({
     queryKey: ["loan-requests", userId],
@@ -141,14 +147,14 @@ export function useFriendWardrobe(friendId?: string) {
     const channel = supabase
       .channel(`friend-wardrobe-${friendId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "wardrobe_items", filter: `user_id=eq.${friendId}` }, () => {
-        void queryClient.invalidateQueries({ queryKey: ["friend-wardrobe", friendId] });
+        void queryClient.invalidateQueries({ queryKey: ["friend-wardrobe", userId, friendId] });
       })
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [friendId, queryClient]);
+  }, [friendId, queryClient, userId]);
 
   useEffect(() => {
     if (!userId) {

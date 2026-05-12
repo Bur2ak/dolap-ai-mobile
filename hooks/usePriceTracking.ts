@@ -74,7 +74,10 @@ export function usePriceTracking() {
     },
   });
   const checkMutation = useMutation({
-    mutationFn: () => checkPriceTrackings(),
+    mutationFn: () => {
+      requireUserId(userId, "price_tracking_check");
+      return checkPriceTrackings();
+    },
     onError: (error) => {
       captureError(error, { area: "price_tracking_check" });
     },
