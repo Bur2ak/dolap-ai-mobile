@@ -7,15 +7,30 @@ const corsHeaders = {
 
 const geminiMaxAttempts = 3;
 const geminiBaseDelayMs = 700;
+const maxImageBase64Length = 12_000_000;
+const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
   try {
     const { imageBase64, mimeType } = await req.json();
     const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+    const safeMimeType = typeof mimeType === "string" && allowedMimeTypes.has(mimeType) ? mimeType : "image/jpeg";
+
+    if (typeof imageBase64 !== "string" || imageBase64.length === 0) {
+      return json(fallbackAnalysis("Gecerli kiyafet gorseli bulunamadigi icin manuel duzenlenebilir varsayilan analiz kullanildi."), 400);
+    }
+
+    if (imageBase64.length > maxImageBase64Length) {
+      return json(fallbackAnalysis("Gorsel boyutu cok buyuk oldugu icin manuel duzenlenebilir varsayilan analiz kullanildi."), 413);
+    }
 
     if (!apiKey) {
       return json(fallbackAnalysis("Gemini anahtari olmadigi icin manuel duzenlenebilir varsayilan analiz kullanildi."));
@@ -26,7 +41,7 @@ serve(async (req) => {
       [
         {
           inline_data: {
-            mime_type: mimeType || "image/jpeg",
+            mime_type: safeMimeType,
             data: imageBase64,
           },
         },
@@ -128,6 +143,7 @@ async function callGemini(apiKey: string, parts: unknown[], maxOutputTokens: num
           "x-goog-api-key": apiKey,
         },
         body,
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (response.ok || !isRetryableGeminiStatus(response.status) || attempt === geminiMaxAttempts) {

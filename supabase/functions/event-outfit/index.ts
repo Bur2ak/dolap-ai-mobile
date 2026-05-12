@@ -7,32 +7,43 @@ const corsHeaders = {
 
 const geminiMaxAttempts = 3;
 const geminiBaseDelayMs = 700;
+const maxWardrobePromptItems = 80;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
   try {
     const { title, event_type, event_date, location, notes, weather, wardrobe } = await req.json();
     const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+    const promptWardrobe = Array.isArray(wardrobe) ? wardrobe.slice(0, maxWardrobePromptItems) : [];
+    const safeTitle = getPromptText(title, "Etkinlik", 120);
+    const safeEventType = getPromptText(event_type, "genel", 80);
+    const safeEventDate = getPromptText(event_date, "belirtilmedi", 80);
+    const safeLocation = getPromptText(location, "belirtilmedi", 120);
+    const safeNotes = getPromptText(notes, "yok", 400);
 
     if (!apiKey) {
-      return json(fallbackOutfits(wardrobe, title));
+      return json(fallbackOutfits(wardrobe, safeTitle));
     }
 
     const prompt = `Sen Shipirio'sin. Turkce konusan etkinlik stilisti asistansin.
 
 Kullanicinin gardrobu:
-${JSON.stringify(wardrobe ?? [])}
+${JSON.stringify(promptWardrobe)}
 
 Etkinlik kombini oner.
 
-Baslik: ${title}
-Tip: ${event_type}
-Tarih: ${event_date}
-Lokasyon: ${location ?? "belirtilmedi"}
-Notlar: ${notes ?? "yok"}
+Baslik: ${safeTitle}
+Tip: ${safeEventType}
+Tarih: ${safeEventDate}
+Lokasyon: ${safeLocation}
+Notlar: ${safeNotes}
 Hava: ${weather ? `${weather.temp} C, ${weather.description}` : "bilinmiyor"}
 
 3 uygun kombin oner.
@@ -48,7 +59,7 @@ Kurallar:
     const response = await callGemini(apiKey, [{ text: prompt }], 1200);
 
     if (!response.ok) {
-      return json(fallbackOutfits(wardrobe, title));
+      return json(fallbackOutfits(wardrobe, safeTitle));
     }
 
     const data = await response.json();
@@ -56,10 +67,10 @@ Kurallar:
     const match = text.match(/\[[\s\S]*\]/);
 
     if (!match) {
-      return json(fallbackOutfits(wardrobe, title));
+      return json(fallbackOutfits(wardrobe, safeTitle));
     }
 
-    return json(normalizeOutfitSuggestions(JSON.parse(match[0]), wardrobe, title));
+    return json(normalizeOutfitSuggestions(JSON.parse(match[0]), wardrobe, safeTitle));
   } catch (error) {
     return json(fallbackOutfits([], "Etkinlik"));
   }
@@ -100,6 +111,10 @@ function normalizeOutfitSuggestions(value: unknown, wardrobe: unknown, title: un
     .slice(0, 3);
 
   return suggestions.length > 0 ? suggestions : fallbackOutfits(wardrobe, title);
+}
+
+function getPromptText(value: unknown, fallback: string, maxLength: number) {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : fallback;
 }
 
 function fallbackOutfits(wardrobe: unknown, title: unknown) {
@@ -165,6 +180,7 @@ async function callGemini(apiKey: string, parts: unknown[], maxOutputTokens: num
           "x-goog-api-key": apiKey,
         },
         body,
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (response.ok || !isRetryableGeminiStatus(response.status) || attempt === geminiMaxAttempts) {

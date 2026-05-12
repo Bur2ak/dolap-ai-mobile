@@ -7,26 +7,44 @@ const corsHeaders = {
 
 const geminiMaxAttempts = 3;
 const geminiBaseDelayMs = 700;
+const maxImageBase64Length = 12_000_000;
+const maxWardrobePromptItems = 60;
+const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
   try {
     const { imageBase64, mimeType, wardrobe, price } = await req.json();
     const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+    const safeMimeType = typeof mimeType === "string" && allowedMimeTypes.has(mimeType) ? mimeType : "image/jpeg";
+    const promptWardrobe = Array.isArray(wardrobe) ? wardrobe.slice(0, maxWardrobePromptItems) : [];
+    const safePrice = typeof price === "number" && Number.isFinite(price) && price > 0 && price <= 10_000_000 ? price : null;
+
+    if (typeof imageBase64 !== "string" || imageBase64.length === 0) {
+      return json(fallbackDecision(wardrobe, safePrice, "Gecerli kiyafet gorseli bulunamadigi icin pratik dolap analizi kullanildi."), 400);
+    }
+
+    if (imageBase64.length > maxImageBase64Length) {
+      return json(fallbackDecision(wardrobe, safePrice, "Gorsel boyutu cok buyuk oldugu icin pratik dolap analizi kullanildi."), 413);
+    }
 
     if (!apiKey) {
-      return json(fallbackDecision(wardrobe, price, "Gemini anahtari olmadigi icin pratik dolap analizi kullanildi."));
+      return json(fallbackDecision(wardrobe, safePrice, "Gemini anahtari olmadigi icin pratik dolap analizi kullanildi."));
     }
 
     const prompt = `Sen Shipirio'sin. Turkce konusan, satin alma kararlarinda pratik bir stil danismanisin.
 
 Kullanicinin mevcut gardrobu:
-${JSON.stringify(wardrobe ?? [])}
+${JSON.stringify(promptWardrobe)}
 
-Bu kiyafeti almali miyim? Fiyat: ${price ? `${price} TL` : "belirtilmedi"}
+Bu kiyafeti almali miyim? Fiyat: ${safePrice ? `${safePrice} TL` : "belirtilmedi"}
 
 Yalnizca JSON dondur:
 {
@@ -45,7 +63,7 @@ Yalnizca JSON dondur:
       [
         {
           inline_data: {
-            mime_type: mimeType || "image/jpeg",
+            mime_type: safeMimeType,
             data: imageBase64,
           },
         },
@@ -55,7 +73,7 @@ Yalnizca JSON dondur:
     );
 
     if (!response.ok) {
-      return json(fallbackDecision(wardrobe, price, `Gemini gecici olarak yanit vermedi (${response.status}).`));
+      return json(fallbackDecision(wardrobe, safePrice, `Gemini gecici olarak yanit vermedi (${response.status}).`));
     }
 
     const data = await response.json();
@@ -66,7 +84,7 @@ Yalnizca JSON dondur:
       return json(fallbackDecision(wardrobe, price, "Gemini yaniti beklenen JSON formatinda degildi."));
     }
 
-    return json(normalizeDecision(JSON.parse(match[0]), wardrobe, price));
+    return json(normalizeDecision(JSON.parse(match[0]), wardrobe, safePrice));
   } catch (error) {
     return json(fallbackDecision([], null, error instanceof Error ? error.message : "Bilinmeyen hata."));
   }
@@ -153,6 +171,7 @@ async function callGemini(apiKey: string, parts: unknown[], maxOutputTokens: num
           "x-goog-api-key": apiKey,
         },
         body,
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (response.ok || !isRetryableGeminiStatus(response.status) || attempt === geminiMaxAttempts) {

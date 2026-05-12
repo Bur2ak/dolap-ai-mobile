@@ -7,15 +7,24 @@ const corsHeaders = {
 
 const geminiMaxAttempts = 3;
 const geminiBaseDelayMs = 700;
+const maxWardrobePromptItems = 80;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
   try {
     const { wardrobe, event, weather, mood, focus_item_id } = await req.json();
     const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+    const promptWardrobe = Array.isArray(wardrobe) ? wardrobe.slice(0, maxWardrobePromptItems) : [];
+    const safeEvent = getPromptText(event, "kombin", 80);
+    const safeMood = getPromptText(mood, "rahat", 80);
+    const safeFocusItemId = typeof focus_item_id === "string" && focus_item_id.trim() ? focus_item_id.trim().slice(0, 80) : null;
 
     if (!apiKey) {
       return json({ error: "GOOGLE_GEMINI_API_KEY is not configured" }, 500);
@@ -24,14 +33,14 @@ serve(async (req) => {
     const prompt = `Sen Shipirio'sin. Turkce konusan pratik bir stilist asistansin.
 
 Kullanicinin gardrobu JSON:
-${JSON.stringify(wardrobe ?? [])}
+${JSON.stringify(promptWardrobe)}
 
 3 kombin oner.
 
-Etkinlik: ${event}
-Ruh hali: ${mood}
+Etkinlik: ${safeEvent}
+Ruh hali: ${safeMood}
 Hava: ${weather ? `${weather.temp} C, ${weather.description}` : "bilinmiyor"}
-Odak parca id: ${focus_item_id ?? "yok"}
+Odak parca id: ${safeFocusItemId ?? "yok"}
 
 Kurallar:
 1. Sadece gardroptaki item id'lerini kullan.
@@ -60,7 +69,7 @@ Format:
       return json(fallbackOutfits(wardrobe, event, mood, focus_item_id));
     }
 
-    return json(normalizeOutfitSuggestions(JSON.parse(match[0]), wardrobe, focus_item_id));
+    return json(normalizeOutfitSuggestions(JSON.parse(match[0]), wardrobe, safeFocusItemId));
   } catch (error) {
     return json(fallbackOutfits([], "kombin", "rahat", null));
   }
@@ -100,6 +109,10 @@ function normalizeOutfitSuggestions(value: unknown, wardrobe: unknown, focusItem
     .slice(0, 3);
 
   return suggestions.length > 0 ? suggestions : fallbackOutfits(wardrobe, "kombin", "rahat", focusItemId);
+}
+
+function getPromptText(value: unknown, fallback: string, maxLength: number) {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : fallback;
 }
 
 function fallbackOutfits(wardrobe: unknown, event: unknown, mood: unknown, focusItemId: unknown) {
@@ -170,6 +183,7 @@ async function callGemini(apiKey: string, parts: unknown[], maxOutputTokens: num
           "x-goog-api-key": apiKey,
         },
         body,
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (response.ok || !isRetryableGeminiStatus(response.status) || attempt === geminiMaxAttempts) {
