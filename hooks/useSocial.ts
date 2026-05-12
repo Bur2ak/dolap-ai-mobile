@@ -14,6 +14,7 @@ import {
   updateFriendshipStatus,
   updateLoanRequestStatus,
 } from "@/lib/api/social";
+import { requireUserId } from "@/lib/authGuards";
 import { captureError } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
@@ -30,14 +31,14 @@ export function useSocial() {
   });
 
   const searchMutation = useMutation({
-    mutationFn: (query: string) => searchUsers(query, userId!),
+    mutationFn: (query: string) => searchUsers(query, requireUserId(userId, "social_user_search")),
     onError: (error) => {
       captureError(error, { area: "social_user_search" });
     },
   });
 
   const sendRequestMutation = useMutation({
-    mutationFn: (addresseeId: string) => sendFriendRequest(userId!, addresseeId),
+    mutationFn: (addresseeId: string) => sendFriendRequest(requireUserId(userId, "friend_request_send"), addresseeId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
     },
@@ -48,7 +49,7 @@ export function useSocial() {
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ friendshipId, status }: { friendshipId: string; status: "accepted" | "blocked" }) =>
-      updateFriendshipStatus(userId!, friendshipId, status),
+      updateFriendshipStatus(requireUserId(userId, "friendship_status_update"), friendshipId, status),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
       void queryClient.invalidateQueries({ queryKey: ["referral-rewards", userId] });
@@ -60,7 +61,7 @@ export function useSocial() {
     },
   });
   const deleteMutation = useMutation({
-    mutationFn: (friendshipId: string) => deleteFriendship(userId!, friendshipId),
+    mutationFn: (friendshipId: string) => deleteFriendship(requireUserId(userId, "friendship_delete"), friendshipId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
     },
@@ -123,7 +124,7 @@ export function useFriendWardrobe(friendId?: string) {
     enabled: Boolean(userId),
   });
   const borrowMutation = useMutation({
-    mutationFn: ({ item, input }: { item: WardrobeItem; input?: BorrowWardrobeItemInput }) => requestBorrowWardrobeItem(userId!, item, input),
+    mutationFn: ({ item, input }: { item: WardrobeItem; input?: BorrowWardrobeItemInput }) => requestBorrowWardrobeItem(requireUserId(userId, "loan_request_create"), item, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["loan-requests", userId] });
     },
@@ -210,7 +211,7 @@ export function useLoanRequests() {
   });
   const updateMutation = useMutation({
     mutationFn: ({ loanRequest, status }: { loanRequest: LoanRequest; status: LoanRequestStatus }) =>
-      updateLoanRequestStatus(userId!, loanRequest, status),
+      updateLoanRequestStatus(requireUserId(userId, "loan_request_status_update"), loanRequest, status),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["loan-requests", userId] });
       void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });

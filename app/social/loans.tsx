@@ -81,6 +81,18 @@ export default function LoansScreen() {
       return;
     }
 
+    if (!userId) {
+      captureEvent("loan_request_status_blocked", { loan_request_id: loanRequest.id, reason: "missing_user", status });
+      Alert.alert("Giris gerekli", "Odunc isteklerini yonetmek icin tekrar giris yapmalisin.");
+      return;
+    }
+
+    if (loanRequest.owner_id !== userId) {
+      captureEvent("loan_request_status_blocked", { loan_request_id: loanRequest.id, reason: "not_owner", status });
+      Alert.alert("Yetki yok", "Bu odunc istegini sadece parcanin sahibi guncelleyebilir.");
+      return;
+    }
+
     captureEvent("loan_request_status_prompt_opened", {
       loan_request_id: loanRequest.id,
       status,
@@ -100,6 +112,15 @@ export default function LoansScreen() {
   async function handleStatus(loanRequest: LoanRequest, status: LoanRequestStatus) {
     if (isBusy) {
       captureEvent("loan_request_status_blocked", { loan_request_id: loanRequest.id, reason: "busy", status });
+      return;
+    }
+
+    if (!userId || loanRequest.owner_id !== userId) {
+      captureEvent("loan_request_status_blocked", { loan_request_id: loanRequest.id, reason: !userId ? "missing_user" : "not_owner", status });
+      Alert.alert(
+        !userId ? "Giris gerekli" : "Yetki yok",
+        !userId ? "Odunc isteklerini yonetmek icin tekrar giris yapmalisin." : "Bu odunc istegini sadece parcanin sahibi guncelleyebilir.",
+      );
       return;
     }
 

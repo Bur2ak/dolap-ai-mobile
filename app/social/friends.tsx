@@ -59,6 +59,11 @@ export default function FriendsScreen() {
       return;
     }
 
+    if (isBusy) {
+      captureEvent("friend_invite_search_blocked", { reason: "busy" });
+      return;
+    }
+
     setQuery(inviteQuery);
     setHandledInvite(inviteQuery);
     setHasSearched(true);
@@ -203,6 +208,11 @@ export default function FriendsScreen() {
               title="Davet Linki"
               variant="secondary"
               onPress={() => {
+                if (isBusy) {
+                  captureEvent("friends_invite_route_blocked", { reason: "busy" });
+                  return;
+                }
+
                 captureEvent("friends_invite_route_opened");
                 router.push("/social/invite");
               }}
@@ -247,6 +257,11 @@ export default function FriendsScreen() {
                           title="Dolap"
                           variant="secondary"
                           onPress={() => {
+                            if (isBusy) {
+                              captureEvent("friend_wardrobe_open_blocked", { friend_id: user.id, reason: "busy", source: "search" });
+                              return;
+                            }
+
                             captureEvent("friend_wardrobe_opened_from_search", { friend_id: user.id });
                             router.push(`/social/${user.id}`);
                           }}
@@ -276,6 +291,11 @@ export default function FriendsScreen() {
                 body="Kullanici adini kontrol edip tekrar arayabilirsin."
                 actionLabel="Aramayi Temizle"
                 onAction={() => {
+                  if (isBusy) {
+                    captureEvent("friend_search_clear_blocked", { reason: "busy" });
+                    return;
+                  }
+
                   setQuery("");
                   setHasSearched(false);
                   captureEvent("friend_search_cleared");

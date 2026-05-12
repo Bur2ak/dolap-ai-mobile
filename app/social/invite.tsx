@@ -53,6 +53,12 @@ export default function InviteScreen() {
       return;
     }
 
+    if (!profile) {
+      captureEvent("invite_share_blocked", { reason: "missing_profile" });
+      Alert.alert("Giris gerekli", "Davet linkini paylasmak icin tekrar giris yapmalisin.");
+      return;
+    }
+
     try {
       setIsSharing(true);
       const result = await Share.share({
