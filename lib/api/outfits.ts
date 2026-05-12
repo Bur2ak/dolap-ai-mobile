@@ -12,9 +12,10 @@ import { formatDateOnly } from "@/utils/formatters";
 
 export async function recommendOutfits(input: OutfitRecommendationInput): Promise<OutfitSuggestion[]> {
   const userId = input.wardrobe[0]?.user_id;
+  const normalizedInput = normalizeOutfitRecommendationInput(input);
 
   try {
-    const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("recommend-outfit", input);
+    const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("recommend-outfit", normalizedInput);
     const suggestions = data ?? [];
 
     if (userId && suggestions.length > 0) {
@@ -35,6 +36,8 @@ export async function recommendOutfits(input: OutfitRecommendationInput): Promis
 }
 
 export async function saveOutfit(userId: string, input: OutfitRecommendationInput, suggestion: OutfitSuggestion, isShareable = false): Promise<OutfitRecord> {
+  assertUserId(userId);
+  const normalizedInput = normalizeOutfitRecommendationInput(input);
   const itemIds = normalizeSuggestionItemIds(userId, input.wardrobe, suggestion.items);
   if (itemIds.length === 0) {
     throw new Error("Kombin kaydetmek icin dolabindaki en az bir parca gerekli.");
@@ -46,10 +49,10 @@ export async function saveOutfit(userId: string, input: OutfitRecommendationInpu
     .insert({
       user_id: userId,
       name: normalizedSuggestion.name,
-      event_type: input.event.trim().slice(0, 80),
-      weather_temp: input.weather?.temp ?? null,
-      weather_description: input.weather?.description ?? null,
-      mood: input.mood.trim().slice(0, 80),
+      event_type: normalizedInput.event,
+      weather_temp: normalizedInput.weather?.temp ?? null,
+      weather_description: normalizedInput.weather?.description ?? null,
+      mood: normalizedInput.mood,
       ai_reasoning: normalizedSuggestion.reason,
       is_shareable: isShareable,
       share_token: isShareable ? nanoid(12) : null,
@@ -79,11 +82,11 @@ export async function saveOutfit(userId: string, input: OutfitRecommendationInpu
 }
 
 function normalizeSuggestionItemIds(userId: string, wardrobe: WardrobeItem[], itemIds: string[]) {
-  const allowedItemIds = new Set(wardrobe.filter((item) => item.user_id === userId && item.is_active).map((item) => item.id));
+  const allowedItemIds = new Set(wardrobe.filter((item) => item.user_id === userId && item.is_active && isUuid(item.id)).map((item) => item.id));
   const seenItemIds = new Set<string>();
 
   return itemIds.filter((itemId) => {
-    if (!allowedItemIds.has(itemId) || seenItemIds.has(itemId)) {
+    if (!isUuid(itemId) || !allowedItemIds.has(itemId) || seenItemIds.has(itemId)) {
       return false;
     }
 
@@ -113,6 +116,9 @@ export async function saveSharedOutfit(userId: string, input: OutfitRecommendati
 }
 
 export async function makeOutfitShareable(userId: string, outfit: OutfitRecord): Promise<OutfitRecord> {
+  assertUserId(userId);
+  assertOutfitOwner(userId, outfit);
+
   if (outfit.is_shareable && outfit.share_token) {
     return outfit;
   }
@@ -136,6 +142,9 @@ export async function makeOutfitShareable(userId: string, outfit: OutfitRecord):
 }
 
 export async function askFriendsToVoteOnOutfit(userId: string, outfit: OutfitRecord): Promise<number> {
+  assertUserId(userId);
+  assertOutfitId(outfit.id);
+
   const { data: friendships, error: friendshipsError } = await supabase
     .from("friendships")
     .select("*")
@@ -181,6 +190,7 @@ export async function askFriendsToVoteOnOutfit(userId: string, outfit: OutfitRec
 }
 
 export async function fetchUserOutfits(userId: string): Promise<SharedOutfit[]> {
+  assertUserId(userId);
   const { data: outfits, error } = await supabase
     .from("outfits")
     .select("*")
@@ -196,6 +206,7 @@ export async function fetchUserOutfits(userId: string): Promise<SharedOutfit[]> 
 }
 
 export async function fetchSharedOutfit(outfitId: string): Promise<SharedOutfit> {
+  assertOutfitId(outfitId);
   const { data: outfit, error: outfitError } = await supabase.from("outfits").select("*").eq("id", outfitId).single();
 
   if (outfitError) {
@@ -250,6 +261,10 @@ export async function fetchSharedOutfitByToken(token: string): Promise<SharedOut
 }
 
 export async function voteOnOutfit(userId: string, outfit: OutfitRecord, vote: OutfitVoteValue): Promise<void> {
+  assertUserId(userId);
+  assertOutfitId(outfit.id);
+  assertUserId(outfit.user_id);
+
   if (vote !== "yes" && vote !== "no" && vote !== "love") {
     throw new Error("Oy degeri gecersiz.");
   }
@@ -286,6 +301,8 @@ export async function voteOnOutfit(userId: string, outfit: OutfitRecord, vote: O
 }
 
 export async function markOutfitWorn(userId: string, sharedOutfit: SharedOutfit): Promise<void> {
+  assertUserId(userId);
+  assertOutfitOwner(userId, sharedOutfit.outfit);
   const today = formatDateOnly(new Date());
   const { error } = await supabase
     .from("outfits")
@@ -298,7 +315,9 @@ export async function markOutfitWorn(userId: string, sharedOutfit: SharedOutfit)
   }
 
   const itemUpdates = await Promise.all(
-    sharedOutfit.items.map((item) =>
+    sharedOutfit.items
+      .filter((item) => item.user_id === userId && item.is_active && isUuid(item.id))
+      .map((item) =>
       supabase
         .from("wardrobe_items")
         .update({
@@ -307,7 +326,7 @@ export async function markOutfitWorn(userId: string, sharedOutfit: SharedOutfit)
         })
         .eq("id", item.id)
         .eq("user_id", userId),
-    ),
+      ),
   );
 
   const itemError = itemUpdates.find((result) => result.error)?.error;
@@ -317,6 +336,9 @@ export async function markOutfitWorn(userId: string, sharedOutfit: SharedOutfit)
 }
 
 export async function toggleOutfitFavorite(userId: string, outfit: OutfitRecord): Promise<OutfitRecord> {
+  assertUserId(userId);
+  assertOutfitOwner(userId, outfit);
+
   const { data, error } = await supabase
     .from("outfits")
     .update({ is_favorite: !outfit.is_favorite })
@@ -333,9 +355,48 @@ export async function toggleOutfitFavorite(userId: string, outfit: OutfitRecord)
 }
 
 export async function deleteOutfit(userId: string, outfitId: string): Promise<void> {
+  assertUserId(userId);
+  assertOutfitId(outfitId);
+
   const { error } = await supabase.from("outfits").delete().eq("id", outfitId).eq("user_id", userId);
 
   if (error) {
     throwApiError(error, "Kombin silinemedi.");
+  }
+}
+
+function normalizeOutfitRecommendationInput(input: OutfitRecommendationInput): OutfitRecommendationInput {
+  return {
+    ...input,
+    event: input.event.trim().replace(/\s+/g, " ").slice(0, 80) || "kombin",
+    focus_item_id: input.focus_item_id && isUuid(input.focus_item_id) ? input.focus_item_id : null,
+    mood: input.mood.trim().replace(/\s+/g, " ").slice(0, 80) || "rahat",
+    wardrobe: input.wardrobe.filter((item) => item.is_active && isUuid(item.id)).slice(0, 100),
+    weather: input.weather
+      ? {
+          ...input.weather,
+          description: input.weather.description.trim().replace(/\s+/g, " ").slice(0, 120),
+          temp: Number.isFinite(input.weather.temp) ? Math.round(input.weather.temp * 10) / 10 : 0,
+        }
+      : null,
+  };
+}
+
+function assertUserId(value: string) {
+  if (!isUuid(value)) {
+    throw new Error("Oturum bilgisi gecersiz. Tekrar giris yapmayi dene.");
+  }
+}
+
+function assertOutfitId(value: string) {
+  if (!isUuid(value)) {
+    throw new Error("Kombin kaydi gecersiz.");
+  }
+}
+
+function assertOutfitOwner(userId: string, outfit: OutfitRecord) {
+  assertOutfitId(outfit.id);
+  if (outfit.user_id !== userId) {
+    throw new Error("Bu kombin icin yetkin yok.");
   }
 }

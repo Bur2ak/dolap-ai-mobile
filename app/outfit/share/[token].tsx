@@ -172,7 +172,8 @@ function normalizeVote(value?: string | string[]): OutfitVoteValue | null {
 
 function normalizeToken(value?: string | string[]) {
   const token = Array.isArray(value) ? value[0] : value;
-  return token?.trim() || undefined;
+  const normalizedToken = token?.trim();
+  return normalizedToken && /^[A-Za-z0-9_-]{8,64}$/.test(normalizedToken) ? normalizedToken : undefined;
 }
 
 function OutfitItem({ item, outfitId }: { item: WardrobeItem; outfitId: string }) {

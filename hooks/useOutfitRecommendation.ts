@@ -17,6 +17,7 @@ import {
 } from "@/lib/api/outfits";
 import { requireUserId, requireValue } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
+import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { OutfitRecommendationInput, OutfitSuggestion, OutfitVoteValue } from "@/types";
@@ -157,7 +158,7 @@ export function useSharedOutfit(outfitId?: string) {
   const outfitQuery = useQuery({
     queryKey: ["shared-outfit", outfitId],
     queryFn: () => fetchSharedOutfit(outfitId!),
-    enabled: Boolean(outfitId),
+    enabled: Boolean(outfitId && isUuid(outfitId)),
   });
   const voteMutation = useMutation({
     mutationFn: (vote: OutfitVoteValue) => voteOnOutfit(requireUserId(userId, "shared_outfit_vote"), requireValue(outfitQuery.data, "shared_outfit_vote").outfit, vote),
@@ -278,7 +279,7 @@ export function usePublicSharedOutfit(token?: string) {
   const outfitQuery = useQuery({
     queryKey: ["shared-outfit-token", token],
     queryFn: () => fetchSharedOutfitByToken(token!),
-    enabled: Boolean(token),
+    enabled: Boolean(token && isValidShareToken(token)),
   });
   const voteMutation = useMutation({
     mutationFn: (vote: OutfitVoteValue) => voteOnOutfit(requireUserId(userId, "public_shared_outfit_vote"), requireValue(outfitQuery.data, "public_shared_outfit_vote").outfit, vote),
@@ -319,4 +320,8 @@ export function usePublicSharedOutfit(token?: string) {
     isVoting: voteMutation.isPending,
     canVote: Boolean(userId && outfitQuery.data),
   };
+}
+
+function isValidShareToken(value: string) {
+  return /^[A-Za-z0-9_-]{8,64}$/.test(value.trim());
 }
