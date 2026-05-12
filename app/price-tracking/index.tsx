@@ -81,6 +81,14 @@ export default function PriceTrackingScreen() {
       return;
     }
 
+    const normalizedProductName = productName.trim().toLocaleLowerCase("tr-TR");
+    const alreadyExists = trackings.some((tracking) => tracking.product_name.toLocaleLowerCase("tr-TR") === normalizedProductName);
+    if (alreadyExists) {
+      captureEvent("price_tracking_create_blocked", { reason: "duplicate_name" });
+      Alert.alert("Zaten listede", "Bu urun fiyat takip listende zaten var.");
+      return;
+    }
+
     const inputError = getPriceTrackingInputError(productUrl, currentPrice, targetPrice);
     if (inputError) {
       captureEvent("price_tracking_create_blocked", { reason: "input" });
@@ -274,6 +282,11 @@ export default function PriceTrackingScreen() {
             actionLabel="Tekrar Dene"
             loading={isRefetching}
             onAction={() => {
+              if (isActionBusy) {
+                captureEvent("price_tracking_refetch_blocked", { reason: "busy" });
+                return;
+              }
+
               captureEvent("price_tracking_refetch_requested");
               void refetch();
             }}
@@ -283,6 +296,7 @@ export default function PriceTrackingScreen() {
             <TrackingCard
               key={tracking.id}
               tracking={tracking}
+              trackings={trackings}
               onDelete={handleDelete}
               onUpdate={updateTracking}
               isDeleting={isDeleting}
@@ -368,6 +382,7 @@ function SmartShoppingListCard({
 
 function TrackingCard({
   tracking,
+  trackings,
   onDelete,
   onUpdate,
   isDeleting,
@@ -376,6 +391,7 @@ function TrackingCard({
   activeDeleteId,
 }: {
   tracking: PriceTracking;
+  trackings: PriceTracking[];
   onDelete: (id: string) => Promise<void>;
   onUpdate: ReturnType<typeof usePriceTracking>["updateTracking"];
   isDeleting: boolean;
@@ -411,6 +427,14 @@ function TrackingCard({
     if (!name.trim()) {
       captureEvent("price_tracking_update_blocked", { reason: "missing_name", tracking_id: tracking.id });
       Alert.alert("Urun adi gerekli", "Takip kaydi icin urun adi bos olamaz.");
+      return;
+    }
+
+    const normalizedName = name.trim().toLocaleLowerCase("tr-TR");
+    const alreadyExists = trackings.some((item) => item.id !== tracking.id && item.product_name.toLocaleLowerCase("tr-TR") === normalizedName);
+    if (alreadyExists) {
+      captureEvent("price_tracking_update_blocked", { reason: "duplicate_name", tracking_id: tracking.id });
+      Alert.alert("Zaten listede", "Bu urun fiyat takip listende zaten var.");
       return;
     }
 
@@ -658,10 +682,18 @@ function getPriceTrackingInputError(productUrl: string, currentPrice: string, ta
 async function openProductUrl(tracking: PriceTracking) {
   const url = normalizeOptionalHttpUrl(tracking.product_url ?? "");
   if (!url) {
+    captureEvent("price_tracking_product_url_blocked", { reason: "missing_url", tracking_id: tracking.id });
     return;
   }
 
   try {
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      captureEvent("price_tracking_product_url_blocked", { reason: "unsupported_url", tracking_id: tracking.id });
+      Alert.alert("Link acilamadi", "Urun linki bu cihazda desteklenmiyor.");
+      return;
+    }
+
     await Linking.openURL(url);
     captureEvent("price_tracking_product_url_opened", { tracking_id: tracking.id });
   } catch (error) {
