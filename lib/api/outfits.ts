@@ -7,8 +7,12 @@ import { cacheOutfitSuggestions, getCachedOutfitSuggestions } from "@/lib/offlin
 import { captureError } from "@/lib/observability";
 import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
-import type { Friendship, OutfitRecommendationInput, OutfitRecord, OutfitSuggestion, OutfitVoteValue, SharedOutfit, WardrobeItem } from "@/types";
+import type { Friendship, OutfitRecommendationInput, OutfitRecord, OutfitSuggestion, OutfitVote, OutfitVoteValue, SharedOutfit, WardrobeItem } from "@/types";
 import { formatDateOnly } from "@/utils/formatters";
+
+const validCategories = new Set(["ust", "alt", "elbise", "etek", "dis_giyim", "ayakkabi", "canta", "aksesuar", "ic_giyim", "spor", "diger"]);
+const validSeasons = new Set(["ilkbahar", "yaz", "sonbahar", "kis"]);
+const validVotes = new Set<OutfitVoteValue>(["yes", "no", "love"]);
 
 export async function recommendOutfits(input: OutfitRecommendationInput): Promise<OutfitSuggestion[]> {
   const userId = input.wardrobe[0]?.user_id;
@@ -16,7 +20,8 @@ export async function recommendOutfits(input: OutfitRecommendationInput): Promis
 
   try {
     const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("recommend-outfit", normalizedInput);
-    const suggestions = data ?? [];
+    const allowedItemIds = new Set(normalizedInput.wardrobe.map((item) => item.id));
+    const suggestions = normalizeOutfitSuggestions(data, allowedItemIds);
 
     if (userId && suggestions.length > 0) {
       await cacheOutfitSuggestions(userId, suggestions);
@@ -78,7 +83,13 @@ export async function saveOutfit(userId: string, input: OutfitRecommendationInpu
     }
   }
 
-  return outfit as OutfitRecord;
+  const normalizedOutfit = normalizeOutfitRecord(outfit);
+  if (!normalizedOutfit) {
+    await cleanupOutfitAfterFailedItemInsert(userId, outfit.id);
+    throw new Error("Kombin kaydi gecersiz dondu.");
+  }
+
+  return normalizedOutfit;
 }
 
 function normalizeSuggestionItemIds(userId: string, wardrobe: WardrobeItem[], itemIds: string[]) {
@@ -101,6 +112,133 @@ function normalizeOutfitSuggestion(suggestion: OutfitSuggestion): OutfitSuggesti
     accessory_note: suggestion.accessory_note?.trim().slice(0, 240) || null,
     name: suggestion.name.trim().replace(/\s+/g, " ").slice(0, 80) || "Shipirio Kombini",
     reason: suggestion.reason.trim().slice(0, 500) || "Dolabindaki uyumlu parcalardan olusturuldu.",
+  };
+}
+
+function normalizeOutfitSuggestions(value: unknown, allowedItemIds: Set<string>): OutfitSuggestion[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((suggestion) => normalizeOutfitSuggestionRecord(suggestion, allowedItemIds))
+    .filter((suggestion): suggestion is OutfitSuggestion => suggestion !== null)
+    .slice(0, 5);
+}
+
+function normalizeOutfitSuggestionRecord(value: unknown, allowedItemIds: Set<string>): OutfitSuggestion | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const items = Array.isArray(record.items)
+    ? [...new Set(record.items.filter((itemId): itemId is string => typeof itemId === "string" && allowedItemIds.has(itemId)))].slice(0, 8)
+    : [];
+  if (items.length === 0) {
+    return null;
+  }
+
+  return {
+    items,
+    name: normalizeText(record.name, "Shipirio Kombini", 80),
+    reason: normalizeText(record.reason, "Dolabindaki uyumlu parcalardan olusturuldu.", 500),
+    accessory_note: typeof record.accessory_note === "string" ? normalizeNullableText(record.accessory_note, 240) : null,
+    formality_match: typeof record.formality_match === "string" ? normalizeText(record.formality_match, "uygun", 80) : undefined,
+  };
+}
+
+function normalizeOutfitRecord(value: unknown): OutfitRecord | null {
+  const record = asRecord(value);
+  if (!record || typeof record.id !== "string" || !isUuid(record.id) || typeof record.user_id !== "string" || !isUuid(record.user_id)) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    user_id: record.user_id,
+    name: typeof record.name === "string" ? normalizeNullableText(record.name, 80) : null,
+    event_type: typeof record.event_type === "string" ? normalizeNullableText(record.event_type, 80) : null,
+    weather_temp: normalizeNullableNumber(record.weather_temp, -80, 80),
+    weather_description: typeof record.weather_description === "string" ? normalizeNullableText(record.weather_description, 120) : null,
+    mood: typeof record.mood === "string" ? normalizeNullableText(record.mood, 80) : null,
+    ai_reasoning: typeof record.ai_reasoning === "string" ? normalizeNullableText(record.ai_reasoning, 800) : null,
+    worn_at: normalizeNullableDate(record.worn_at),
+    is_favorite: record.is_favorite === true,
+    is_shareable: record.is_shareable === true,
+    share_token: typeof record.share_token === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(record.share_token) ? record.share_token : null,
+    created_at: normalizeDate(record.created_at),
+  };
+}
+
+function normalizeOutfitVote(value: unknown): OutfitVote | null {
+  const record = asRecord(value);
+  if (!record || typeof record.id !== "string" || !isUuid(record.id) || typeof record.outfit_id !== "string" || !isUuid(record.outfit_id) || typeof record.voter_id !== "string" || !isUuid(record.voter_id)) {
+    return null;
+  }
+
+  const vote = typeof record.vote === "string" && validVotes.has(record.vote as OutfitVoteValue) ? (record.vote as OutfitVoteValue) : null;
+  if (!vote) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    outfit_id: record.outfit_id,
+    voter_id: record.voter_id,
+    vote,
+    created_at: normalizeDate(record.created_at),
+    voter: normalizeVoteProfile(record.voter),
+  };
+}
+
+function normalizeVoteProfile(value: unknown): OutfitVote["voter"] {
+  const record = asRecord(value);
+  if (!record || typeof record.id !== "string" || !isUuid(record.id)) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    username: typeof record.username === "string" ? normalizeNullableText(record.username, 24) : null,
+    full_name: typeof record.full_name === "string" ? normalizeNullableText(record.full_name, 80) : null,
+    avatar_url: typeof record.avatar_url === "string" ? normalizeNullableText(record.avatar_url, 500) : null,
+  };
+}
+
+function normalizeWardrobeItemRecord(value: unknown): WardrobeItem | null {
+  const record = asRecord(value);
+  if (!record || typeof record.id !== "string" || !isUuid(record.id) || typeof record.user_id !== "string" || !isUuid(record.user_id)) {
+    return null;
+  }
+
+  const seasons = Array.isArray(record.season)
+    ? record.season.filter((season, index, allSeasons): season is WardrobeItem["season"][number] => typeof season === "string" && validSeasons.has(season) && allSeasons.indexOf(season) === index)
+    : [];
+  const colors = Array.isArray(record.colors)
+    ? [...new Set(record.colors.filter((color): color is string => typeof color === "string" && color.trim().length > 0).map((color) => color.trim().toLowerCase()))].slice(0, 8)
+    : [];
+  const category = typeof record.category === "string" && validCategories.has(record.category) ? (record.category as WardrobeItem["category"]) : "diger";
+
+  return {
+    id: record.id,
+    user_id: record.user_id,
+    image_url: typeof record.image_url === "string" ? record.image_url.trim() : "",
+    thumbnail_url: typeof record.thumbnail_url === "string" ? normalizeNullableText(record.thumbnail_url, 500) : null,
+    category,
+    subcategory: typeof record.subcategory === "string" ? normalizeNullableText(record.subcategory, 80) : null,
+    colors,
+    dominant_color_hex: typeof record.dominant_color_hex === "string" && /^#[0-9a-f]{6}$/i.test(record.dominant_color_hex.trim()) ? record.dominant_color_hex.trim() : null,
+    season: seasons,
+    brand: typeof record.brand === "string" ? normalizeNullableText(record.brand, 80) : null,
+    purchase_price: normalizeNullableNumber(record.purchase_price, 0, 10_000_000),
+    wear_count: normalizeCount(record.wear_count),
+    last_worn: normalizeNullableDate(record.last_worn),
+    is_shareable: record.is_shareable === true,
+    is_lendable: record.is_lendable === true,
+    is_active: record.is_active !== false,
+    created_at: normalizeDate(record.created_at),
+    updated_at: normalizeDate(record.updated_at),
   };
 }
 
@@ -138,7 +276,12 @@ export async function makeOutfitShareable(userId: string, outfit: OutfitRecord):
     throwApiError(error, "Kombin paylasima acilamadi.");
   }
 
-  return data as OutfitRecord;
+  const sharedOutfit = normalizeOutfitRecord(data);
+  if (!sharedOutfit) {
+    throw new Error("Kombin kaydi gecersiz dondu.");
+  }
+
+  return sharedOutfit;
 }
 
 export async function askFriendsToVoteOnOutfit(userId: string, outfit: OutfitRecord): Promise<number> {
@@ -202,7 +345,8 @@ export async function fetchUserOutfits(userId: string): Promise<SharedOutfit[]> 
     throwApiError(error, "Kayitli kombinler yuklenemedi.");
   }
 
-  return Promise.all(((outfits ?? []) as OutfitRecord[]).map((outfit) => fetchSharedOutfit(outfit.id)));
+  const normalizedOutfits = (outfits ?? []).map(normalizeOutfitRecord).filter((outfit): outfit is OutfitRecord => outfit !== null);
+  return Promise.all(normalizedOutfits.map((outfit) => fetchSharedOutfit(outfit.id)));
 }
 
 export async function fetchSharedOutfit(outfitId: string): Promise<SharedOutfit> {
@@ -233,10 +377,18 @@ export async function fetchSharedOutfit(outfitId: string): Promise<SharedOutfit>
     throwApiError(votesError, "Kombin oylari yuklenemedi.");
   }
 
+  const normalizedOutfit = normalizeOutfitRecord(outfit);
+  if (!normalizedOutfit) {
+    throw new Error("Kombin kaydi gecersiz dondu.");
+  }
+
   return {
-    outfit: outfit as OutfitRecord,
-    items: (itemRows ?? []).flatMap((row) => (Array.isArray(row.item) ? row.item : row.item ? [row.item] : [])) as WardrobeItem[],
-    votes: (votes ?? []) as SharedOutfit["votes"],
+    outfit: normalizedOutfit,
+    items: (itemRows ?? [])
+      .flatMap((row) => (Array.isArray(row.item) ? row.item : row.item ? [row.item] : []))
+      .map(normalizeWardrobeItemRecord)
+      .filter((item): item is WardrobeItem => item !== null),
+    votes: (votes ?? []).map(normalizeOutfitVote).filter((vote): vote is OutfitVote => vote !== null),
   };
 }
 
@@ -257,7 +409,12 @@ export async function fetchSharedOutfitByToken(token: string): Promise<SharedOut
     throwApiError(error, "Paylasilan kombin bulunamadi.");
   }
 
-  return fetchSharedOutfit((outfit as OutfitRecord).id);
+  const normalizedOutfit = normalizeOutfitRecord(outfit);
+  if (!normalizedOutfit) {
+    throw new Error("Paylasilan kombin kaydi gecersiz.");
+  }
+
+  return fetchSharedOutfit(normalizedOutfit.id);
 }
 
 export async function voteOnOutfit(userId: string, outfit: OutfitRecord, vote: OutfitVoteValue): Promise<void> {
@@ -351,7 +508,12 @@ export async function toggleOutfitFavorite(userId: string, outfit: OutfitRecord)
     throwApiError(error, "Favori durumu guncellenemedi.");
   }
 
-  return data as OutfitRecord;
+  const updatedOutfit = normalizeOutfitRecord(data);
+  if (!updatedOutfit) {
+    throw new Error("Kombin kaydi gecersiz dondu.");
+  }
+
+  return updatedOutfit;
 }
 
 export async function deleteOutfit(userId: string, outfitId: string): Promise<void> {
@@ -380,6 +542,50 @@ function normalizeOutfitRecommendationInput(input: OutfitRecommendationInput): O
         }
       : null,
   };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function normalizeText(value: unknown, fallback: string, maxLength: number) {
+  return typeof value === "string" && value.trim() ? value.trim().replace(/\s+/g, " ").slice(0, maxLength) : fallback;
+}
+
+function normalizeNullableText(value: string, maxLength: number) {
+  return value.trim().replace(/\s+/g, " ").slice(0, maxLength) || null;
+}
+
+function normalizeNullableNumber(value: unknown, min: number, max: number) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const number = Number(value);
+  return Number.isFinite(number) && number >= min && number <= max ? Math.round(number * 100) / 100 : null;
+}
+
+function normalizeCount(value: unknown) {
+  const count = Number(value);
+  return Number.isFinite(count) ? Math.max(0, Math.min(10_000, Math.trunc(count))) : 0;
+}
+
+function normalizeDate(value: unknown) {
+  if (typeof value !== "string") {
+    return new Date().toISOString();
+  }
+
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
+}
+
+function normalizeNullableDate(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? value : null;
 }
 
 function assertUserId(value: string) {
