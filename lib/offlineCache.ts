@@ -30,7 +30,7 @@ export async function getCachedWardrobeItems(userId: string): Promise<WardrobeIt
     }
 
     const parsed = JSON.parse(rawValue);
-    return Array.isArray(parsed) ? (parsed as WardrobeItem[]) : [];
+    return Array.isArray(parsed) ? parsed.filter(isCachedWardrobeItem) : [];
   } catch (error) {
     captureError(error, { area: "offline_cache_wardrobe_read", user_id: userId });
     return [];
@@ -53,9 +53,39 @@ export async function getCachedOutfitSuggestions(userId: string): Promise<Outfit
     }
 
     const parsed = JSON.parse(rawValue);
-    return Array.isArray(parsed) ? (parsed as OutfitSuggestion[]) : [];
+    return Array.isArray(parsed) ? parsed.filter(isCachedOutfitSuggestion) : [];
   } catch (error) {
     captureError(error, { area: "offline_cache_outfit_read", user_id: userId });
     return [];
   }
+}
+
+function isCachedWardrobeItem(value: unknown): value is WardrobeItem {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const item = value as Partial<WardrobeItem>;
+  return (
+    typeof item.id === "string" &&
+    typeof item.user_id === "string" &&
+    typeof item.image_url === "string" &&
+    typeof item.category === "string" &&
+    Array.isArray(item.colors) &&
+    Array.isArray(item.season)
+  );
+}
+
+function isCachedOutfitSuggestion(value: unknown): value is OutfitSuggestion {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const suggestion = value as Partial<OutfitSuggestion>;
+  return (
+    Array.isArray(suggestion.items) &&
+    suggestion.items.every((item) => typeof item === "string") &&
+    typeof suggestion.name === "string" &&
+    typeof suggestion.reason === "string"
+  );
 }

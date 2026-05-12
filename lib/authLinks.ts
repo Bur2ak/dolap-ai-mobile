@@ -34,12 +34,18 @@ export async function syncSupabaseSessionFromUrl(url: string): Promise<SupabaseA
 
 function getUrlParams(url: string) {
   const params = new URLSearchParams();
-  const [, query = ""] = url.split("?");
-  const [queryString = "", hashString = ""] = query.split("#");
-  const [, hashOnly = ""] = url.split("#");
+  try {
+    const parsed = new URL(url);
+    appendParams(params, parsed.search.replace(/^\?/, ""));
+    appendParams(params, parsed.hash.replace(/^#/, ""));
+  } catch {
+    const [, query = ""] = url.split("?");
+    const [queryString = "", hashString = ""] = query.split("#");
+    const [, hashOnly = ""] = url.split("#");
 
-  appendParams(params, queryString);
-  appendParams(params, hashString || hashOnly);
+    appendParams(params, queryString);
+    appendParams(params, hashString || hashOnly);
+  }
 
   return params;
 }

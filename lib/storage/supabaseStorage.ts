@@ -6,13 +6,28 @@ const wardrobeImagesBucket = "wardrobe-images";
 
 async function uriToBlob(uri: string): Promise<Blob> {
   const response = await fetch(uri);
-  return response.blob();
+  if (!response.ok) {
+    throw new Error(`Gorsel okunamadi (${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  if (blob.size === 0) {
+    throw new Error("Gorsel dosyasi bos gorunuyor.");
+  }
+
+  return blob;
 }
 
 export async function uploadWardrobeImage(userId: string, localUri: string, itemId: string, suffix = "image") {
   const imageType = getImageUploadType(localUri);
   const path = `${userId}/${itemId}-${suffix}.${imageType.extension}`;
-  const blob = await uriToBlob(localUri);
+  let blob: Blob;
+  try {
+    blob = await uriToBlob(localUri);
+  } catch (error) {
+    captureError(error, { area: "wardrobe_image_read", user_id: userId, item_id: itemId, suffix });
+    throwApiError(error, "Gorsel okunamadi.");
+  }
 
   const { error } = await supabase.storage.from(wardrobeImagesBucket).upload(path, blob, {
     contentType: imageType.contentType,

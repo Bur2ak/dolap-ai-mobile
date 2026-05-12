@@ -6,9 +6,14 @@ export function getApiErrorMessage(error: unknown, fallbackMessage = "Islem tama
   const code = getErrorString(error, "code");
   const status = getErrorNumber(error, "status");
   const message = getErrorString(error, "message");
+  const normalizedMessage = message?.toLowerCase() ?? "";
 
   if (code === "23505") {
     return "Bu kayit zaten mevcut.";
+  }
+
+  if (status === 429 || normalizedMessage.includes("too many requests") || normalizedMessage.includes("rate limit")) {
+    return "Cok fazla istek gonderildi. Biraz bekleyip tekrar dene.";
   }
 
   if (code === "42501" || status === 401 || status === 403) {
@@ -19,27 +24,35 @@ export function getApiErrorMessage(error: unknown, fallbackMessage = "Islem tama
     return "Kayit bulunamadi veya erisim iznin yok.";
   }
 
-  if (message?.toLowerCase().includes("network request failed") || message?.toLowerCase().includes("failed to fetch")) {
+  if (
+    normalizedMessage.includes("network request failed") ||
+    normalizedMessage.includes("failed to fetch") ||
+    normalizedMessage.includes("load failed")
+  ) {
     return "Ag baglantisi kurulamadi. Internetini kontrol edip tekrar dene.";
   }
 
-  if (message?.toLowerCase().includes("invalid login credentials")) {
+  if (normalizedMessage.includes("timeout") || normalizedMessage.includes("aborted")) {
+    return "Istek zaman asimina ugradi. Birazdan tekrar dene.";
+  }
+
+  if (normalizedMessage.includes("invalid login credentials")) {
     return "E-posta veya sifre hatali.";
   }
 
-  if (message?.toLowerCase().includes("email not confirmed")) {
+  if (normalizedMessage.includes("email not confirmed")) {
     return "E-posta adresini dogrulaman gerekiyor.";
   }
 
-  if (message?.toLowerCase().includes("user already registered") || message?.toLowerCase().includes("already registered")) {
+  if (normalizedMessage.includes("user already registered") || normalizedMessage.includes("already registered")) {
     return "Bu e-posta ile zaten bir hesap var.";
   }
 
-  if (message?.toLowerCase().includes("password")) {
+  if (normalizedMessage.includes("password")) {
     return "Sifre yeterince guclu degil veya kabul edilmedi.";
   }
 
-  if (message?.toLowerCase().includes("jwt")) {
+  if (normalizedMessage.includes("jwt")) {
     return "Oturum dogrulanamadi. Cikis yapip tekrar giris yapmayi dene.";
   }
 

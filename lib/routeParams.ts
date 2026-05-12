@@ -1,6 +1,6 @@
 export function getStringParam(value: string | string[] | undefined): string | undefined {
   const rawValue = Array.isArray(value) ? value[0] : value;
-  const trimmed = rawValue?.trim();
+  const trimmed = rawValue?.trim().replace(/\0/g, "");
 
   return trimmed || undefined;
 }
@@ -21,7 +21,16 @@ export function isUuid(value: string): boolean {
 export function getSafeInternalReturnTo(value: string | string[] | undefined, fallback = "/(tabs)") {
   const returnTo = getStringParam(value);
 
-  if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//") || returnTo.startsWith("/(auth)")) {
+  if (
+    !returnTo ||
+    returnTo.length > 300 ||
+    !returnTo.startsWith("/") ||
+    returnTo.startsWith("//") ||
+    returnTo.startsWith("/\\") ||
+    returnTo.includes("://") ||
+    returnTo.includes("\\") ||
+    returnTo.startsWith("/(auth)")
+  ) {
     return fallback;
   }
 
