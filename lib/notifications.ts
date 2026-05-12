@@ -3,6 +3,7 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
+import { captureError } from "@/lib/observability";
 import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import type { EventRecord, SmartNotificationPlan } from "@/types";
@@ -85,7 +86,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
   } = await supabase.auth.getUser();
 
   if (user) {
-    await supabase.from("profiles").update({ push_token: token }).eq("id", user.id);
+    const { error } = await supabase.from("profiles").update({ push_token: token }).eq("id", user.id);
+    if (error) {
+      captureError(error, { area: "push_token_profile_update", user_id: user.id });
+    }
   }
 
   return token;
@@ -208,7 +212,7 @@ export function getNotificationRoute(data: Record<string, unknown>) {
   const type = typeof data.type === "string" ? data.type : null;
   const outfitId = getUuidPayloadValue(data.outfit_id);
   const itemId = getUuidPayloadValue(data.item_id);
-  const loanRequestId = typeof data.loan_request_id === "string" ? data.loan_request_id : null;
+  const loanRequestId = getUuidPayloadValue(data.loan_request_id);
   const friendId = getUuidPayloadValue(data.friend_id) ?? getUuidPayloadValue(data.user_id);
 
   if (screen === "/(tabs)/outfit" || screen === "/(tabs)/analytics" || screen === "/event") {

@@ -130,12 +130,18 @@ export default function RootLayout() {
   }, [router]);
 
   useEffect(() => {
+    const fetchProfileSafely = (area: string) => {
+      void fetchProfile().catch((error) => {
+        captureError(error, { area });
+      });
+    };
+
     supabase.auth
       .getSession()
       .then(({ data }) => {
         useAuthStore.setState({ session: data.session, isLoading: false });
         if (data.session) {
-          void fetchProfile();
+          fetchProfileSafely("profile_bootstrap_fetch");
         }
       })
       .catch((error) => {
@@ -151,7 +157,7 @@ export default function RootLayout() {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       useAuthStore.setState({ session: nextSession });
       if (nextSession) {
-        void fetchProfile();
+        fetchProfileSafely("profile_auth_state_fetch");
       }
     });
 
