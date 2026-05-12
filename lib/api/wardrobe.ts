@@ -28,7 +28,7 @@ export async function fetchWardrobeItems(userId: string): Promise<WardrobeItem[]
       throwApiError(error, "Dolap yuklenemedi.");
     }
 
-    const items = (data ?? []) as WardrobeItem[];
+    const items = (data ?? []).map(normalizeWardrobeItemRecord).filter((item): item is WardrobeItem => item !== null);
     await cacheWardrobeItems(userId, items);
     return items;
   } catch (error) {
@@ -57,23 +57,28 @@ export async function fetchWardrobeItem(userId: string, itemId: string): Promise
     throwApiError(error, "Kiyafet bulunamadi.");
   }
 
-  return data as WardrobeItem;
+  const item = normalizeWardrobeItemRecord(data);
+  if (!item) {
+    throw new Error("Kiyafet kaydi gecersiz dondu.");
+  }
+
+  return item;
 }
 
 export async function createWardrobeItem(userId: string, input: CreateWardrobeItemInput): Promise<WardrobeItem> {
   assertUserId(userId);
   const normalizedInput = normalizeWardrobeItemInput(input, true);
   const itemId = nanoid();
-  let imageUrl = input.image_url;
-  let thumbnailUrl = input.thumbnail_url ?? null;
+  let imageUrl = normalizedInput.image_url;
+  let thumbnailUrl = normalizedInput.thumbnail_url ?? null;
   const socialFlags = normalizeWardrobeSocialFlags(normalizedInput);
 
-  if (input.image_url.startsWith("file:") || input.image_url.startsWith("blob:")) {
-    imageUrl = await uploadWardrobeImage(userId, input.image_url, itemId, "image");
+  if (normalizedInput.image_url.startsWith("file:") || normalizedInput.image_url.startsWith("blob:")) {
+    imageUrl = await uploadWardrobeImage(userId, normalizedInput.image_url, itemId, "image");
   }
 
-  if (input.thumbnail_url?.startsWith("file:") || input.thumbnail_url?.startsWith("blob:")) {
-    thumbnailUrl = await uploadWardrobeImage(userId, input.thumbnail_url, itemId, "thumb");
+  if (normalizedInput.thumbnail_url?.startsWith("file:") || normalizedInput.thumbnail_url?.startsWith("blob:")) {
+    thumbnailUrl = await uploadWardrobeImage(userId, normalizedInput.thumbnail_url, itemId, "thumb");
   }
 
   const { data, error } = await supabase
@@ -100,7 +105,12 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
     throwApiError(error, "Kiyafet kaydedilemedi.");
   }
 
-  const item = data as WardrobeItem;
+  const item = normalizeWardrobeItemRecord(data);
+  if (!item) {
+    await cleanupUploadedImages(userId, [imageUrl, thumbnailUrl]);
+    throw new Error("Kiyafet kaydi gecersiz dondu.");
+  }
+
   captureEvent("wardrobe_item_created", {
     category: item.category,
     color_count: item.colors.length,
@@ -131,7 +141,11 @@ export async function updateWardrobeItem(userId: string, itemId: string, input: 
     throwApiError(error, "Kiyafet guncellenemedi.");
   }
 
-  const item = data as WardrobeItem;
+  const item = normalizeWardrobeItemRecord(data);
+  if (!item) {
+    throw new Error("Kiyafet kaydi gecersiz dondu.");
+  }
+
   captureEvent("wardrobe_item_updated", {
     category: item.category,
     changed_lendable: input.is_lendable !== undefined,
@@ -206,7 +220,74 @@ function normalizeWardrobeItemInput<T extends CreateWardrobeItemInput | UpdateWa
     normalized.wear_count = Math.max(0, Math.trunc(normalized.wear_count));
   }
 
+  if ("last_worn" in normalized && normalized.last_worn !== undefined && normalized.last_worn !== null) {
+    const lastWorn = new Date(`${normalized.last_worn}T00:00:00`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized.last_worn) || !Number.isFinite(lastWorn.getTime())) {
+      throw new Error("Gecerli bir giyme tarihi gir.");
+    }
+  }
+
   return normalized;
+}
+
+function normalizeWardrobeItemRecord(value: unknown): WardrobeItem | null {
+  const record = value && typeof value === "object" && !Array.isArray(value) ? (value as Partial<WardrobeItem>) : {};
+  if (typeof record.id !== "string" || !isUuid(record.id) || typeof record.user_id !== "string" || !isUuid(record.user_id)) {
+    return null;
+  }
+
+  const category = typeof record.category === "string" && validCategories.has(record.category) ? record.category : "diger";
+  const seasons = Array.isArray(record.season)
+    ? record.season.filter((season, index, allSeasons): season is WardrobeItem["season"][number] => typeof season === "string" && validSeasons.has(season) && allSeasons.indexOf(season) === index)
+    : [];
+  const colors = Array.isArray(record.colors)
+    ? [...new Set(record.colors.filter((color): color is string => typeof color === "string" && color.trim().length > 0).map((color) => color.trim().toLowerCase()))].slice(0, 8)
+    : [];
+  const purchasePrice = Number(record.purchase_price);
+  const wearCount = Number(record.wear_count);
+
+  return {
+    id: record.id,
+    user_id: record.user_id,
+    image_url: typeof record.image_url === "string" ? record.image_url.trim() : "",
+    thumbnail_url: typeof record.thumbnail_url === "string" ? normalizeNullableText(record.thumbnail_url, 500) : null,
+    category: category as WardrobeItem["category"],
+    subcategory: typeof record.subcategory === "string" ? normalizeNullableText(record.subcategory, 80) : null,
+    colors,
+    dominant_color_hex: typeof record.dominant_color_hex === "string" && /^#[0-9a-f]{6}$/i.test(record.dominant_color_hex.trim()) ? record.dominant_color_hex.trim() : null,
+    season: seasons,
+    brand: typeof record.brand === "string" ? normalizeNullableText(record.brand, 80) : null,
+    purchase_price: Number.isFinite(purchasePrice) && purchasePrice >= 0 && purchasePrice <= maxPurchasePrice ? Math.round(purchasePrice * 100) / 100 : null,
+    wear_count: Number.isFinite(wearCount) ? Math.max(0, Math.min(10_000, Math.trunc(wearCount))) : 0,
+    last_worn: normalizeNullableDate(record.last_worn),
+    is_shareable: record.is_shareable === true,
+    is_lendable: record.is_lendable === true,
+    is_active: record.is_active !== false,
+    created_at: normalizeDate(record.created_at),
+    updated_at: normalizeDate(record.updated_at),
+  };
+}
+
+function normalizeNullableText(value: string, maxLength: number) {
+  return value.trim().replace(/\s+/g, " ").slice(0, maxLength) || null;
+}
+
+function normalizeDate(value: unknown) {
+  if (typeof value !== "string") {
+    return new Date().toISOString();
+  }
+
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
+}
+
+function normalizeNullableDate(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? value : null;
 }
 
 function normalizeWardrobeSocialFlags(input: Pick<UpdateWardrobeItemInput, "is_shareable" | "is_lendable">) {
