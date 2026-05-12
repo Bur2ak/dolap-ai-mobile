@@ -5,6 +5,11 @@ import { throwApiError } from "@/lib/api/errors";
 import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types";
+import { normalizeEmail, normalizeUsername } from "@/utils/validation";
+
+const maxFullNameLength = 120;
+const maxBioLength = 160;
+const maxPushTokenLength = 512;
 
 interface AuthState {
   session: Session | null;
@@ -25,7 +30,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
 
   signIn: async (email, password) => {
-    const { error, data } = await supabase.auth.signInWithPassword({ email, password });
+    const { error, data } = await supabase.auth.signInWithPassword({ email: normalizeEmail(email), password });
     if (error) {
       captureError(error, { area: "auth_sign_in" });
       throwApiError(error, "Giris yapilamadi.");
@@ -36,13 +41,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signUp: async (email, password, fullName) => {
+    const normalizedFullName = normalizeProfileText(fullName, maxFullNameLength);
     const consentedAt = new Date().toISOString();
     const { error } = await supabase.auth.signUp({
-      email,
+      email: normalizeEmail(email),
       password,
       options: {
         data: {
-          full_name: fullName,
+          full_name: normalizedFullName,
           kvkk_consent_at: consentedAt,
           terms_accepted_at: consentedAt,
         },
@@ -56,7 +62,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   resetPassword: async (email, redirectTo) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
       redirectTo,
     });
     if (error) {
@@ -67,6 +73,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updatePassword: async (password) => {
+    if (password.length < 8) {
+      throw new Error("Sifre en az 8 karakter olmali.");
+    }
+
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       captureError(error, { area: "auth_password_update" });
@@ -114,7 +124,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    const nextUpdates = { ...updates, updated_at: new Date().toISOString() };
+    const nextUpdates = normalizeProfileUpdates(updates);
     const { error } = await supabase.from("profiles").update(nextUpdates).eq("id", user.id);
     if (error) {
       captureError(error, {
@@ -143,3 +153,102 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }));
   },
 }));
+
+type ProfileUpdatePayload = Partial<
+  Pick<
+    Profile,
+    | "avatar_url"
+    | "bio"
+    | "deletion_requested_at"
+    | "deletion_scheduled_for"
+    | "full_name"
+    | "notification_preferences"
+    | "onboarding_completed"
+    | "privacy_settings"
+    | "push_token"
+    | "username"
+  >
+> & { updated_at: string };
+
+function normalizeProfileUpdates(updates: Partial<Profile>): ProfileUpdatePayload {
+  const normalized: ProfileUpdatePayload = { updated_at: new Date().toISOString() };
+
+  if (updates.full_name !== undefined) {
+    normalized.full_name = normalizeProfileText(updates.full_name, maxFullNameLength);
+  }
+
+  if (updates.username !== undefined) {
+    const username = updates.username ? normalizeUsername(updates.username) : "";
+    normalized.username = username || null;
+  }
+
+  if (updates.bio !== undefined) {
+    normalized.bio = normalizeProfileText(updates.bio, maxBioLength);
+  }
+
+  if (updates.avatar_url !== undefined) {
+    normalized.avatar_url = normalizeNullableText(updates.avatar_url, 500);
+  }
+
+  if (updates.push_token !== undefined) {
+    normalized.push_token = normalizeNullableText(updates.push_token, maxPushTokenLength);
+  }
+
+  if (updates.notification_preferences !== undefined) {
+    normalized.notification_preferences = {
+      outfit_reminder: updates.notification_preferences.outfit_reminder !== false,
+      price_drops: updates.notification_preferences.price_drops !== false,
+      friend_requests: updates.notification_preferences.friend_requests !== false,
+      outfit_votes: updates.notification_preferences.outfit_votes !== false,
+      lend_requests: updates.notification_preferences.lend_requests !== false,
+    };
+  }
+
+  if (updates.privacy_settings !== undefined) {
+    normalized.privacy_settings = {
+      wardrobe_visible: updates.privacy_settings.wardrobe_visible === true,
+      allow_friend_requests: updates.privacy_settings.allow_friend_requests !== false,
+    };
+  }
+
+  if (updates.onboarding_completed !== undefined) {
+    normalized.onboarding_completed = updates.onboarding_completed === true;
+  }
+
+  if (updates.deletion_requested_at !== undefined) {
+    normalized.deletion_requested_at = normalizeIsoDateTime(updates.deletion_requested_at);
+  }
+
+  if (updates.deletion_scheduled_for !== undefined) {
+    normalized.deletion_scheduled_for = normalizeDateOnly(updates.deletion_scheduled_for);
+  }
+
+  return normalized;
+}
+
+function normalizeProfileText(value: string | null | undefined, maxLength: number) {
+  return normalizeNullableText(value, maxLength);
+}
+
+function normalizeNullableText(value: string | null | undefined, maxLength: number) {
+  const normalized = value?.trim().replace(/\s+/g, " ").slice(0, maxLength) ?? "";
+  return normalized || null;
+}
+
+function normalizeIsoDateTime(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function normalizeDateOnly(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isFinite(date.getTime()) ? value : null;
+}
