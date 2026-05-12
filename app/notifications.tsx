@@ -318,7 +318,9 @@ export default function NotificationsScreen() {
 }
 
 function routeFromNotification(notification: NotificationRecord) {
-  router.push(getNotificationRoute({ ...notification.data, type: notification.type }));
+  const route = getNotificationRoute({ ...notification.data, type: notification.type });
+  captureEvent("notification_route_resolved", { route, type: notification.type });
+  router.push(route);
 }
 
 function iconForNotification(type: NotificationRecord["type"]) {
@@ -354,7 +356,12 @@ function getFilterCount(filter: NotificationFilter, notifications: NotificationR
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleString("tr-TR", {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return "Tarih yok";
+  }
+
+  return date.toLocaleString("tr-TR", {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
