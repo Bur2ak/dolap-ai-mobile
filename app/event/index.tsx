@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -21,6 +21,8 @@ import { cancelEventReminder, scheduleEventReminder } from "@/lib/notifications"
 import { captureError, captureEvent } from "@/lib/observability";
 import type { EventPlanInput, EventRecord, OutfitSuggestion, StyleCalendarDay, WardrobeItem } from "@/types";
 import { formatDateTimeLocal } from "@/utils/formatters";
+import type { TravelPackingPlan } from "@/utils/packingList";
+import { buildTravelPackingPlan } from "@/utils/packingList";
 import { buildStyleCalendar } from "@/utils/styleCalendar";
 
 const eventDateFormatMessage = "Tarih ve saat YYYY-AA-GGTHH:mm formatinda ve gelecek bir zaman olmali.";
@@ -62,15 +64,18 @@ export default function EventPlannerScreen() {
     weather,
     wardrobe: items,
   };
+  const packingPlan = useMemo(() => buildTravelPackingPlan(eventInput), [eventDate, eventType, items, location, notes, title, weather]);
+  const hasPackingPlan = Boolean(packingPlan);
 
   useEffect(() => {
     captureEvent("event_planner_screen_viewed", {
       event_count: events.length,
+      packing_plan_available: hasPackingPlan,
       suggestion_count: suggestions.length,
       wardrobe_count: items.length,
       weather_available: Boolean(weather),
     });
-  }, [events.length, items.length, suggestions.length, weather]);
+  }, [events.length, hasPackingPlan, items.length, suggestions.length, weather]);
 
   async function handleRecommend() {
     if (isBusy) {
@@ -267,6 +272,25 @@ export default function EventPlannerScreen() {
         disabled={isBusy}
       />
 
+      {packingPlan ? (
+        <TravelPackingCard
+          plan={packingPlan}
+          disabled={isBusy}
+          onUsePlan={() => {
+            const missingItems = packingPlan.items.filter((item) => item.status === "missing").map((item) => item.label);
+            const planNote = `Valiz plani: ${packingPlan.items.map((item) => item.label).join(", ")}.`;
+            setNotes((current) => {
+              const currentNote = current.trim();
+              return currentNote ? `${currentNote}\n${planNote}` : planNote;
+            });
+            captureEvent("event_travel_packing_plan_used", {
+              missing_count: missingItems.length,
+              ready_count: packingPlan.items.length - missingItems.length,
+            });
+          }}
+        />
+      ) : null}
+
       <Input label="Etkinlik adi" value={title} onChangeText={setTitle} placeholder="Orn. Cuma aksami yemek" editable={!isBusy} />
 
       <Text variant="h3">Etkinlik tipi</Text>
@@ -422,6 +446,41 @@ function StyleCalendarCard({ days, onPlanDay, disabled }: { days: StyleCalendarD
       <Text variant="caption" color="muted">
         Bir gune dokununca form o gunun stil niyetiyle dolar.
       </Text>
+    </Card>
+  );
+}
+
+function TravelPackingCard({ plan, onUsePlan, disabled }: { plan: TravelPackingPlan; onUsePlan: () => void; disabled: boolean }) {
+  return (
+    <Card style={styles.packingCard}>
+      <View style={styles.calendarHeader}>
+        <View style={styles.eventCopy}>
+          <Text variant="caption" color="muted">
+            VALIZ PLANI
+          </Text>
+          <Text variant="h3">{plan.title}</Text>
+          <Text variant="body" color="secondary">
+            {plan.summary}
+          </Text>
+        </View>
+        <Ionicons name="bag-handle-outline" size={24} color={COLORS.primary} />
+      </View>
+
+      <View style={styles.packingList}>
+        {plan.items.map((item) => (
+          <View key={item.label} style={styles.packingItem}>
+            <Ionicons name={item.status === "ready" ? "checkmark-circle-outline" : "alert-circle-outline"} size={20} color={item.status === "ready" ? COLORS.success : COLORS.warning} />
+            <View style={styles.eventCopy}>
+              <Text variant="label">{item.label}</Text>
+              <Text variant="caption" color="muted">
+                {item.reason}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
+
+      <Button title="Nota Ekle" variant="secondary" onPress={onUsePlan} disabled={disabled} />
     </Card>
   );
 }
@@ -775,6 +834,20 @@ const styles = StyleSheet.create({
   },
   calendarCard: {
     gap: SPACING.sm,
+  },
+  packingCard: {
+    gap: SPACING.sm,
+  },
+  packingList: {
+    gap: SPACING.xs,
+  },
+  packingItem: {
+    alignItems: "flex-start",
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    padding: SPACING.sm,
   },
   calendarHeader: {
     alignItems: "center",

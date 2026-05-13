@@ -20,6 +20,8 @@ import { createPublicAppLink } from "@/lib/links";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getDailyOutfitSuggestionCount, incrementDailyOutfitSuggestionCount } from "@/lib/usageLimits";
 import type { OutfitRecommendationInput, OutfitSuggestion, OutfitVoteValue, SharedOutfit, WardrobeItem } from "@/types";
+import type { AccessoryRecommendation } from "@/utils/accessoryRecommendations";
+import { buildAccessoryRecommendations } from "@/utils/accessoryRecommendations";
 import { buildCapsuleWardrobePlan } from "@/utils/capsuleWardrobe";
 
 const moods = ["Rahat", "Sik", "Dikkat cekici", "Minimal", "Enerjik"];
@@ -54,6 +56,7 @@ export default function OutfitScreen() {
   const [activeSuggestionAction, setActiveSuggestionAction] = useState<{ name: string; action: "save" | "share" } | null>(null);
   const repeatCandidate = useMemo(() => getRepeatCandidate(items), [items]);
   const capsulePlan = useMemo(() => buildCapsuleWardrobePlan(items), [items]);
+  const accessoryRecommendations = useMemo(() => buildAccessoryRecommendations(items, weather), [items, weather]);
   const focusedItem = focusItemId ? items.find((item) => item.id === focusItemId) ?? null : null;
   const isBusy = isRecommending || isSavingOutfit;
   const isActionBusy = isBusy || Boolean(activeSuggestionAction);
@@ -68,13 +71,14 @@ export default function OutfitScreen() {
 
   useEffect(() => {
     captureEvent("outfit_screen_viewed", {
+      accessory_recommendation_count: accessoryRecommendations.length,
       capsule_idea_count: capsulePlan.outfit_ideas.length,
       saved_outfit_count: savedOutfits.length,
       suggestion_count: suggestions.length,
       wardrobe_count: items.length,
       weather_available: Boolean(weather),
     });
-  }, [capsulePlan.outfit_ideas.length, items.length, savedOutfits.length, suggestions.length, weather]);
+  }, [accessoryRecommendations.length, capsulePlan.outfit_ideas.length, items.length, savedOutfits.length, suggestions.length, weather]);
 
   async function handleRecommend() {
     if (isActionBusy) {
@@ -388,6 +392,56 @@ export default function OutfitScreen() {
         </Card>
       ) : null}
 
+      {accessoryRecommendations.length > 0 ? (
+        <Card style={styles.accessoryCard}>
+          <View style={styles.accessoryHeader}>
+            <View style={styles.repeatCopy}>
+              <Text variant="caption" color="muted">
+                AKSESUAR ONERILERI
+              </Text>
+              <Text variant="h3">Kombini tamamla</Text>
+            </View>
+            <Ionicons name="sparkles-outline" size={24} color={COLORS.primary} />
+          </View>
+
+          {accessoryRecommendations.map((recommendation) => (
+            <Pressable
+              key={`${recommendation.title}-${recommendation.priority}`}
+              style={styles.accessoryRow}
+              onPress={() => {
+                if (isActionBusy) {
+                  captureEvent("outfit_accessory_focus_blocked", { reason: "busy", priority: recommendation.priority });
+                  return;
+                }
+
+                const firstItemId = recommendation.item_ids[0];
+                if (firstItemId) {
+                  setFocusItemId(firstItemId);
+                }
+                captureEvent("outfit_accessory_recommendation_selected", {
+                  has_item: Boolean(firstItemId),
+                  priority: recommendation.priority,
+                });
+              }}
+              disabled={isActionBusy}
+            >
+              <View style={[styles.priorityDot, getPriorityDotStyle(recommendation.priority)]} />
+              <View style={styles.accessoryCopy}>
+                <Text variant="label">{recommendation.title}</Text>
+                <Text variant="body" color="secondary">
+                  {recommendation.body}
+                </Text>
+                {recommendation.item_ids.length > 0 ? (
+                  <Text variant="caption" color="muted">
+                    {getAccessoryItemLabels(recommendation.item_ids, items)}
+                  </Text>
+                ) : null}
+              </View>
+            </Pressable>
+          ))}
+        </Card>
+      ) : null}
+
       <Text variant="h3">Nereye gidiyorsun?</Text>
       <View style={styles.wrap}>
         {EVENT_TYPES.slice(0, 6).map((event) => (
@@ -615,6 +669,26 @@ function getRepeatReason(item: WardrobeItem) {
   return `${days} gundur giyilmemis. Shipirio bunu bugunku kombine dahil edebilir.`;
 }
 
+function getAccessoryItemLabels(itemIds: string[], items: WardrobeItem[]) {
+  return itemIds
+    .map((itemId) => items.find((item) => item.id === itemId))
+    .filter((item): item is WardrobeItem => Boolean(item))
+    .map((item) => item.subcategory ?? item.brand ?? item.category)
+    .join(", ");
+}
+
+function getPriorityDotStyle(priority: AccessoryRecommendation["priority"]) {
+  if (priority === "high") {
+    return styles.priorityDotHigh;
+  }
+
+  if (priority === "medium") {
+    return styles.priorityDotMedium;
+  }
+
+  return styles.priorityDotLow;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -716,6 +790,41 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     gap: 2,
     padding: SPACING.sm,
+  },
+  accessoryCard: {
+    gap: SPACING.sm,
+  },
+  accessoryHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
+    justifyContent: "space-between",
+  },
+  accessoryRow: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    padding: SPACING.sm,
+  },
+  accessoryCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  priorityDot: {
+    borderRadius: 999,
+    height: 10,
+    marginTop: 6,
+    width: 10,
+  },
+  priorityDotHigh: {
+    backgroundColor: COLORS.danger,
+  },
+  priorityDotMedium: {
+    backgroundColor: COLORS.warning,
+  },
+  priorityDotLow: {
+    backgroundColor: COLORS.success,
   },
   wrap: {
     flexDirection: "row",
