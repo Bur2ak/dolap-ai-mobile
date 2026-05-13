@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { useNotificationInbox } from "@/hooks/useNotificationInbox";
 import { useSubscription } from "@/hooks/useSubscription";
 import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
@@ -15,6 +16,7 @@ import { formatDate } from "@/utils/formatters";
 export default function ProfileScreen() {
   const { profile, signOut } = useAuthStore();
   const { premium } = useSubscription();
+  const { unreadCount } = useNotificationInbox();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const profileIncomplete = Boolean(profile && (!profile.username || !profile.onboarding_completed));
 
@@ -124,6 +126,18 @@ export default function ProfileScreen() {
         </Card>
       ) : null}
 
+      {unreadCount > 0 ? (
+        <Card style={styles.notificationNudge}>
+          <View style={styles.notificationCopy}>
+            <Text variant="h3">{unreadCount} yeni bildirim</Text>
+            <Text variant="body" color="secondary">
+              Fiyat, sosyal ve kombin aksiyonlarini kacirmadan kontrol et.
+            </Text>
+          </View>
+          <Button title="Ac" variant="secondary" onPress={() => openRoute("/notifications", "notification_nudge")} disabled={routeDisabled} />
+        </Card>
+      ) : null}
+
       <View style={styles.menu}>
         <Card>
           <Button title="Ayarlar" variant="ghost" onPress={() => openRoute("/settings", "settings")} disabled={routeDisabled} />
@@ -150,7 +164,7 @@ export default function ProfileScreen() {
           <Button title="Bildirim Ayarlari" variant="ghost" onPress={() => openRoute("/settings/notifications", "notification_settings")} disabled={routeDisabled} />
         </Card>
         <Card>
-          <Button title="Bildirim Kutusu" variant="ghost" onPress={() => openRoute("/notifications", "notification_inbox")} disabled={routeDisabled} />
+          <Button title={unreadCount > 0 ? `Bildirim Kutusu (${unreadCount})` : "Bildirim Kutusu"} variant="ghost" onPress={() => openRoute("/notifications", "notification_inbox")} disabled={routeDisabled} />
         </Card>
         <Card>
           <Button title="Sistem Durumu" variant="ghost" onPress={() => openRoute("/settings/diagnostics", "diagnostics")} disabled={routeDisabled} />
@@ -210,6 +224,15 @@ const styles = StyleSheet.create({
   deletionNotice: {
     borderColor: COLORS.warning,
     gap: SPACING.md,
+  },
+  notificationNudge: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
+  },
+  notificationCopy: {
+    flex: 1,
+    gap: SPACING.xs,
   },
   premiumCopy: {
     gap: SPACING.xs,

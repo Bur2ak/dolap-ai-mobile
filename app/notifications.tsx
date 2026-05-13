@@ -23,15 +23,16 @@ const notificationLabels: Record<NotificationRecord["type"], string> = {
   system: "Sistem",
 };
 
-type NotificationFilter = "all" | "unread" | NotificationRecord["type"];
+type NotificationFilter = "all" | "unread" | "action_required" | "social" | "commerce" | "planning" | "system";
 
 const filters: Array<{ label: string; value: NotificationFilter }> = [
   { label: "Tumu", value: "all" },
   { label: "Okunmamis", value: "unread" },
-  { label: "Fiyat", value: "price_drop" },
-  { label: "Sosyal", value: "friend_request" },
-  { label: "Kombin", value: "outfit_vote" },
-  { label: "Odunc", value: "lend_request" },
+  { label: "Aksiyon", value: "action_required" },
+  { label: "Sosyal", value: "social" },
+  { label: "Alisveris", value: "commerce" },
+  { label: "Plan", value: "planning" },
+  { label: "Sistem", value: "system" },
 ];
 
 export default function NotificationsScreen() {
@@ -55,21 +56,11 @@ export default function NotificationsScreen() {
     canUse,
   } = useNotificationInbox();
   const visibleNotifications = useMemo(
-    () =>
-      notifications.filter((notification) => {
-        if (filter === "all") {
-          return true;
-        }
-
-        if (filter === "unread") {
-          return !notification.is_read;
-        }
-
-        return notification.type === filter;
-      }),
+    () => notifications.filter((notification) => notificationMatchesFilter(notification, filter)),
     [filter, notifications],
   );
   const isBusy = isUpdating || Boolean(activeAction) || Boolean(activeDeleteNotificationId) || Boolean(activeOpenNotificationId);
+  const actionRequiredCount = notifications.filter((notification) => getNotificationPriority(notification) === "high" && !notification.is_read).length;
 
   useEffect(() => {
     captureEvent("notifications_screen_viewed", {
@@ -200,6 +191,10 @@ export default function NotificationsScreen() {
           <Text variant="body" color="secondary">
             Fiyat dususleri, arkadaslik istekleri ve kombin oylarini burada takip et.
           </Text>
+          <View style={styles.summaryPills}>
+            <StatusPill label={`${actionRequiredCount} aksiyon`} tone={actionRequiredCount > 0 ? "high" : "neutral"} />
+            <StatusPill label={`${readCount} okunmus`} tone="neutral" />
+          </View>
         </View>
         <View style={styles.summaryActions}>
           <Button title="Tumunu Oku" variant="secondary" onPress={handleMarkAllRead} loading={activeAction === "mark_all"} disabled={isBusy || unreadCount === 0} />
@@ -264,9 +259,10 @@ export default function NotificationsScreen() {
                   <Ionicons name={iconForNotification(notification.type)} size={22} color={COLORS.primary} />
                 </View>
                 <View style={styles.notificationCopy}>
-                  <Text variant="caption" color="muted">
-                    {notificationLabels[notification.type]}
-                  </Text>
+                  <View style={styles.notificationMetaRow}>
+                    <StatusPill label={getNotificationGroup(notification)} tone={getNotificationPriority(notification)} />
+                    {!notification.is_read ? <StatusPill label="Yeni" tone="medium" /> : null}
+                  </View>
                   <Text variant="h3">{notification.title}</Text>
                   {notification.body ? (
                     <Text variant="body" color="secondary">
@@ -276,10 +272,21 @@ export default function NotificationsScreen() {
                   <Text variant="caption" color="muted">
                     {formatDate(notification.sent_at)}
                   </Text>
+                  <Text variant="caption" color="secondary">
+                    {getNotificationActionLabel(notification)}
+                  </Text>
                 </View>
               </Pressable>
               <View style={styles.trailingActions}>
                 {!notification.is_read ? <View style={styles.unreadDot} /> : null}
+                <Button
+                  title="Ac"
+                  variant="secondary"
+                  onPress={() => void handlePress(notification)}
+                  loading={activeOpenNotificationId === notification.id}
+                  disabled={isBusy && activeOpenNotificationId !== notification.id}
+                  style={styles.openButton}
+                />
                 <Button
                   title="Sil"
                   variant="ghost"
@@ -344,15 +351,87 @@ function iconForNotification(type: NotificationRecord["type"]) {
 }
 
 function getFilterCount(filter: NotificationFilter, notifications: NotificationRecord[]) {
+  return notifications.filter((notification) => notificationMatchesFilter(notification, filter)).length;
+}
+
+function notificationMatchesFilter(notification: NotificationRecord, filter: NotificationFilter) {
   if (filter === "all") {
-    return notifications.length;
+    return true;
   }
 
   if (filter === "unread") {
-    return notifications.filter((notification) => !notification.is_read).length;
+    return !notification.is_read;
   }
 
-  return notifications.filter((notification) => notification.type === filter).length;
+  if (filter === "action_required") {
+    return getNotificationPriority(notification) === "high";
+  }
+
+  if (filter === "social") {
+    return notification.type === "friend_request" || notification.type === "lend_request" || notification.type === "outfit_vote";
+  }
+
+  if (filter === "commerce") {
+    return notification.type === "price_drop";
+  }
+
+  if (filter === "planning") {
+    return notification.type === "outfit_reminder";
+  }
+
+  return notification.type === "system";
+}
+
+function getNotificationGroup(notification: NotificationRecord) {
+  if (notification.type === "price_drop") {
+    return "Alisveris";
+  }
+
+  if (notification.type === "outfit_reminder") {
+    return "Plan";
+  }
+
+  if (notification.type === "system") {
+    return "Sistem";
+  }
+
+  return notificationLabels[notification.type];
+}
+
+function getNotificationPriority(notification: NotificationRecord): "high" | "medium" | "neutral" {
+  if ((notification.type === "price_drop" || notification.type === "friend_request" || notification.type === "lend_request") && !notification.is_read) {
+    return "high";
+  }
+
+  if (notification.type === "outfit_vote" || notification.type === "outfit_reminder") {
+    return "medium";
+  }
+
+  return "neutral";
+}
+
+function getNotificationActionLabel(notification: NotificationRecord) {
+  if (notification.type === "price_drop") {
+    return "Fiyat takip ekranina gider.";
+  }
+
+  if (notification.type === "friend_request") {
+    return "Arkadaslar ekraninda yanitlanir.";
+  }
+
+  if (notification.type === "lend_request") {
+    return "Odunc takibi ekraninda yonetilir.";
+  }
+
+  if (notification.type === "outfit_vote") {
+    return "Paylasilan kombinin detayini acar.";
+  }
+
+  if (notification.type === "outfit_reminder") {
+    return "Kombin onerisi ekranina goturur.";
+  }
+
+  return "Bildirim detayina gider.";
 }
 
 function formatDate(value: string) {
@@ -368,6 +447,16 @@ function formatDate(value: string) {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+function StatusPill({ label, tone }: { label: string; tone: "high" | "medium" | "neutral" }) {
+  return (
+    <View style={[styles.statusPill, styles[`statusPill${tone}`]]}>
+      <Text variant="caption" color="secondary">
+        {label}
+      </Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -401,6 +490,11 @@ const styles = StyleSheet.create({
   summaryActions: {
     gap: SPACING.xs,
     width: 132,
+  },
+  summaryPills: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
   },
   filters: {
     gap: SPACING.sm,
@@ -449,6 +543,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: SPACING.xs,
   },
+  notificationMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
   unreadDot: {
     backgroundColor: COLORS.primary,
     borderRadius: 999,
@@ -459,8 +558,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: SPACING.xs,
   },
+  openButton: {
+    minHeight: 36,
+    paddingHorizontal: SPACING.sm,
+  },
   deleteButton: {
     minHeight: 36,
     paddingHorizontal: SPACING.sm,
+  },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 5,
+  },
+  statusPillhigh: {
+    backgroundColor: COLORS.warningSoft,
+  },
+  statusPillmedium: {
+    backgroundColor: COLORS.primarySoft,
+  },
+  statusPillneutral: {
+    backgroundColor: COLORS.surfaceMuted,
   },
 });

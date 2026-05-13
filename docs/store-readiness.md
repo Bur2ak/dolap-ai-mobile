@@ -41,7 +41,7 @@
 
 ## Supabase Production Checklist
 
-- `supabase db push` applied through migration `018_revenuecat_customer_index.sql`
+- `supabase db push` applied through migration `019_wardrobe_fabric_usage_context.sql`
 - `supabase functions deploy analyze-clothing`
 - `supabase functions deploy remove-background`
 - `supabase functions deploy recommend-outfit`
