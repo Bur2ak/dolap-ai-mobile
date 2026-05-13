@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
+import { FREE_LIMITS, PREMIUM_LIMITS, type LimitKey } from "@/constants/limits";
 import { SPACING } from "@/constants/spacing";
 import { useSubscription } from "@/hooks/useSubscription";
 import {
@@ -27,6 +28,15 @@ const features = [
   "Etkinlik planlayici",
   "Gelismis gardrop analizi",
   "Fiyat takibi ve bildirimler",
+];
+
+const comparisonRows: Array<{ key: LimitKey; label: string }> = [
+  { key: "MAX_WARDROBE_ITEMS", label: "Dolap kapasitesi" },
+  { key: "DAILY_OUTFIT_SUGGESTIONS", label: "Gunluk kombin" },
+  { key: "BUY_DECISIONS_PER_MONTH", label: "Almali Miyim" },
+  { key: "PRICE_TRACKING_ITEMS", label: "Fiyat takibi" },
+  { key: "ANALYTICS_FULL", label: "Gelismis analiz" },
+  { key: "EVENT_PLANNING", label: "Etkinlik planlama" },
 ];
 
 export default function PaywallScreen() {
@@ -202,6 +212,33 @@ export default function PaywallScreen() {
         ))}
       </Card>
 
+      <Card style={styles.section}>
+        <Text variant="h3">Free ve Premium</Text>
+        {comparisonRows.map((row) => (
+          <View key={row.key} style={styles.comparisonRow}>
+            <Text variant="body" style={styles.comparisonLabel}>
+              {row.label}
+            </Text>
+            <View style={styles.comparisonValues}>
+              <View style={styles.comparisonColumn}>
+                <Text variant="caption" color="muted">
+                  Free
+                </Text>
+                <Text variant="label">{formatLimit(FREE_LIMITS[row.key])}</Text>
+              </View>
+              <View style={styles.comparisonColumn}>
+                <Text variant="caption" color="muted">
+                  Premium
+                </Text>
+                <Text variant="label" color="primary">
+                  {formatLimit(PREMIUM_LIMITS[row.key])}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ))}
+      </Card>
+
       <View style={styles.plans}>
         {planCards.slice(0, 2).map((plan, index) => (
           <Card key={plan.key} style={[styles.plan, index === 1 && styles.featuredPlan]}>
@@ -332,6 +369,18 @@ function getPackagePrice(revenueCatPackage: PurchasesPackage) {
   return revenueCatPackage.product.priceString?.trim() || "Fiyat hazir degil";
 }
 
+function formatLimit(value: number | boolean) {
+  if (typeof value === "boolean") {
+    return value ? "Acik" : "Kapali";
+  }
+
+  if (!Number.isFinite(value)) {
+    return "Sinirsiz";
+  }
+
+  return String(value);
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -379,6 +428,26 @@ const styles = StyleSheet.create({
   featuredPlan: {
     borderColor: COLORS.accent,
     borderWidth: 2,
+  },
+  comparisonRow: {
+    borderBottomColor: COLORS.border,
+    borderBottomWidth: 1,
+    gap: SPACING.sm,
+    paddingBottom: SPACING.sm,
+  },
+  comparisonLabel: {
+    flexShrink: 1,
+  },
+  comparisonValues: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  comparisonColumn: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 12,
+    flex: 1,
+    gap: 2,
+    padding: SPACING.sm,
   },
   legalLinks: {
     gap: SPACING.xs,

@@ -6,8 +6,12 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
+import { FREE_LIMITS, PREMIUM_LIMITS, type LimitKey } from "@/constants/limits";
 import { SPACING } from "@/constants/spacing";
+import { useBuyDecision } from "@/hooks/useBuyDecision";
+import { usePriceTracking } from "@/hooks/usePriceTracking";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useWardrobe } from "@/hooks/useWardrobe";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getRevenueCatCustomerInfo, getRevenueCatReadiness, hasPremiumEntitlement } from "@/lib/revenuecat";
 import { useAuthStore } from "@/stores/authStore";
@@ -24,16 +28,55 @@ const limitLabels = {
   EVENT_PLANNING: "Etkinlik planlama",
 } as const;
 
+const trackedLimitRows: Array<{ key: LimitKey; helper: string; usage?: "wardrobe" | "priceTracking" | "monthlyBuyDecisions" }> = [
+  {
+    helper: "Dolabina eklenen aktif kiyafetler.",
+    key: "MAX_WARDROBE_ITEMS",
+    usage: "wardrobe",
+  },
+  {
+    helper: "Kayitli fiyat takipleri ve indirim sinyalleri.",
+    key: "PRICE_TRACKING_ITEMS",
+    usage: "priceTracking",
+  },
+  {
+    helper: "Bu ay kaydedilen Almali Miyim sonuclari.",
+    key: "BUY_DECISIONS_PER_MONTH",
+    usage: "monthlyBuyDecisions",
+  },
+  {
+    helper: "Gunluk kombin uretimi kullanim aninda sayilir.",
+    key: "DAILY_OUTFIT_SUGGESTIONS",
+  },
+  {
+    helper: "Dolap dagilimi, kullanim ve alisveris analizleri.",
+    key: "ANALYTICS_FULL",
+  },
+  {
+    helper: "Etkinlik bazli planlama ve hazirlik akislari.",
+    key: "EVENT_PLANNING",
+  },
+];
+
 export default function SubscriptionSettingsScreen() {
   const profile = useAuthStore((state) => state.profile);
   const fetchProfile = useAuthStore((state) => state.fetchProfile);
   const setRevenueCatPremium = useSubscriptionStore((state) => state.setRevenueCatPremium);
   const { premium, localPremiumOverride, limits, setLocalPremiumOverride } = useSubscription();
+  const { items } = useWardrobe();
+  const { trackings } = usePriceTracking();
+  const { history } = useBuyDecision();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const planName = premium ? "Premium" : "Free";
   const profilePlanName = profile?.subscription_tier ?? "free";
   const expiryLabel = profile?.subscription_expires_at ? formatDate(profile.subscription_expires_at) : "Belirtilmemis";
   const revenueCatReadiness = getRevenueCatReadiness();
+  const monthlyBuyDecisionCount = history.filter((decision) => isCurrentMonth(decision.created_at)).length;
+  const usageByKey = {
+    monthlyBuyDecisions: monthlyBuyDecisionCount,
+    priceTracking: trackings.length,
+    wardrobe: items.length,
+  } satisfies Record<NonNullable<(typeof trackedLimitRows)[number]["usage"]>, number>;
 
   useEffect(() => {
     captureEvent("subscription_settings_screen_viewed", {
@@ -106,14 +149,52 @@ export default function SubscriptionSettingsScreen() {
 
       <Card style={styles.section}>
         <Text variant="h3">Limitler</Text>
-        {Object.entries(limits).map(([key, value]) => (
-          <View key={key} style={styles.limitRow}>
-            <Text variant="body">{limitLabels[key as keyof typeof limitLabels]}</Text>
+        {trackedLimitRows.map((row) => {
+          const value = limits[row.key];
+          const usage = row.usage ? usageByKey[row.usage] : undefined;
+          const progress = getUsageProgress(usage, value);
+
+          return (
+            <View key={row.key} style={styles.limitCard}>
+              <View style={styles.limitHeader}>
+                <Text variant="body">{limitLabels[row.key]}</Text>
+                <Text variant="label" color="primary">
+                  {formatLimit(value)}
+                </Text>
+              </View>
+              <Text variant="caption" color="muted">
+                {row.helper}
+              </Text>
+              {typeof usage === "number" ? (
+                <View style={styles.usageBlock}>
+                  <View style={styles.usageTrack}>
+                    <View style={[styles.usageFill, { width: `${progress}%` }]} />
+                  </View>
+                  <Text variant="caption" color="secondary">
+                    {formatUsage(usage, value)}
+                  </Text>
+                </View>
+              ) : null}
+              <Text variant="caption" color="muted">
+                Free: {formatLimit(FREE_LIMITS[row.key])} - Premium: {formatLimit(PREMIUM_LIMITS[row.key])}
+              </Text>
+            </View>
+          );
+        })}
+        <View style={styles.limitCard}>
+          <View style={styles.limitHeader}>
+            <Text variant="body">{limitLabels.FRIENDS}</Text>
             <Text variant="label" color="primary">
-              {formatLimit(value)}
+              {formatLimit(limits.FRIENDS)}
             </Text>
           </View>
-        ))}
+          <Text variant="caption" color="muted">
+            Sosyal ozellikler arkadas ekleme ve paylasimli dolap akislariyla buyur.
+          </Text>
+          <Text variant="caption" color="muted">
+            Free: {formatLimit(FREE_LIMITS.FRIENDS)} - Premium: {formatLimit(PREMIUM_LIMITS.FRIENDS)}
+          </Text>
+        </View>
       </Card>
 
       <Card style={styles.section}>
@@ -163,6 +244,33 @@ function formatLimit(value: number | boolean) {
   return String(value);
 }
 
+function formatUsage(usage: number, limit: number | boolean) {
+  if (typeof limit === "boolean") {
+    return `${usage} kullanim`;
+  }
+
+  if (!Number.isFinite(limit)) {
+    return `${usage} kullanim - Sinirsiz`;
+  }
+
+  return `${usage} / ${limit} kullanildi`;
+}
+
+function getUsageProgress(usage: number | undefined, limit: number | boolean) {
+  if (typeof usage !== "number" || typeof limit !== "number" || !Number.isFinite(limit) || limit <= 0) {
+    return usage && usage > 0 ? 100 : 0;
+  }
+
+  return Math.min(100, Math.round((usage / limit) * 100));
+}
+
+function isCurrentMonth(dateValue: string) {
+  const date = new Date(dateValue);
+  const now = new Date();
+
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -188,10 +296,32 @@ const styles = StyleSheet.create({
   section: {
     gap: SPACING.md,
   },
-  limitRow: {
+  limitCard: {
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: SPACING.xs,
+    padding: SPACING.md,
+  },
+  limitHeader: {
     alignItems: "center",
     flexDirection: "row",
+    gap: SPACING.sm,
     justifyContent: "space-between",
+  },
+  usageBlock: {
+    gap: SPACING.xs,
+  },
+  usageTrack: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    height: 8,
+    overflow: "hidden",
+  },
+  usageFill: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: "100%",
   },
   actions: {
     gap: SPACING.sm,
