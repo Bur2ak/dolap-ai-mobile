@@ -374,7 +374,11 @@ export async function fetchPublicOutfitFeed(): Promise<SharedOutfit[]> {
 
 export async function fetchSharedOutfit(outfitId: string): Promise<SharedOutfit> {
   assertOutfitId(outfitId);
-  const { data: outfit, error: outfitError } = await supabase.from("outfits").select("*").eq("id", outfitId).single();
+  const { data: outfit, error: outfitError } = await supabase
+    .from("outfits")
+    .select("*, owner:profiles!outfits_user_id_fkey(id, username, full_name, avatar_url)")
+    .eq("id", outfitId)
+    .single();
 
   if (outfitError) {
     throwApiError(outfitError, "Kombin acilamadi.");
@@ -411,6 +415,7 @@ export async function fetchSharedOutfit(outfitId: string): Promise<SharedOutfit>
       .flatMap((row) => (Array.isArray(row.item) ? row.item : row.item ? [row.item] : []))
       .map(normalizeWardrobeItemRecord)
       .filter((item): item is WardrobeItem => item !== null),
+    owner: normalizeVoteProfile(asRecord(outfit)?.owner),
     votes: (votes ?? []).map(normalizeOutfitVote).filter((vote): vote is OutfitVote => vote !== null),
   };
 }

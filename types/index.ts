@@ -190,6 +190,7 @@ export interface OutfitVote {
 export interface SharedOutfit {
   outfit: OutfitRecord;
   items: WardrobeItem[];
+  owner?: Pick<Profile, "id" | "username" | "full_name" | "avatar_url"> | null;
   votes: OutfitVote[];
 }
 

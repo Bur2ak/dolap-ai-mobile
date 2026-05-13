@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
@@ -15,19 +15,24 @@ import { fetchPublicOutfitFeed } from "@/lib/api/outfits";
 import { captureEvent } from "@/lib/observability";
 import type { SharedOutfit } from "@/types";
 
+type FeedMode = "trend" | "recent" | "loved";
+
 export default function StyleFeedScreen() {
+  const [mode, setMode] = useState<FeedMode>("trend");
   const feedQuery = useQuery({
     queryKey: ["public-outfit-feed"],
     queryFn: fetchPublicOutfitFeed,
   });
   const feed = feedQuery.data ?? [];
+  const visibleFeed = useMemo(() => sortFeed(feed, mode), [feed, mode]);
 
   useEffect(() => {
     captureEvent("style_feed_screen_viewed", {
       feed_count: feed.length,
       is_loading: feedQuery.isLoading,
+      mode,
     });
-  }, [feed.length, feedQuery.isLoading]);
+  }, [feed.length, feedQuery.isLoading, mode]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -45,12 +50,33 @@ export default function StyleFeedScreen() {
             </Text>
             <Text variant="h3">Arkadaslardan ve topluluktan ilham</Text>
             <Text variant="body" color="secondary">
-              Paylasima acik kombinler burada Pinterest tarzinda hizli ilham panosuna dusuyor.
+              Paylasima acik kombinler burada ilham panosuna duser; oylar trend siralamasini belirler.
             </Text>
           </View>
           <Ionicons name="albums-outline" size={28} color={COLORS.primary} />
         </View>
       </Card>
+
+      <View style={styles.modeRow}>
+        {feedModes.map((item) => {
+          const active = item.value === mode;
+          return (
+            <Pressable
+              key={item.value}
+              accessibilityRole="button"
+              style={[styles.modeButton, active && styles.modeButtonActive]}
+              onPress={() => {
+                setMode(item.value);
+                captureEvent("style_feed_mode_changed", { mode: item.value });
+              }}
+            >
+              <Text variant="label" color={active ? "inverse" : "secondary"}>
+                {item.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       {feedQuery.isLoading ? (
         <EmptyState icon="sync-outline" title="Pano yukleniyor" body="Paylasilan kombinler hazirlaniyor." />
@@ -66,10 +92,10 @@ export default function StyleFeedScreen() {
             void feedQuery.refetch();
           }}
         />
-      ) : feed.length > 0 ? (
+      ) : visibleFeed.length > 0 ? (
         <View style={styles.feedGrid}>
-          {feed.map((sharedOutfit) => (
-            <FeedCard key={sharedOutfit.outfit.id} sharedOutfit={sharedOutfit} />
+          {visibleFeed.map((sharedOutfit, index) => (
+            <FeedCard key={sharedOutfit.outfit.id} rank={index + 1} sharedOutfit={sharedOutfit} />
           ))}
         </View>
       ) : (
@@ -79,9 +105,18 @@ export default function StyleFeedScreen() {
   );
 }
 
-function FeedCard({ sharedOutfit }: { sharedOutfit: SharedOutfit }) {
+const feedModes: Array<{ label: string; value: FeedMode }> = [
+  { label: "Trend", value: "trend" },
+  { label: "Yeni", value: "recent" },
+  { label: "Favoriler", value: "loved" },
+];
+
+function FeedCard({ rank, sharedOutfit }: { rank: number; sharedOutfit: SharedOutfit }) {
   const previewItems = sharedOutfit.items.slice(0, 4);
+  const ownerName = sharedOutfit.owner?.full_name ?? sharedOutfit.owner?.username ?? "Shipirio kullanicisi";
   const loveCount = sharedOutfit.votes.filter((vote) => vote.vote === "love").length;
+  const yesCount = sharedOutfit.votes.filter((vote) => vote.vote === "yes").length;
+  const trendScore = getTrendScore(sharedOutfit);
 
   return (
     <Pressable
@@ -96,6 +131,28 @@ function FeedCard({ sharedOutfit }: { sharedOutfit: SharedOutfit }) {
       disabled={!sharedOutfit.outfit.share_token}
     >
       <Card style={styles.feedCard}>
+        <View style={styles.feedTopRow}>
+          <View style={styles.ownerRow}>
+            <View style={styles.avatar}>
+              <Text variant="caption" color="inverse">
+                {ownerName[0]?.toUpperCase() ?? "S"}
+              </Text>
+            </View>
+            <View style={styles.ownerCopy}>
+              <Text variant="caption" color="muted">
+                @{sharedOutfit.owner?.username ?? "stil"}
+              </Text>
+              <Text variant="label" numberOfLines={1}>
+                {ownerName}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.rankPill}>
+            <Text variant="caption" color="secondary">
+              #{rank}
+            </Text>
+          </View>
+        </View>
         <View style={styles.mosaic}>
           {previewItems.map((item) => (
             <CachedImage
@@ -108,12 +165,46 @@ function FeedCard({ sharedOutfit }: { sharedOutfit: SharedOutfit }) {
           ))}
         </View>
         <Text variant="label">{sharedOutfit.outfit.name ?? "Paylasilan kombin"}</Text>
+        {sharedOutfit.outfit.ai_reasoning ? (
+          <Text variant="caption" color="secondary" numberOfLines={2}>
+            {sharedOutfit.outfit.ai_reasoning}
+          </Text>
+        ) : null}
         <Text variant="caption" color="muted">
-          {sharedOutfit.items.length} parca - {sharedOutfit.votes.length} oy - {loveCount} favori oy
+          {sharedOutfit.items.length} parca - {yesCount} olur - {loveCount} favori - trend {trendScore}
         </Text>
       </Card>
     </Pressable>
   );
+}
+
+function sortFeed(feed: SharedOutfit[], mode: FeedMode) {
+  const copy = [...feed];
+  if (mode === "recent") {
+    return copy.sort((a, b) => new Date(b.outfit.created_at).getTime() - new Date(a.outfit.created_at).getTime());
+  }
+
+  if (mode === "loved") {
+    return copy.sort((a, b) => getLoveCount(b) - getLoveCount(a) || getTrendScore(b) - getTrendScore(a));
+  }
+
+  return copy.sort((a, b) => getTrendScore(b) - getTrendScore(a) || new Date(b.outfit.created_at).getTime() - new Date(a.outfit.created_at).getTime());
+}
+
+function getLoveCount(sharedOutfit: SharedOutfit) {
+  return sharedOutfit.votes.filter((vote) => vote.vote === "love").length;
+}
+
+function getTrendScore(sharedOutfit: SharedOutfit) {
+  return sharedOutfit.votes.reduce((score, vote) => {
+    if (vote.vote === "love") {
+      return score + 3;
+    }
+    if (vote.vote === "yes") {
+      return score + 2;
+    }
+    return score - 1;
+  }, 0);
 }
 
 const styles = StyleSheet.create({
@@ -148,6 +239,25 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: SPACING.xs,
   },
+  modeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+  },
+  modeButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: "center",
+    minHeight: 40,
+    paddingHorizontal: SPACING.md,
+  },
+  modeButtonActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
   feedGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -158,7 +268,38 @@ const styles = StyleSheet.create({
   },
   feedCard: {
     gap: SPACING.sm,
-    minHeight: 236,
+    minHeight: 324,
+  },
+  feedTopRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+    justifyContent: "space-between",
+  },
+  ownerRow: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: SPACING.xs,
+    minWidth: 0,
+  },
+  avatar: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  ownerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rankPill: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
   },
   mosaic: {
     flexDirection: "row",
