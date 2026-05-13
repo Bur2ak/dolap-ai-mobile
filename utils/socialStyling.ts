@@ -14,6 +14,12 @@ export interface GroupStyleCue {
   accent_color: string | null;
 }
 
+export interface FriendStyleInspiration {
+  title: string;
+  body: string;
+  search_cues: string[];
+}
+
 const neutralColors = ["siyah", "beyaz", "gri", "bej", "krem", "lacivert"];
 const accentColors = ["bordo", "yesil", "mavi", "kirmizi", "pembe", "mor", "sari"];
 
@@ -67,6 +73,33 @@ export function buildGroupStyleCue(friendItems: WardrobeItem[]): GroupStyleCue |
   };
 }
 
+export function buildFriendStyleInspiration(friendItems: WardrobeItem[]): FriendStyleInspiration | null {
+  const activeItems = friendItems.filter((item) => item.is_active);
+  if (activeItems.length < 2) {
+    return null;
+  }
+
+  const colors = activeItems.flatMap((item) => item.colors.map(normalize)).filter(Boolean);
+  const contexts = activeItems.flatMap((item) => item.usage_context.map(normalize)).filter(Boolean);
+  const fabrics = activeItems.map((item) => normalize(item.fabric ?? "")).filter(Boolean);
+  const dominantColor = mostCommon(colors);
+  const dominantContext = mostCommon(contexts);
+  const dominantFabric = mostCommon(fabrics);
+  const cues = uniqueStrings([dominantColor, dominantContext, dominantFabric]).slice(0, 3);
+
+  return {
+    body: [
+      dominantColor !== "notr" ? `${dominantColor} tonlari one cikiyor` : "notr tonlar agirlikta",
+      dominantContext !== "notr" ? `${dominantContext} kullanim alani baskin` : "gunluk kombin dili baskin",
+      dominantFabric !== "notr" ? `${dominantFabric} dokusu tekrar ediyor` : null,
+    ]
+      .filter(Boolean)
+      .join(". "),
+    search_cues: cues.length > 0 ? cues : ["notr", "gunluk"],
+    title: "Arkadasinin tarzindan ilham al",
+  };
+}
+
 function pickAnchor(items: WardrobeItem[]) {
   return (
     items.find((item) => item.category === "ust" || item.category === "elbise") ??
@@ -89,6 +122,18 @@ function uniqueItems(items: WardrobeItem[]) {
     }
 
     seenIds.add(item.id);
+    return true;
+  });
+}
+
+function uniqueStrings(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    if (!value || value === "notr" || seen.has(value)) {
+      return false;
+    }
+
+    seen.add(value);
     return true;
   });
 }

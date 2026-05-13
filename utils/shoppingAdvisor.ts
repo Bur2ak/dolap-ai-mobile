@@ -26,6 +26,12 @@ export interface BudgetRecommendation {
   note: string;
 }
 
+export interface MissingPieceAction {
+  label: string;
+  note: string;
+  kind: "buy" | "second_hand" | "friend" | "borrow" | "alternative";
+}
+
 export interface SecondHandListingAdvice {
   title: string;
   description: string;
@@ -154,6 +160,39 @@ export function buildBudgetRecommendations(piece: MissingWardrobePiece): BudgetR
       label: "Premium / ikinci el",
       note: "Yeni urun pahaliysa ikinci elde daha kaliteli parca ara.",
       range: `~${premium} TL`,
+    },
+  ];
+}
+
+export function buildMissingPieceActionPlan(piece: MissingWardrobePiece): MissingPieceAction[] {
+  const colorText = piece.suggested_colors[0] ? `${piece.suggested_colors[0]} tonunda` : "uyumlu renkte";
+  const urgencyNote = piece.priority === "high" ? "Bu eksik kombin kapsamini belirgin etkiliyor." : "Acele etmeden en mantikli yolu sec.";
+
+  return [
+    {
+      kind: "buy",
+      label: "Satin al",
+      note: `${colorText} yeni alternatifleri butceye gore karsilastir. ${urgencyNote}`,
+    },
+    {
+      kind: "second_hand",
+      label: "Ikinci elden bak",
+      note: "Dolap, Gardrops veya Modacruz tarafinda daha kaliteli parcayi daha dusuk fiyata yakalayabilirsin.",
+    },
+    {
+      kind: "friend",
+      label: "Arkadas dolabina bak",
+      note: "Paylasima acik arkadas dolaplarinda benzer kategori, renk veya kumas arayabilirsin.",
+    },
+    {
+      kind: "borrow",
+      label: "Odunc/kirala",
+      note: "Tek seferlik etkinlik icinse satin almak yerine odunc istemek daha mantikli olabilir.",
+    },
+    {
+      kind: "alternative",
+      label: "Alternatif kombin",
+      note: "Eksik parcayi almadan once dolaptaki yakin renk ve kategoriyle kombin dene.",
     },
   ];
 }

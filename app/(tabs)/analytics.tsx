@@ -18,7 +18,7 @@ import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { DistributionPoint, MissingWardrobePiece, StyleProfile, UpdateWardrobeItemInput, WardrobeGoal, WardrobeItem } from "@/types";
 import { formatCurrency, formatNumber, getCostPerWearLabel } from "@/utils/formatters";
-import { buildBudgetRecommendations, buildSecondHandListingAdvice, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
+import { buildBudgetRecommendations, buildMissingPieceActionPlan, buildSecondHandListingAdvice, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
 
 export default function AnalyticsScreen() {
   const { analytics, error, isLoading, isRefetching, refetch } = useWardrobeAnalytics();
@@ -429,6 +429,19 @@ function MissingPiecesCard({
                         {target.label}
                       </Text>
                     </Pressable>
+                  ))}
+                </View>
+                <View style={styles.actionPlan}>
+                  <Text variant="caption" color="muted">
+                    EKSIK PARCA ICIN YOLLAR
+                  </Text>
+                  {buildMissingPieceActionPlan(piece).map((action) => (
+                    <View key={action.kind} style={styles.actionPlanRow}>
+                      <Text variant="label">{action.label}</Text>
+                      <Text variant="caption" color="muted">
+                        {action.note}
+                      </Text>
+                    </View>
                   ))}
                 </View>
                 <View style={styles.missingActions}>
@@ -1042,6 +1055,15 @@ const styles = StyleSheet.create({
     gap: 2,
     minWidth: 128,
     padding: SPACING.sm,
+  },
+  actionPlan: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    gap: SPACING.xs,
+    padding: SPACING.sm,
+  },
+  actionPlanRow: {
+    gap: 2,
   },
   priorityPill: {
     alignItems: "center",

@@ -20,8 +20,8 @@ import { createPublicAppLink } from "@/lib/links";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getUuidParam } from "@/lib/routeParams";
 import { formatDateOnly } from "@/utils/formatters";
-import type { GroupStyleCue, PairOutfitPlan } from "@/utils/socialStyling";
-import { buildGroupStyleCue, buildPairOutfitPlan } from "@/utils/socialStyling";
+import type { FriendStyleInspiration, GroupStyleCue, PairOutfitPlan } from "@/utils/socialStyling";
+import { buildFriendStyleInspiration, buildGroupStyleCue, buildPairOutfitPlan } from "@/utils/socialStyling";
 import type { ClothingCategory, FriendWardrobe, LoanRequest, WardrobeItem } from "@/types";
 
 type SharedCategoryFilter = ClothingCategory | "all";
@@ -37,6 +37,7 @@ export default function FriendWardrobeScreen() {
   const [borrowDueDate, setBorrowDueDate] = useState(getDefaultBorrowDueDate());
   const [borrowNote, setBorrowNote] = useState("");
   const [friendOutfitIdea, setFriendOutfitIdea] = useState<FriendOutfitIdea | null>(null);
+  const [favoriteItemIds, setFavoriteItemIds] = useState<Set<string>>(() => new Set());
   const [activeBorrowItemId, setActiveBorrowItemId] = useState<string | null>(null);
   const [isSharingOutfitIdea, setIsSharingOutfitIdea] = useState(false);
   const isBusy = isRequestingBorrow || Boolean(activeBorrowItemId) || isSharingOutfitIdea;
@@ -51,6 +52,7 @@ export default function FriendWardrobeScreen() {
   const visibleItems = data?.profile.privacy_settings.wardrobe_visible ? data.items : [];
   const pairOutfitPlan = useMemo(() => buildPairOutfitPlan(ownItems, visibleItems), [ownItems, visibleItems]);
   const groupStyleCue = useMemo(() => buildGroupStyleCue(visibleItems), [visibleItems]);
+  const styleInspiration = useMemo(() => buildFriendStyleInspiration(visibleItems), [visibleItems]);
   const hasActiveFilters = category !== "all" || Boolean(normalizedQuery);
   const filteredItems = visibleItems.filter((item) => {
     const categoryMatch = category === "all" || item.category === category;
@@ -93,6 +95,27 @@ export default function FriendWardrobeScreen() {
 
     setCategory(value);
     captureEvent("friend_wardrobe_filter_changed", { friend_id: friendId, filter: "category", value });
+  }
+
+  function handleToggleFavorite(item: WardrobeItem) {
+    if (isBusy) {
+      captureEvent("friend_wardrobe_favorite_blocked", { friend_id: friendId, item_id: item.id, reason: "busy" });
+      return;
+    }
+
+    setFavoriteItemIds((current) => {
+      const next = new Set(current);
+      const willFavorite = !next.has(item.id);
+
+      if (willFavorite) {
+        next.add(item.id);
+      } else {
+        next.delete(item.id);
+      }
+
+      captureEvent("friend_wardrobe_favorite_toggled", { friend_id: friendId, item_id: item.id, favorite: willFavorite });
+      return next;
+    });
   }
 
   function handleGenerateOutfitIdea() {
@@ -214,11 +237,13 @@ export default function FriendWardrobeScreen() {
               borrowNote={borrowNote}
               category={category}
               friendOutfitIdea={friendOutfitIdea}
+              favoriteCount={favoriteItemIds.size}
               filteredCount={filteredItems.length}
               groupStyleCue={groupStyleCue}
               hasActiveFilters={hasActiveFilters}
               pairOutfitPlan={pairOutfitPlan}
               query={query}
+              styleInspiration={styleInspiration}
               visibleCount={visibleItems.length}
               onBorrowDueDateChange={setBorrowDueDate}
               onBorrowNoteChange={setBorrowNote}
@@ -251,8 +276,10 @@ export default function FriendWardrobeScreen() {
           renderItem={({ item }) => (
             <SharedWardrobeItem
               item={item}
+              favorite={favoriteItemIds.has(item.id)}
               loanRequest={activeLoanByItemId.get(item.id)}
               onBorrow={() => void handleBorrow(item)}
+              onFavorite={() => handleToggleFavorite(item)}
               onSimilarSearch={() => {
                 if (isBusy) {
                   captureEvent("friend_wardrobe_similar_search_blocked", { friend_id: friendId, item_id: item.id, reason: "busy" });
@@ -260,7 +287,7 @@ export default function FriendWardrobeScreen() {
                 }
 
                 setCategory(item.category);
-                setQuery([item.subcategory, item.colors[0], item.brand].filter(Boolean).join(" "));
+                setQuery([item.subcategory, item.colors[0], item.brand, item.fabric, item.usage_context[0]].filter(Boolean).join(" "));
                 captureEvent("friend_wardrobe_similar_search_started", { friend_id: friendId, item_id: item.id, category: item.category });
               }}
               loading={activeBorrowItemId === item.id}
@@ -329,11 +356,13 @@ function SharedWardrobeHeader({
   data,
   category,
   friendOutfitIdea,
+  favoriteCount,
   filteredCount,
   groupStyleCue,
   hasActiveFilters,
   pairOutfitPlan,
   query,
+  styleInspiration,
   visibleCount,
   onCategoryChange,
   onBorrowDueDateChange,
@@ -351,11 +380,13 @@ function SharedWardrobeHeader({
   data: FriendWardrobe;
   category: SharedCategoryFilter;
   friendOutfitIdea: FriendOutfitIdea | null;
+  favoriteCount: number;
   filteredCount: number;
   groupStyleCue: GroupStyleCue | null;
   hasActiveFilters: boolean;
   pairOutfitPlan: PairOutfitPlan | null;
   query: string;
+  styleInspiration: FriendStyleInspiration | null;
   visibleCount: number;
   onBorrowDueDateChange: (value: string) => void;
   onBorrowNoteChange: (value: string) => void;
@@ -387,7 +418,7 @@ function SharedWardrobeHeader({
             </Text>
           ) : null}
           <Text variant="body" color="secondary">
-            {visibleCount} paylasilan kiyafet
+            {visibleCount} paylasilan kiyafet{favoriteCount > 0 ? ` - ${favoriteCount} favori` : ""}
           </Text>
         </View>
       </Card>
@@ -476,6 +507,32 @@ function SharedWardrobeHeader({
               disabled={disabled}
             />
           ) : null}
+        </Card>
+      ) : null}
+
+      {styleInspiration ? (
+        <Card style={styles.inspirationCard}>
+          <View style={styles.outfitHeader}>
+            <View style={styles.outfitCopy}>
+              <Text variant="caption" color="muted">
+                TARZ ILHAMI
+              </Text>
+              <Text variant="h3">{styleInspiration.title}</Text>
+              <Text variant="body" color="secondary">
+                {styleInspiration.body}
+              </Text>
+            </View>
+            <Ionicons name="bulb-outline" size={26} color={COLORS.primary} />
+          </View>
+          <View style={styles.inspirationActions}>
+            {styleInspiration.search_cues.map((cue) => (
+              <Pressable key={cue} accessibilityRole="button" style={styles.palettePill} onPress={() => onUseStyleCue(cue)} disabled={disabled}>
+                <Text variant="caption" color="secondary">
+                  {cue}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </Card>
       ) : null}
 
@@ -604,16 +661,20 @@ function getBorrowDueDateInputError(value: string) {
 }
 
 function SharedWardrobeItem({
+  favorite,
   item,
   loanRequest,
   onBorrow,
+  onFavorite,
   onSimilarSearch,
   loading,
   disabled,
 }: {
+  favorite: boolean;
   item: WardrobeItem;
   loanRequest?: LoanRequest;
   onBorrow: () => void;
+  onFavorite: () => void;
   onSimilarSearch: () => void;
   loading: boolean;
   disabled: boolean;
@@ -651,6 +712,19 @@ function SharedWardrobeItem({
               ? "Odunc alinabilir"
               : `${item.wear_count} kez giyildi`}
         </Text>
+        <View style={styles.itemMetaRow}>
+          {item.fabric ? (
+            <Text variant="caption" color="muted">
+              {item.fabric}
+            </Text>
+          ) : null}
+          {item.usage_context[0] ? (
+            <Text variant="caption" color="muted">
+              {item.usage_context[0]}
+            </Text>
+          ) : null}
+        </View>
+        <Button title={favorite ? "Favoride" : "Favori"} variant={favorite ? "secondary" : "ghost"} onPress={onFavorite} disabled={disabled} />
         <Button title="Benzerini Bul" variant="ghost" onPress={onSimilarSearch} disabled={disabled} />
         {item.is_lendable ? <Button title={borrowTitle} variant="secondary" onPress={onBorrow} loading={loading} disabled={Boolean(loanRequest) || disabled} /> : null}
       </Card>
@@ -766,6 +840,14 @@ const styles = StyleSheet.create({
   borrowSettingsCard: {
     gap: SPACING.sm,
   },
+  inspirationActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  inspirationCard: {
+    gap: SPACING.sm,
+  },
   syncCard: {
     gap: SPACING.sm,
   },
@@ -801,6 +883,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceMuted,
     borderRadius: 8,
     width: "100%",
+  },
+  itemMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
   },
   colorBlock: {
     borderRadius: 8,
