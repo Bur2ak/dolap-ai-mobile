@@ -30,6 +30,12 @@ const features = [
   "Fiyat takibi ve bildirimler",
 ];
 
+const trustNotes = [
+  "Abonelik App Store veya Google Play hesabindan yonetilir.",
+  "Geri yukleme ayni hesapla satin alinmis Premium erisimini kontrol eder.",
+  "Uygulama ici satin alma hazir degilse deneme modu yalnizca gelistirmede gorunur.",
+];
+
 const comparisonRows: Array<{ key: LimitKey; label: string }> = [
   { key: "MAX_WARDROBE_ITEMS", label: "Dolap kapasitesi" },
   { key: "DAILY_OUTFIT_SUGGESTIONS", label: "Gunluk kombin" },
@@ -201,6 +207,11 @@ export default function PaywallScreen() {
         <Text variant="body" color="secondary">
           Dolabini sinirsiz yonet, daha cok karar al, etkinlik ve analiz ozelliklerini ac.
         </Text>
+        <View style={styles.heroSignals}>
+          <SignalPill label="RevenueCat" active={packages.length > 0} />
+          <SignalPill label="Restore" active />
+          <SignalPill label="Iptal kontrolu magazada" active />
+        </View>
       </Card>
 
       <Card style={styles.section}>
@@ -249,6 +260,11 @@ export default function PaywallScreen() {
             <Text variant="body" color="secondary">
               {plan.body}
             </Text>
+            {index === 1 ? (
+              <Text variant="caption" color="primary">
+                En avantajli
+              </Text>
+            ) : null}
           </Card>
         ))}
       </View>
@@ -287,6 +303,17 @@ export default function PaywallScreen() {
       </Card>
 
       <Button title="Aboneligi Geri Yukle" variant="secondary" onPress={() => void handleRestore()} loading={isRestoring} disabled={isBusy} />
+      <Card style={styles.section}>
+        <Text variant="h3">Satin alma notlari</Text>
+        {trustNotes.map((note) => (
+          <View key={note} style={styles.trustRow}>
+            <View style={styles.dot} />
+            <Text variant="caption" color="secondary" style={styles.trustText}>
+              {note}
+            </Text>
+          </View>
+        ))}
+      </Card>
       <View style={styles.legalLinks}>
         <Button
           title="Gizlilik Politikasi"
@@ -381,6 +408,16 @@ function formatLimit(value: number | boolean) {
   return String(value);
 }
 
+function SignalPill({ label, active }: { active: boolean; label: string }) {
+  return (
+    <View style={[styles.signalPill, active ? styles.signalPillActive : styles.signalPillMuted]}>
+      <Text variant="caption" color={active ? "inverse" : "secondary"}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -402,6 +439,22 @@ const styles = StyleSheet.create({
   },
   hero: {
     gap: SPACING.sm,
+  },
+  heroSignals: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  signalPill: {
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  signalPillActive: {
+    backgroundColor: COLORS.primary,
+  },
+  signalPillMuted: {
+    backgroundColor: COLORS.surfaceMuted,
   },
   section: {
     gap: SPACING.md,
@@ -451,5 +504,13 @@ const styles = StyleSheet.create({
   },
   legalLinks: {
     gap: SPACING.xs,
+  },
+  trustRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  trustText: {
+    flex: 1,
   },
 });

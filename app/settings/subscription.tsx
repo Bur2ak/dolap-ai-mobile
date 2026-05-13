@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -77,6 +77,8 @@ export default function SubscriptionSettingsScreen() {
     priceTracking: trackings.length,
     wardrobe: items.length,
   } satisfies Record<NonNullable<(typeof trackedLimitRows)[number]["usage"]>, number>;
+  const readinessItems = getSubscriptionReadinessItems(revenueCatReadiness.configured, premium, Boolean(profile?.revenuecat_customer_id));
+  const readinessScore = readinessItems.filter((item) => item.ready).length;
 
   useEffect(() => {
     captureEvent("subscription_settings_screen_viewed", {
@@ -122,6 +124,30 @@ export default function SubscriptionSettingsScreen() {
 
     captureEvent("subscription_paywall_opened", { current_plan: planName });
     router.push("/paywall");
+  }
+
+  async function handleShareSubscriptionSummary() {
+    if (isRefreshing) {
+      captureEvent("subscription_summary_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    try {
+      const result = await Share.share({
+        message: buildSubscriptionSummary({
+          expiryLabel,
+          planName,
+          profilePlanName,
+          readinessItems,
+          usageByKey,
+        }),
+        title: "Shipirio abonelik ozeti",
+      });
+      captureEvent("subscription_summary_shared", { action: result.action, plan: planName });
+    } catch (error) {
+      captureError(error, { area: "subscription_summary_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    }
   }
 
   return (
@@ -204,6 +230,35 @@ export default function SubscriptionSettingsScreen() {
         </Text>
       </Card>
 
+      <Card style={styles.section}>
+        <View style={styles.readinessHeader}>
+          <View>
+            <Text variant="caption" color="muted">
+              MAGAZA HAZIRLIK
+            </Text>
+            <Text variant="h3">
+              {readinessScore}/{readinessItems.length} kontrol tamam
+            </Text>
+          </View>
+          <View style={styles.readinessBadge}>
+            <Text variant="label" color="inverse">
+              {premium ? "PRO" : "FREE"}
+            </Text>
+          </View>
+        </View>
+        {readinessItems.map((item) => (
+          <View key={item.label} style={styles.readinessRow}>
+            <View style={[styles.readinessDot, item.ready ? styles.readinessDotOk : styles.readinessDotWarn]} />
+            <View style={styles.readinessCopy}>
+              <Text variant="label">{item.label}</Text>
+              <Text variant="caption" color="muted">
+                {item.body}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </Card>
+
       <View style={styles.actions}>
         <Button
           title={premium ? "Paywall'i Ac" : "Premium'a Gec"}
@@ -211,6 +266,7 @@ export default function SubscriptionSettingsScreen() {
           disabled={isRefreshing}
         />
         <Button title="Aboneligi Yenile" variant="secondary" onPress={() => void handleRefreshSubscription()} loading={isRefreshing} disabled={isRefreshing} />
+        <Button title="Abonelik Ozetini Paylas" variant="secondary" onPress={() => void handleShareSubscriptionSummary()} disabled={isRefreshing} />
         {localPremiumOverride ? (
           <Button
             title="Onizlemeyi Kapat"
@@ -271,6 +327,46 @@ function isCurrentMonth(dateValue: string) {
   return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
 }
 
+function getSubscriptionReadinessItems(revenueCatConfigured: boolean, premium: boolean, hasCustomerId: boolean) {
+  return [
+    {
+      body: revenueCatConfigured ? "RevenueCat anahtarlari ve teklif kontrolu calisir durumda." : "RevenueCat public key ve urun baglantilari tamamlanmali.",
+      label: "RevenueCat baglantisi",
+      ready: revenueCatConfigured,
+    },
+    {
+      body: hasCustomerId ? "Profil RevenueCat musteri kimligi ile eslesmis." : "Ilk satin alma veya restore sonrasi musteri kimligi eslesir.",
+      label: "Musteri eslesmesi",
+      ready: hasCustomerId,
+    },
+    {
+      body: premium ? "Premium limitler aktif gorunuyor." : "Free plan aktif; paywall ile Premium'a gecilebilir.",
+      label: "Plan durumu",
+      ready: premium,
+    },
+  ];
+}
+
+function buildSubscriptionSummary(input: {
+  expiryLabel: string;
+  planName: string;
+  profilePlanName: string;
+  readinessItems: Array<{ body: string; label: string; ready: boolean }>;
+  usageByKey: { monthlyBuyDecisions: number; priceTracking: number; wardrobe: number };
+}) {
+  return [
+    "Shipirio abonelik ozeti",
+    `Aktif plan: ${input.planName}`,
+    `Profil plani: ${input.profilePlanName}`,
+    `Bitis: ${input.expiryLabel}`,
+    `Dolap: ${input.usageByKey.wardrobe} parca`,
+    `Fiyat takibi: ${input.usageByKey.priceTracking} urun`,
+    `Bu ay karar motoru: ${input.usageByKey.monthlyBuyDecisions}`,
+    "Hazirlik:",
+    ...input.readinessItems.map((item) => `- ${item.ready ? "OK" : "Eksik"} ${item.label}`),
+  ].join("\n");
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -322,6 +418,40 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderRadius: 999,
     height: "100%",
+  },
+  readinessHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  readinessBadge: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+  },
+  readinessRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  readinessDot: {
+    borderRadius: 999,
+    height: 12,
+    marginTop: 4,
+    width: 12,
+  },
+  readinessDotOk: {
+    backgroundColor: COLORS.success,
+  },
+  readinessDotWarn: {
+    backgroundColor: COLORS.warning,
+  },
+  readinessCopy: {
+    flex: 1,
+    gap: 2,
   },
   actions: {
     gap: SPACING.sm,
