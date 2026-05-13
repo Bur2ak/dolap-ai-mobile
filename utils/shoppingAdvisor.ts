@@ -16,8 +16,17 @@ export interface PriceInsight {
 
 export interface ShoppingSearchTarget {
   label: string;
+  monetization: "organic" | "affiliate_ready" | "partner_ready";
   url: string;
   note: string;
+  placement_label: string;
+}
+
+export interface ShoppingPlacement {
+  cta: string;
+  disclosure: string;
+  note: string;
+  target: ShoppingSearchTarget;
 }
 
 export interface BudgetRecommendation {
@@ -41,11 +50,70 @@ export interface SecondHandListingAdvice {
 }
 
 const marketplaceTargets = [
-  { baseUrl: "https://www.google.com/search?tbm=shop&q=", label: "Google Shopping", note: "Genis fiyat karsilastirmasi" },
-  { baseUrl: "https://www.trendyol.com/sr?q=", label: "Trendyol", note: "Yeni urun alternatifleri" },
-  { baseUrl: "https://dolap.com/ara?q=", label: "Dolap", note: "Ikinci el alternatif ara" },
-  { baseUrl: "https://www.google.com/search?q=site%3Agardrops.com+", label: "Gardrops", note: "Ikinci el satis/listeleme aramasi" },
-  { baseUrl: "https://www.google.com/search?q=site%3Amodacruz.com+", label: "Modacruz", note: "Premium ikinci el karsilastirmasi" },
+  {
+    baseUrl: "https://www.google.com/search?tbm=shop&q=",
+    label: "Google Shopping",
+    monetization: "organic",
+    note: "Genis fiyat karsilastirmasi",
+    placement_label: "Organik",
+  },
+  {
+    baseUrl: "https://www.trendyol.com/sr?q=",
+    label: "Trendyol",
+    monetization: "affiliate_ready",
+    note: "Yeni urun alternatifleri",
+    placement_label: "Affiliate hazir",
+  },
+  {
+    baseUrl: "https://dolap.com/ara?q=",
+    label: "Dolap",
+    monetization: "partner_ready",
+    note: "Ikinci el alternatif ara",
+    placement_label: "Partner hazir",
+  },
+  {
+    baseUrl: "https://www.google.com/search?q=site%3Agardrops.com+",
+    label: "Gardrops",
+    monetization: "partner_ready",
+    note: "Ikinci el satis/listeleme aramasi",
+    placement_label: "Partner hazir",
+  },
+  {
+    baseUrl: "https://www.google.com/search?q=site%3Amodacruz.com+",
+    label: "Modacruz",
+    monetization: "partner_ready",
+    note: "Premium ikinci el karsilastirmasi",
+    placement_label: "Partner hazir",
+  },
+] satisfies Array<{
+  baseUrl: string;
+  label: string;
+  monetization: ShoppingSearchTarget["monetization"];
+  note: string;
+  placement_label: string;
+}>;
+
+const shoppingPlacementCopy: Record<ShoppingSearchTarget["monetization"], { cta: string; disclosure: string; note: string }> = {
+  affiliate_ready: {
+    cta: "Yeni alternatif",
+    disclosure: "Affiliate uygun",
+    note: "Urun linki daha sonra affiliate parametresiyle zenginlestirilebilir.",
+  },
+  organic: {
+    cta: "Karsilastir",
+    disclosure: "Organik",
+    note: "Sponsorlu degil; genis fiyat taramasi icin kullanilir.",
+  },
+  partner_ready: {
+    cta: "Ikinci el bak",
+    disclosure: "Partner uygun",
+    note: "Partner entegrasyonu gelince ayni kart sponsorlu veya gelir paylasimli calisabilir.",
+  },
+};
+
+const monetizedPlacementOrder: ShoppingSearchTarget["monetization"][] = [
+  "affiliate_ready",
+  "partner_ready",
 ];
 
 const categoryBudgetRanges: Record<string, [number, number, number]> = {
@@ -136,9 +204,21 @@ export function buildShoppingSearchTargets(query: string): ShoppingSearchTarget[
   const encodedQuery = encodeURIComponent(safeQuery);
   return marketplaceTargets.map((target) => ({
     label: target.label,
+    monetization: target.monetization,
     note: target.note,
+    placement_label: target.placement_label,
     url: `${target.baseUrl}${encodedQuery}`,
   }));
+}
+
+export function buildShoppingPlacements(query: string): ShoppingPlacement[] {
+  return buildShoppingSearchTargets(query)
+    .filter((target) => target.monetization !== "organic")
+    .sort((a, b) => monetizedPlacementOrder.indexOf(a.monetization) - monetizedPlacementOrder.indexOf(b.monetization))
+    .map((target) => ({
+      ...shoppingPlacementCopy[target.monetization],
+      target,
+    }));
 }
 
 export function buildBudgetRecommendations(piece: MissingWardrobePiece): BudgetRecommendation[] {

@@ -16,7 +16,7 @@ import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { MissingWardrobePiece, PriceTracking } from "@/types";
 import { formatCurrency, getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
-import { buildBudgetRecommendations, buildPriceInsight, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
+import { buildBudgetRecommendations, buildPriceInsight, buildShoppingPlacements, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
 import { getOptionalHttpUrlError, normalizeOptionalHttpUrl } from "@/utils/validation";
 
 export default function PriceTrackingScreen() {
@@ -432,6 +432,7 @@ function TrackingCard({
   const targetProgress = getTargetProgress(latestPrice, tracking.initial_price, tracking.target_price);
   const priceInsight = buildPriceInsight(tracking, history);
   const alternativeTargets = buildShoppingSearchTargets(tracking.product_name);
+  const shoppingPlacements = buildShoppingPlacements(tracking.product_name);
   const isDeletingThis = activeDeleteId === tracking.id;
 
   useEffect(() => {
@@ -635,6 +636,46 @@ function TrackingCard({
                   </Pressable>
                 ))}
               </View>
+              {shoppingPlacements.length > 0 ? (
+                <View style={styles.placementList}>
+                  {shoppingPlacements.slice(0, 2).map((placement) => (
+                    <Pressable
+                      key={placement.target.label}
+                      accessibilityRole="button"
+                      style={styles.placementRow}
+                      onPress={() => {
+                        if (isBusy) {
+                          captureEvent("price_tracking_shopping_placement_blocked", { reason: "busy", tracking_id: tracking.id });
+                          return;
+                        }
+
+                        captureEvent("price_tracking_shopping_placement_opened", {
+                          disclosure: placement.disclosure,
+                          target: placement.target.label,
+                          tracking_id: tracking.id,
+                        });
+                        void openSearchTarget(placement.target.url, "Alisveris kanali acilamadi.");
+                      }}
+                      disabled={isBusy}
+                    >
+                      <View style={styles.placementCopy}>
+                        <Text variant="caption" color="muted">
+                          {placement.disclosure}
+                        </Text>
+                        <Text variant="label">{placement.target.label}</Text>
+                        <Text variant="caption" color="secondary">
+                          {placement.note}
+                        </Text>
+                      </View>
+                      <View style={styles.placementCta}>
+                        <Text variant="caption" color="secondary">
+                          {placement.cta}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ) : null}
         </>
@@ -1010,6 +1051,29 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: SPACING.xs,
+  },
+  placementList: {
+    gap: SPACING.xs,
+  },
+  placementRow: {
+    alignItems: "center",
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    justifyContent: "space-between",
+    padding: SPACING.sm,
+  },
+  placementCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  placementCta: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
   },
   searchChip: {
     backgroundColor: COLORS.surfaceMuted,

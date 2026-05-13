@@ -418,6 +418,7 @@ function MissingPiecesCard({
                       onPress={() => {
                         captureEvent("analytics_missing_piece_market_search_opened", {
                           category: piece.category,
+                          monetization: target.monetization,
                           priority: piece.priority,
                           target: target.label,
                         });
@@ -427,6 +428,9 @@ function MissingPiecesCard({
                     >
                       <Text variant="caption" color="secondary">
                         {target.label}
+                      </Text>
+                      <Text variant="caption" color="muted">
+                        {target.placement_label}
                       </Text>
                     </Pressable>
                   ))}
@@ -690,13 +694,16 @@ function DetoxItemList({
                           return;
                         }
 
-                        captureEvent("analytics_detox_market_search_opened", { item_id: item.id, target: target.label });
+                        captureEvent("analytics_detox_market_search_opened", { item_id: item.id, monetization: target.monetization, target: target.label });
                         void openMarketSearch(target.url);
                       }}
                       disabled={Boolean(activeAction) || isUpdating}
                     >
                       <Text variant="caption" color="secondary">
                         {target.label}
+                      </Text>
+                      <Text variant="caption" color="muted">
+                        {target.placement_label}
                       </Text>
                     </Pressable>
                   ))}
@@ -1116,6 +1123,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 999,
     borderWidth: 1,
+    gap: 2,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 6,
   },

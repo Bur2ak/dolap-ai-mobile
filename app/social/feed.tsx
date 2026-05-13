@@ -117,6 +117,7 @@ function FeedCard({ rank, sharedOutfit }: { rank: number; sharedOutfit: SharedOu
   const loveCount = sharedOutfit.votes.filter((vote) => vote.vote === "love").length;
   const yesCount = sharedOutfit.votes.filter((vote) => vote.vote === "yes").length;
   const trendScore = getTrendScore(sharedOutfit);
+  const signals = getFeedSignals(sharedOutfit, trendScore, loveCount);
 
   return (
     <Pressable
@@ -173,6 +174,15 @@ function FeedCard({ rank, sharedOutfit }: { rank: number; sharedOutfit: SharedOu
         <Text variant="caption" color="muted">
           {sharedOutfit.items.length} parca - {yesCount} olur - {loveCount} favori - trend {trendScore}
         </Text>
+        <View style={styles.signalRow}>
+          {signals.map((signal) => (
+            <View key={signal} style={styles.signalChip}>
+              <Text variant="caption" color="secondary" numberOfLines={1}>
+                {signal}
+              </Text>
+            </View>
+          ))}
+        </View>
       </Card>
     </Pressable>
   );
@@ -205,6 +215,31 @@ function getTrendScore(sharedOutfit: SharedOutfit) {
     }
     return score - 1;
   }, 0);
+}
+
+function getFeedSignals(sharedOutfit: SharedOutfit, trendScore: number, loveCount: number) {
+  const categories = getTopValues(sharedOutfit.items.map((item) => item.subcategory ?? item.category));
+  const colors = getTopValues(sharedOutfit.items.flatMap((item) => item.colors));
+  const contexts = getTopValues(sharedOutfit.items.flatMap((item) => item.usage_context));
+  const signals = [
+    categories[0] ? `kategori ${categories[0]}` : null,
+    colors[0] ? `renk ${colors[0]}` : null,
+    contexts[0] ? `ortam ${contexts[0]}` : null,
+    loveCount > 0 ? `${loveCount} favori` : null,
+    trendScore > 0 ? `trend +${trendScore}` : "yeni pano",
+  ];
+
+  return signals.filter(Boolean).slice(0, 4) as string[];
+}
+
+function getTopValues(values: Array<string | null | undefined>) {
+  const counts = new Map<string, number>();
+  values
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([value]) => value);
 }
 
 const styles = StyleSheet.create({
@@ -268,7 +303,7 @@ const styles = StyleSheet.create({
   },
   feedCard: {
     gap: SPACING.sm,
-    minHeight: 324,
+    minHeight: 368,
   },
   feedTopRow: {
     alignItems: "center",
@@ -311,5 +346,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceMuted,
     borderRadius: 8,
     width: "48%",
+  },
+  signalRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  signalChip: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    maxWidth: "100%",
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 5,
   },
 });
