@@ -76,6 +76,7 @@ Optional cron setup:
 - Wardrobe screen includes usage-based sorting, metadata readiness signals and item-level share summaries for reviewer-visible daily use flows.
 - Notification settings include push readiness checks, smart reminder setup and quick preference presets; notification inbox includes filters, cleanup actions and shareable digests.
 - Subscription surfaces include RevenueCat readiness checks, restore guidance, store billing notes and shareable subscription summaries.
+- Social surfaces include friend status summaries, invite reward guidance and shareable social readiness notes.
 - Price tracking depends on public product pages; some stores may block automated price detection.
 
 ## Store Listing Copy

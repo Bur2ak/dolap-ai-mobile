@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { PremiumGate } from "@/components/shared/PremiumGate";
 import { Button } from "@/components/ui/Button";
@@ -37,9 +37,10 @@ export default function FriendsScreen() {
   } = useSocial();
   const [query, setQuery] = useState("");
   const [handledInvite, setHandledInvite] = useState<string | null>(null);
-  const [activeAction, setActiveAction] = useState<{ type: "send" | "accept" | "block" | "delete"; id: string } | null>(null);
+  const [activeAction, setActiveAction] = useState<{ type: "send" | "accept" | "block" | "delete" | "share_summary"; id: string } | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const isBusy = isSearching || isMutating || Boolean(activeAction);
+  const socialStats = getSocialStats(friendships, userId);
 
   useEffect(() => {
     captureEvent("friends_screen_viewed", {
@@ -188,6 +189,27 @@ export default function FriendsScreen() {
     ]);
   }
 
+  async function handleShareSocialSummary() {
+    if (isBusy) {
+      captureEvent("friends_summary_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    setActiveAction({ type: "share_summary", id: "social-summary" });
+    try {
+      const result = await Share.share({
+        message: buildSocialSummary(socialStats),
+        title: "Shipirio sosyal ozet",
+      });
+      captureEvent("friends_summary_shared", { action: result.action, accepted_count: socialStats.accepted });
+    } catch (error) {
+      captureError(error, { area: "friends_summary_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -200,6 +222,52 @@ export default function FriendsScreen() {
         <PremiumGate title="Sosyal ozellikler Premium" body="Arkadas dolabi, kombin sorma ve davet akislari Premium planda acilir." />
       ) : (
         <>
+          <Card style={styles.summaryCard}>
+            <View style={styles.summaryHeader}>
+              <View>
+                <Text variant="caption" color="muted">
+                  SOSYAL DURUM
+                </Text>
+                <Text variant="h3">{socialStats.accepted} arkadas</Text>
+              </View>
+              <View style={styles.summaryBadge}>
+                <Text variant="label" color="inverse">
+                  {socialStats.incoming}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.statGrid}>
+              <StatPill label="Gelen istek" value={socialStats.incoming} tone={socialStats.incoming > 0 ? "warning" : "normal"} />
+              <StatPill label="Giden istek" value={socialStats.outgoing} tone="normal" />
+              <StatPill label="Engelli" value={socialStats.blocked} tone={socialStats.blocked > 0 ? "warning" : "normal"} />
+            </View>
+            <View style={styles.summaryActions}>
+              <Button
+                title="Davet Linki"
+                variant="secondary"
+                onPress={() => {
+                  if (isBusy) {
+                    captureEvent("friends_invite_route_blocked", { reason: "busy", source: "summary" });
+                    return;
+                  }
+
+                  captureEvent("friends_invite_route_opened", { source: "summary" });
+                  router.push("/social/invite");
+                }}
+                disabled={isBusy}
+                style={styles.summaryButton}
+              />
+              <Button
+                title="Ozet Paylas"
+                variant="ghost"
+                onPress={() => void handleShareSocialSummary()}
+                loading={activeAction?.type === "share_summary"}
+                disabled={isBusy || friendships.length === 0}
+                style={styles.summaryButton}
+              />
+            </View>
+          </Card>
+
           <Card style={styles.searchCard}>
             <Text variant="h3">Kullanici ara</Text>
             <Input label="Kullanici adi veya ad" value={query} onChangeText={setQuery} autoCapitalize="none" editable={!isBusy} />
@@ -362,7 +430,7 @@ function FriendshipRow({
   onAccept: () => void;
   onBlock: () => void;
   onDelete: () => void;
-  activeAction: { type: "send" | "accept" | "block" | "delete"; id: string } | null;
+  activeAction: { type: "send" | "accept" | "block" | "delete" | "share_summary"; id: string } | null;
   loading: boolean;
 }) {
   const otherProfile = friendship.requester_id === currentUserId ? friendship.addressee : friendship.requester;
@@ -442,6 +510,52 @@ function Avatar({ profile }: { profile?: Pick<Profile, "full_name" | "username" 
   );
 }
 
+function StatPill({ label, value, tone }: { label: string; tone: "normal" | "warning"; value: number }) {
+  return (
+    <View style={[styles.statPill, tone === "warning" ? styles.statPillWarning : null]}>
+      <Text variant="caption" color="secondary">
+        {label}: {value}
+      </Text>
+    </View>
+  );
+}
+
+function getSocialStats(friendships: Friendship[], currentUserId?: string) {
+  return friendships.reduce(
+    (stats, friendship) => {
+      if (friendship.status === "accepted") {
+        stats.accepted += 1;
+      }
+
+      if (friendship.status === "blocked") {
+        stats.blocked += 1;
+      }
+
+      if (friendship.status === "pending" && friendship.addressee_id === currentUserId) {
+        stats.incoming += 1;
+      }
+
+      if (friendship.status === "pending" && friendship.requester_id === currentUserId) {
+        stats.outgoing += 1;
+      }
+
+      return stats;
+    },
+    { accepted: 0, blocked: 0, incoming: 0, outgoing: 0 },
+  );
+}
+
+function buildSocialSummary(stats: ReturnType<typeof getSocialStats>) {
+  return [
+    "Shipirio sosyal ozet",
+    `Arkadas: ${stats.accepted}`,
+    `Gelen istek: ${stats.incoming}`,
+    `Giden istek: ${stats.outgoing}`,
+    `Engelli: ${stats.blocked}`,
+    "Arkadas dolabi, odunc istekleri ve kombin oylari sosyal modulle yonetilir.",
+  ].join("\n");
+}
+
 function getSearchResultStatus(username: string | null, friendship?: Friendship) {
   if (!friendship) {
     return `@${username ?? "username-yok"}`;
@@ -479,6 +593,43 @@ const styles = StyleSheet.create({
   },
   searchCard: {
     gap: SPACING.md,
+  },
+  summaryCard: {
+    gap: SPACING.md,
+  },
+  summaryHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  summaryBadge: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+  },
+  statGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  statPill: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  statPillWarning: {
+    backgroundColor: COLORS.warningSoft,
+  },
+  summaryActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  summaryButton: {
+    flex: 1,
   },
   section: {
     gap: SPACING.md,

@@ -40,7 +40,7 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 - Hava, etkinlik ve ruh haline gore kombin oner
 - Yeni urun almaya deger mi hizlica karar ver
 - Fiyatlari takip et, dusunce bildirim al
-- Arkadaslarinla kombin paylas ve oy iste
+- Arkadas dolabi, davet ve odunc akisini tek yerden yonet
 - Premium ile limitleri ac
 
 ## Subscription Copy
@@ -78,4 +78,5 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 3. Open Kombin and request an outfit suggestion.
 4. Open Almali Miyim and run a purchase decision with a sample product image.
 5. Open Fiyat Takibi and add a public product URL.
-6. Open Profil > Ayarlar to review notification, privacy, subscription and account deletion flows.
+6. Open Sosyal > Arkadaslar to review invite, friend request and lending entry points.
+7. Open Profil > Ayarlar to review notification, privacy, subscription and account deletion flows.

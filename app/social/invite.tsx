@@ -24,6 +24,12 @@ const inviteSteps = [
   "Istek kabul edilince iki hesaba da Premium odulu yazilir.",
 ];
 
+const inviteTrustNotes = [
+  "Davet odulu arkadaslik kabul edilince hesaplanir.",
+  "Link yalnizca seni bulmayi kolaylastirir; otomatik arkadaslik kurmaz.",
+  "Odul gecmisi bu ekrandan kontrol edilebilir.",
+];
+
 export default function InviteScreen() {
   const { premium } = useSubscription();
   const { rewards, error, isLoading, isRefetching, refetch, userId } = useReferralRewards();
@@ -159,6 +165,18 @@ export default function InviteScreen() {
               </View>
             ))}
           </Card>
+
+          <Card style={styles.howItWorksCard}>
+            <Text variant="h3">Gizlilik ve kontrol</Text>
+            {inviteTrustNotes.map((note) => (
+              <View key={note} style={styles.noteRow}>
+                <View style={styles.noteDot} />
+                <Text variant="body" color="secondary" style={styles.stepText}>
+                  {note}
+                </Text>
+              </View>
+            ))}
+          </Card>
         </>
       )}
     </ScrollView>
@@ -266,6 +284,18 @@ const styles = StyleSheet.create({
   },
   stepText: {
     flex: 1,
+  },
+  noteRow: {
+    alignItems: "flex-start",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  noteDot: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 8,
+    marginTop: 8,
+    width: 8,
   },
   centerText: {
     textAlign: "center",
