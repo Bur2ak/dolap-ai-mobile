@@ -138,6 +138,9 @@ export default function ProfileScreen() {
           <Button title="Arkadaslarim" variant="ghost" onPress={() => openRoute("/social/friends", "friends")} disabled={routeDisabled} />
         </Card>
         <Card>
+          <Button title="Stil Panosu" variant="ghost" onPress={() => openRoute("/social/feed", "style_feed")} disabled={routeDisabled} />
+        </Card>
+        <Card>
           <Button title="Odunc Takibi" variant="ghost" onPress={() => openRoute("/social/loans", "loans")} disabled={routeDisabled} />
         </Card>
         <Card>

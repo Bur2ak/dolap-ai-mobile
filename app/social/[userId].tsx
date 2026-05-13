@@ -15,10 +15,13 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useFriendWardrobe } from "@/hooks/useSocial";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useWardrobe } from "@/hooks/useWardrobe";
 import { createPublicAppLink } from "@/lib/links";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getUuidParam } from "@/lib/routeParams";
 import { formatDateOnly } from "@/utils/formatters";
+import type { GroupStyleCue, PairOutfitPlan } from "@/utils/socialStyling";
+import { buildGroupStyleCue, buildPairOutfitPlan } from "@/utils/socialStyling";
 import type { ClothingCategory, FriendWardrobe, LoanRequest, WardrobeItem } from "@/types";
 
 type SharedCategoryFilter = ClothingCategory | "all";
@@ -27,6 +30,7 @@ export default function FriendWardrobeScreen() {
   const { userId: friendIdParam } = useLocalSearchParams<{ userId: string | string[] }>();
   const friendId = getUuidParam(friendIdParam);
   const { premium } = useSubscription();
+  const { items: ownItems } = useWardrobe();
   const { data, currentUserId, isLoading, isRefetching, error, refetch, loanRequests, requestBorrowItem, isRequestingBorrow } = useFriendWardrobe(friendId);
   const [category, setCategory] = useState<SharedCategoryFilter>("all");
   const [query, setQuery] = useState("");
@@ -45,6 +49,8 @@ export default function FriendWardrobeScreen() {
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleItems = data?.profile.privacy_settings.wardrobe_visible ? data.items : [];
+  const pairOutfitPlan = useMemo(() => buildPairOutfitPlan(ownItems, visibleItems), [ownItems, visibleItems]);
+  const groupStyleCue = useMemo(() => buildGroupStyleCue(visibleItems), [visibleItems]);
   const hasActiveFilters = category !== "all" || Boolean(normalizedQuery);
   const filteredItems = visibleItems.filter((item) => {
     const categoryMatch = category === "all" || item.category === category;
@@ -60,11 +66,13 @@ export default function FriendWardrobeScreen() {
   useEffect(() => {
     captureEvent("friend_wardrobe_screen_viewed", {
       friend_id: friendId,
+      group_cue_available: Boolean(groupStyleCue),
+      pair_plan_available: Boolean(pairOutfitPlan),
       premium,
       shared_item_count: visibleItems.length,
       visible: Boolean(data?.profile.privacy_settings.wardrobe_visible),
     });
-  }, [data?.profile.privacy_settings.wardrobe_visible, friendId, premium, visibleItems.length]);
+  }, [data?.profile.privacy_settings.wardrobe_visible, friendId, groupStyleCue, pairOutfitPlan, premium, visibleItems.length]);
 
   function handleClearFilters() {
     if (isBusy) {
@@ -207,7 +215,9 @@ export default function FriendWardrobeScreen() {
               category={category}
               friendOutfitIdea={friendOutfitIdea}
               filteredCount={filteredItems.length}
+              groupStyleCue={groupStyleCue}
               hasActiveFilters={hasActiveFilters}
+              pairOutfitPlan={pairOutfitPlan}
               query={query}
               visibleCount={visibleItems.length}
               onBorrowDueDateChange={setBorrowDueDate}
@@ -215,6 +225,15 @@ export default function FriendWardrobeScreen() {
               onCategoryChange={handleCategoryChange}
               onClearFilters={handleClearFilters}
               onGenerateOutfit={handleGenerateOutfitIdea}
+              onUseStyleCue={(text) => {
+                if (isBusy) {
+                  captureEvent("friend_wardrobe_style_cue_blocked", { friend_id: friendId, reason: "busy" });
+                  return;
+                }
+
+                setQuery(text);
+                captureEvent("friend_wardrobe_style_cue_used", { friend_id: friendId, text });
+              }}
               onQueryChange={setQuery}
               onShareOutfit={handleShareIdea}
               isSharingOutfit={isSharingOutfitIdea}
@@ -234,6 +253,16 @@ export default function FriendWardrobeScreen() {
               item={item}
               loanRequest={activeLoanByItemId.get(item.id)}
               onBorrow={() => void handleBorrow(item)}
+              onSimilarSearch={() => {
+                if (isBusy) {
+                  captureEvent("friend_wardrobe_similar_search_blocked", { friend_id: friendId, item_id: item.id, reason: "busy" });
+                  return;
+                }
+
+                setCategory(item.category);
+                setQuery([item.subcategory, item.colors[0], item.brand].filter(Boolean).join(" "));
+                captureEvent("friend_wardrobe_similar_search_started", { friend_id: friendId, item_id: item.id, category: item.category });
+              }}
               loading={activeBorrowItemId === item.id}
               disabled={isBusy}
             />
@@ -301,7 +330,9 @@ function SharedWardrobeHeader({
   category,
   friendOutfitIdea,
   filteredCount,
+  groupStyleCue,
   hasActiveFilters,
+  pairOutfitPlan,
   query,
   visibleCount,
   onCategoryChange,
@@ -309,6 +340,7 @@ function SharedWardrobeHeader({
   onBorrowNoteChange,
   onClearFilters,
   onGenerateOutfit,
+  onUseStyleCue,
   onQueryChange,
   onShareOutfit,
   isSharingOutfit,
@@ -320,7 +352,9 @@ function SharedWardrobeHeader({
   category: SharedCategoryFilter;
   friendOutfitIdea: FriendOutfitIdea | null;
   filteredCount: number;
+  groupStyleCue: GroupStyleCue | null;
   hasActiveFilters: boolean;
+  pairOutfitPlan: PairOutfitPlan | null;
   query: string;
   visibleCount: number;
   onBorrowDueDateChange: (value: string) => void;
@@ -328,6 +362,7 @@ function SharedWardrobeHeader({
   onCategoryChange: (value: SharedCategoryFilter) => void;
   onClearFilters: () => void;
   onGenerateOutfit: () => void;
+  onUseStyleCue: (text: string) => void;
   onQueryChange: (value: string) => void;
   onShareOutfit: (data: FriendWardrobe, idea: FriendOutfitIdea) => Promise<void>;
   isSharingOutfit: boolean;
@@ -407,6 +442,42 @@ function SharedWardrobeHeader({
           ) : null}
         </View>
       </Card>
+
+      {pairOutfitPlan || groupStyleCue ? (
+        <Card style={styles.syncCard}>
+          <View style={styles.outfitHeader}>
+            <View style={styles.outfitCopy}>
+              <Text variant="caption" color="muted">
+                SOSYAL UYUM
+              </Text>
+              <Text variant="h3">{pairOutfitPlan?.title ?? groupStyleCue?.title}</Text>
+              <Text variant="body" color="secondary">
+                {pairOutfitPlan?.body ?? groupStyleCue?.body}
+              </Text>
+            </View>
+            <Ionicons name="people-outline" size={26} color={COLORS.primary} />
+          </View>
+          {pairOutfitPlan?.palette.length ? (
+            <View style={styles.paletteRow}>
+              {pairOutfitPlan.palette.map((color) => (
+                <View key={color} style={styles.palettePill}>
+                  <Text variant="caption" color="secondary">
+                    {color}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {groupStyleCue ? (
+            <Button
+              title="Bu Vibe ile Ara"
+              variant="secondary"
+              onPress={() => onUseStyleCue(groupStyleCue.accent_color ?? "notr")}
+              disabled={disabled}
+            />
+          ) : null}
+        </Card>
+      ) : null}
 
       <Card style={styles.borrowSettingsCard}>
         <Text variant="h3">Odunc istegi ayarlari</Text>
@@ -536,12 +607,14 @@ function SharedWardrobeItem({
   item,
   loanRequest,
   onBorrow,
+  onSimilarSearch,
   loading,
   disabled,
 }: {
   item: WardrobeItem;
   loanRequest?: LoanRequest;
   onBorrow: () => void;
+  onSimilarSearch: () => void;
   loading: boolean;
   disabled: boolean;
 }) {
@@ -578,6 +651,7 @@ function SharedWardrobeItem({
               ? "Odunc alinabilir"
               : `${item.wear_count} kez giyildi`}
         </Text>
+        <Button title="Benzerini Bul" variant="ghost" onPress={onSimilarSearch} disabled={disabled} />
         {item.is_lendable ? <Button title={borrowTitle} variant="secondary" onPress={onBorrow} loading={loading} disabled={Boolean(loanRequest) || disabled} /> : null}
       </Card>
     </Pressable>
@@ -691,6 +765,20 @@ const styles = StyleSheet.create({
   },
   borrowSettingsCard: {
     gap: SPACING.sm,
+  },
+  syncCard: {
+    gap: SPACING.sm,
+  },
+  paletteRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  palettePill: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
   },
   grid: {
     gap: SPACING.md,

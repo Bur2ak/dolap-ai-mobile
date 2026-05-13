@@ -349,6 +349,25 @@ export async function fetchUserOutfits(userId: string): Promise<SharedOutfit[]> 
   return Promise.all(normalizedOutfits.map((outfit) => fetchSharedOutfit(outfit.id)));
 }
 
+export async function fetchPublicOutfitFeed(): Promise<SharedOutfit[]> {
+  const { data: outfits, error } = await supabase
+    .from("outfits")
+    .select("*")
+    .eq("is_shareable", true)
+    .not("share_token", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(24);
+
+  if (error) {
+    throwApiError(error, "Stil panosu yuklenemedi.");
+  }
+
+  const normalizedOutfits = (outfits ?? []).map(normalizeOutfitRecord).filter((outfit): outfit is OutfitRecord => outfit !== null);
+  const feedItems = await Promise.allSettled(normalizedOutfits.map((outfit) => fetchSharedOutfit(outfit.id)));
+
+  return feedItems.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+}
+
 export async function fetchSharedOutfit(outfitId: string): Promise<SharedOutfit> {
   assertOutfitId(outfitId);
   const { data: outfit, error: outfitError } = await supabase.from("outfits").select("*").eq("id", outfitId).single();
