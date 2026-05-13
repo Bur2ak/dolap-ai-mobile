@@ -93,6 +93,8 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
       dominant_color_hex: normalizedInput.dominant_color_hex ?? null,
       season: normalizedInput.season ?? [],
       brand: normalizedInput.brand ?? null,
+      fabric: normalizedInput.fabric ?? null,
+      usage_context: normalizedInput.usage_context ?? [],
       purchase_price: normalizedInput.purchase_price ?? null,
       is_shareable: socialFlags.is_shareable ?? false,
       is_lendable: socialFlags.is_lendable ?? false,
@@ -204,6 +206,14 @@ function normalizeWardrobeItemInput<T extends CreateWardrobeItemInput | UpdateWa
     normalized.brand = normalized.brand?.trim().slice(0, 80) || null;
   }
 
+  if (normalized.fabric !== undefined) {
+    normalized.fabric = normalized.fabric?.trim().replace(/\s+/g, " ").slice(0, 80) || null;
+  }
+
+  if (normalized.usage_context !== undefined) {
+    normalized.usage_context = [...new Set(normalized.usage_context.map((entry) => entry.trim().toLowerCase()).filter(Boolean))].slice(0, 8);
+  }
+
   if (normalized.dominant_color_hex !== undefined) {
     const color = normalized.dominant_color_hex?.trim() ?? "";
     normalized.dominant_color_hex = /^#[0-9a-f]{6}$/i.test(color) ? color : null;
@@ -257,6 +267,10 @@ function normalizeWardrobeItemRecord(value: unknown): WardrobeItem | null {
     dominant_color_hex: typeof record.dominant_color_hex === "string" && /^#[0-9a-f]{6}$/i.test(record.dominant_color_hex.trim()) ? record.dominant_color_hex.trim() : null,
     season: seasons,
     brand: typeof record.brand === "string" ? normalizeNullableText(record.brand, 80) : null,
+    fabric: typeof record.fabric === "string" ? normalizeNullableText(record.fabric, 80) : null,
+    usage_context: Array.isArray(record.usage_context)
+      ? [...new Set(record.usage_context.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim().toLowerCase()))].slice(0, 8)
+      : [],
     purchase_price: Number.isFinite(purchasePrice) && purchasePrice >= 0 && purchasePrice <= maxPurchasePrice ? Math.round(purchasePrice * 100) / 100 : null,
     wear_count: Number.isFinite(wearCount) ? Math.max(0, Math.min(10_000, Math.trunc(wearCount))) : 0,
     last_worn: normalizeNullableDate(record.last_worn),

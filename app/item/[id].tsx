@@ -20,7 +20,7 @@ import type { CareRecommendation, ClothingCategory, Season, SustainabilityInsigh
 import { getCareRecommendations } from "@/utils/care";
 import { getCostPerWearLabel, getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
 import { getSustainabilityInsight } from "@/utils/sustainability";
-import { getColorListInputError, getSubcategoryInputError, getWardrobeMetadataInputError, parseColorList } from "@/utils/wardrobeValidation";
+import { getColorListInputError, getSubcategoryInputError, getUsageContextInputError, getWardrobeMetadataInputError, parseColorList, parseUsageContextList } from "@/utils/wardrobeValidation";
 
 export default function ItemDetailScreen() {
   const { id: idParam } = useLocalSearchParams<{ id: string | string[] }>();
@@ -31,6 +31,8 @@ export default function ItemDetailScreen() {
   const [subcategory, setSubcategory] = useState("");
   const [colors, setColors] = useState("");
   const [brand, setBrand] = useState("");
+  const [fabric, setFabric] = useState("");
+  const [usageContext, setUsageContext] = useState("");
   const [price, setPrice] = useState("");
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [activeAction, setActiveAction] = useState<"save" | "worn" | "shareable" | "lendable" | "delete" | null>(null);
@@ -48,6 +50,8 @@ export default function ItemDetailScreen() {
     setSubcategory(item.subcategory ?? "");
     setColors(item.colors.join(", "));
     setBrand(item.brand ?? "");
+    setFabric(item.fabric ?? "");
+    setUsageContext(item.usage_context.join(", "));
     setPrice(item.purchase_price ? String(item.purchase_price) : "");
     setSeasons(item.season);
   }, [item]);
@@ -81,9 +85,11 @@ export default function ItemDetailScreen() {
 
     const metadataError = getWardrobeMetadataInputError({
       colorsText: colors,
+      fabric,
       price,
       seasons,
       subcategory,
+      usageContextText: usageContext,
     });
     if (metadataError) {
       captureEvent("wardrobe_item_detail_save_blocked", { reason: "metadata", item_id: item.id });
@@ -99,9 +105,11 @@ export default function ItemDetailScreen() {
         brand: brand.trim() || null,
         category,
         colors: parseColorList(colors),
+        fabric: fabric.trim() || null,
         purchase_price: purchasePrice,
         season: seasons,
         subcategory: subcategory.trim(),
+        usage_context: parseUsageContextList(usageContext),
       });
       setIsEditing(false);
       captureEvent("wardrobe_item_detail_saved", {
@@ -317,6 +325,15 @@ export default function ItemDetailScreen() {
               <Input label="Alt kategori" value={subcategory} onChangeText={setSubcategory} error={getSubcategoryInputError(subcategory)} editable={!isActionBusy} />
               <Input label="Renkler" value={colors} onChangeText={setColors} error={getColorListInputError(colors)} editable={!isActionBusy} />
               <Input label="Marka" value={brand} onChangeText={setBrand} editable={!isActionBusy} />
+              <Input label="Kumas" value={fabric} onChangeText={setFabric} placeholder="Orn. pamuk, denim, keten" editable={!isActionBusy} />
+              <Input
+                label="Kullanim alani"
+                value={usageContext}
+                onChangeText={setUsageContext}
+                placeholder="gunluk, is, gece"
+                error={getUsageContextInputError(usageContext)}
+                editable={!isActionBusy}
+              />
               <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} editable={!isActionBusy} />
               <Button title="Degisiklikleri Kaydet" onPress={handleSaveEdits} loading={activeAction === "save"} disabled={isActionBusy} />
             </Card>
@@ -359,6 +376,12 @@ export default function ItemDetailScreen() {
             </Text>
             <Text variant="body" color="secondary">
               Sezon: {item.season.length > 0 ? item.season.join(", ") : "Yok"}
+            </Text>
+            <Text variant="body" color="secondary">
+              Kumas: {item.fabric ?? "Yok"}
+            </Text>
+            <Text variant="body" color="secondary">
+              Kullanim alani: {item.usage_context.length > 0 ? item.usage_context.join(", ") : "Yok"}
             </Text>
             <Text variant="body" color="secondary">
               Fiyat: {item.purchase_price ? `${item.purchase_price} TL` : "Yok"}

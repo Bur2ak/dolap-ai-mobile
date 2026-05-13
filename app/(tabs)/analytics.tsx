@@ -171,6 +171,8 @@ export default function AnalyticsScreen() {
       <DistributionCard title="Renk dagilimi" points={analytics.color_distribution} showSwatch />
       <DistributionCard title="Sezon dagilimi" points={analytics.season_distribution} />
       <DistributionCard title="Marka agirligi" points={analytics.brand_distribution} />
+      <DistributionCard title="Kumas dagilimi" points={analytics.fabric_distribution} />
+      <DistributionCard title="Kullanim alani" points={analytics.usage_context_distribution} />
       <StyleProfileCard profile={analytics.style_profile} />
       <WeeklyGoalsCard goals={analytics.weekly_goals} />
       <SustainabilitySummaryCard score={analytics.sustainability_score} items={analytics.sustainability_focus_items} />

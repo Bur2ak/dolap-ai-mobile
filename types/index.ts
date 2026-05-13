@@ -60,6 +60,8 @@ export interface WardrobeItem {
   dominant_color_hex: string | null;
   season: Season[];
   brand: string | null;
+  fabric: string | null;
+  usage_context: string[];
   purchase_price: number | null;
   wear_count: number;
   last_worn: string | null;
@@ -77,6 +79,8 @@ export interface ClothingAnalysisResult {
   dominant_color_hex: string;
   season: Season[];
   brand?: string | null;
+  fabric?: string | null;
+  usage_context?: string[];
 }
 
 export interface CareRecommendation {
@@ -102,6 +106,8 @@ export interface CreateWardrobeItemInput {
   dominant_color_hex?: string | null;
   season?: Season[];
   brand?: string | null;
+  fabric?: string | null;
+  usage_context?: string[];
   purchase_price?: number | null;
   is_shareable?: boolean;
   is_lendable?: boolean;
@@ -309,6 +315,8 @@ export interface WardrobeAnalytics {
   color_distribution: DistributionPoint[];
   season_distribution: DistributionPoint[];
   brand_distribution: DistributionPoint[];
+  fabric_distribution: DistributionPoint[];
+  usage_context_distribution: DistributionPoint[];
   style_profile: StyleProfile;
   missing_pieces: MissingWardrobePiece[];
   weekly_goals: WardrobeGoal[];

@@ -54,7 +54,9 @@ serve(async (req) => {
   "colors": ["renk1", "renk2"],
   "dominant_color_hex": "#RRGGBB",
   "season": ["ilkbahar|yaz|sonbahar|kis"],
-  "brand": null
+  "brand": null,
+  "fabric": "pamuk|keten|denim|deri|suni deri|polyester|viskon|yun|triko|ipek|null",
+  "usage_context": ["gunluk|is|spor|gece|dugun|tatil|ev|resmi"]
 }`,
         },
       ],
@@ -98,6 +100,9 @@ function normalizeAnalysis(value: unknown) {
     ? [...new Set(value.season.filter((entry): entry is string => typeof entry === "string" && validSeasons.has(entry)))].slice(0, 4)
     : [];
   const dominantColor = typeof value.dominant_color_hex === "string" && /^#[0-9a-f]{6}$/i.test(value.dominant_color_hex.trim()) ? value.dominant_color_hex.trim() : "#12312B";
+  const usageContext = Array.isArray(value.usage_context)
+    ? [...new Set(value.usage_context.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim().toLowerCase().slice(0, 40)))].slice(0, 8)
+    : [];
 
   return {
     category,
@@ -106,6 +111,8 @@ function normalizeAnalysis(value: unknown) {
     dominant_color_hex: dominantColor,
     season: season.length > 0 ? season : ["ilkbahar", "yaz"],
     brand: typeof value.brand === "string" && value.brand.trim() ? value.brand.trim().slice(0, 80) : null,
+    fabric: typeof value.fabric === "string" && value.fabric.trim() ? value.fabric.trim().slice(0, 80) : null,
+    usage_context: usageContext,
   };
 }
 
@@ -117,6 +124,8 @@ function fallbackAnalysis(reason: string) {
     dominant_color_hex: "#12312B",
     season: ["ilkbahar", "yaz"],
     brand: null,
+    fabric: null,
+    usage_context: [],
     analysis_note: reason,
   };
 }

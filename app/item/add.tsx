@@ -20,7 +20,7 @@ import { removeImageBackground } from "@/lib/ai/removeBackground";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { ClothingAnalysisResult, ClothingCategory, Season } from "@/types";
 import { getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
-import { getColorListInputError, getSubcategoryInputError, getWardrobeMetadataInputError, parseColorList } from "@/utils/wardrobeValidation";
+import { getColorListInputError, getSubcategoryInputError, getUsageContextInputError, getWardrobeMetadataInputError, parseColorList, parseUsageContextList } from "@/utils/wardrobeValidation";
 import { createThumbnail, optimizeImage } from "@/utils/imageUtils";
 
 type Step = "select" | "metadata";
@@ -34,6 +34,8 @@ export default function AddItemScreen() {
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<ClothingAnalysisResult>(fallbackClothingAnalysis);
   const [brand, setBrand] = useState("");
+  const [fabric, setFabric] = useState("");
+  const [usageContext, setUsageContext] = useState("");
   const [price, setPrice] = useState("");
   const [isShareable, setIsShareable] = useState(false);
   const [isLendable, setIsLendable] = useState(false);
@@ -63,6 +65,8 @@ export default function AddItemScreen() {
     setThumbnailUri(null);
     setAnalysis(fallbackClothingAnalysis);
     setBrand("");
+    setFabric("");
+    setUsageContext("");
     setPrice("");
     setIsShareable(false);
     setIsLendable(false);
@@ -110,6 +114,8 @@ export default function AddItemScreen() {
       try {
         const result = await analyzeClothingImage(backgroundRemovedUri);
         setAnalysis(result);
+        setFabric(result.fabric ?? "");
+        setUsageContext(result.usage_context?.join(", ") ?? "");
         captureEvent("wardrobe_image_analyzed", {
           category: result.category,
           season_count: result.season.length,
@@ -235,9 +241,11 @@ export default function AddItemScreen() {
 
     const metadataError = getWardrobeMetadataInputError({
       colorsText: analysis.colors.join(", "),
+      fabric,
       price,
       seasons: analysis.season,
       subcategory: analysis.subcategory,
+      usageContextText: usageContext,
     });
     if (metadataError) {
       captureEvent("wardrobe_add_save_blocked", { reason: "metadata" });
@@ -257,6 +265,8 @@ export default function AddItemScreen() {
         dominant_color_hex: analysis.dominant_color_hex,
         season: analysis.season,
         brand: brand.trim() || null,
+        fabric: fabric.trim() || null,
+        usage_context: parseUsageContextList(usageContext),
         purchase_price: purchasePrice,
         is_shareable: isShareable,
         is_lendable: isLendable,
@@ -336,7 +346,7 @@ export default function AddItemScreen() {
               {analysis.subcategory}
             </Text>
             <Text variant="caption" color="muted">
-              {analysis.colors.length} renk · {analysis.season.length} sezon
+              {analysis.colors.length} renk - {analysis.season.length} sezon
             </Text>
           </Card>
 
@@ -389,6 +399,15 @@ export default function AddItemScreen() {
             editable={!isBusy}
           />
           <Input label="Marka" value={brand} onChangeText={setBrand} editable={!isBusy} />
+          <Input label="Kumas" value={fabric} onChangeText={setFabric} placeholder="Orn. pamuk, denim, keten" editable={!isBusy} />
+          <Input
+            label="Kullanim alani"
+            value={usageContext}
+            onChangeText={setUsageContext}
+            placeholder="gunluk, is, gece"
+            error={getUsageContextInputError(usageContext)}
+            editable={!isBusy}
+          />
           <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} editable={!isBusy} />
 
           <Card style={styles.socialCard}>

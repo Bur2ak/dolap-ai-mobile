@@ -52,6 +52,8 @@ export function calculateWardrobeAnalytics(items: WardrobeItem[]): WardrobeAnaly
     color_distribution: toColorDistribution(safeItems),
     season_distribution: toDistribution(safeItems.flatMap((item) => item.season)),
     brand_distribution: toDistribution(safeItems.map((item) => item.brand ?? "").filter(Boolean)).slice(0, 6),
+    fabric_distribution: toDistribution(safeItems.map((item) => item.fabric ?? "").filter(Boolean)).slice(0, 6),
+    usage_context_distribution: toDistribution(safeItems.flatMap((item) => item.usage_context)).slice(0, 8),
     style_profile: calculateStyleProfile(safeItems),
     missing_pieces: calculateMissingPieces(safeItems),
     weekly_goals: calculateWeeklyGoals(safeItems, utilizationScore, sustainabilityScore),
@@ -79,6 +81,7 @@ function normalizeAnalyticsItem(item: WardrobeItem): WardrobeItem | null {
   return {
     ...item,
     brand: typeof item.brand === "string" && item.brand.trim() ? item.brand.trim().slice(0, 80) : null,
+    fabric: typeof item.fabric === "string" && item.fabric.trim() ? item.fabric.trim().slice(0, 80) : null,
     category,
     colors,
     created_at: normalizeDate(item.created_at),
@@ -88,6 +91,9 @@ function normalizeAnalyticsItem(item: WardrobeItem): WardrobeItem | null {
     season: seasons as WardrobeItem["season"],
     subcategory: typeof item.subcategory === "string" && item.subcategory.trim() ? item.subcategory.trim().slice(0, 80) : null,
     updated_at: normalizeDate(item.updated_at),
+    usage_context: Array.isArray(item.usage_context)
+      ? [...new Set(item.usage_context.filter((entry) => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim().toLocaleLowerCase("tr-TR")))].slice(0, 8)
+      : [],
     wear_count: Number.isFinite(wearCount) ? Math.max(0, Math.min(10_000, Math.trunc(wearCount))) : 0,
   };
 }

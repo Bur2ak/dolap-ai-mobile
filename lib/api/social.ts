@@ -602,6 +602,10 @@ function normalizeWardrobeItem(value: unknown): WardrobeItem | null {
     dominant_color_hex: typeof record.dominant_color_hex === "string" ? normalizeNullableText(record.dominant_color_hex, 16) : null,
     season: seasons,
     brand: typeof record.brand === "string" ? normalizeNullableText(record.brand, 80) : null,
+    fabric: typeof record.fabric === "string" ? normalizeNullableText(record.fabric, 80) : null,
+    usage_context: Array.isArray(record.usage_context)
+      ? [...new Set(record.usage_context.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim().toLowerCase()))].slice(0, 8)
+      : [],
     purchase_price: Number.isFinite(purchasePrice) && purchasePrice >= 0 && purchasePrice <= 10_000_000 ? Math.round(purchasePrice * 100) / 100 : null,
     wear_count: Number.isFinite(wearCount) ? Math.max(0, Math.min(10_000, Math.round(wearCount))) : 0,
     last_worn: normalizeNullableDate(record.last_worn),

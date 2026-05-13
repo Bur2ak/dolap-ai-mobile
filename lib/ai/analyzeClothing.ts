@@ -12,6 +12,8 @@ export const fallbackClothingAnalysis: ClothingAnalysisResult = {
   dominant_color_hex: "#12312B",
   season: ["ilkbahar", "yaz"],
   brand: null,
+  fabric: null,
+  usage_context: [],
 };
 
 export async function analyzeClothingImage(imageUri: string): Promise<ClothingAnalysisResult> {
