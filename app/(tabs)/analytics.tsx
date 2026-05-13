@@ -18,7 +18,7 @@ import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { DistributionPoint, MissingWardrobePiece, StyleProfile, UpdateWardrobeItemInput, WardrobeGoal, WardrobeItem } from "@/types";
 import { formatCurrency, formatNumber, getCostPerWearLabel } from "@/utils/formatters";
-import { buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
+import { buildBudgetRecommendations, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
 
 export default function AnalyticsScreen() {
   const { analytics, error, isLoading, isRefetching, refetch } = useWardrobeAnalytics();
@@ -396,6 +396,69 @@ function MissingPiecesCard({
                 <Text variant="caption" color="muted">
                   Renk onerisi: {piece.suggested_colors.join(", ")}
                 </Text>
+                <View style={styles.budgetGuide}>
+                  {buildBudgetRecommendations(piece).map((recommendation) => (
+                    <View key={recommendation.label} style={styles.budgetCard}>
+                      <Text variant="caption" color="muted">
+                        {recommendation.label}
+                      </Text>
+                      <Text variant="label">{recommendation.range}</Text>
+                      <Text variant="caption" color="secondary">
+                        {recommendation.note}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.saleTargets}>
+                  {buildShoppingSearchTargets(getMissingPieceSearchQuery(piece)).map((target) => (
+                    <Pressable
+                      key={target.label}
+                      accessibilityRole="button"
+                      style={styles.saleChip}
+                      onPress={() => {
+                        captureEvent("analytics_missing_piece_market_search_opened", {
+                          category: piece.category,
+                          priority: piece.priority,
+                          target: target.label,
+                        });
+                        void openMarketSearch(target.url);
+                      }}
+                      disabled={Boolean(activePieceKey) || isAdding}
+                    >
+                      <Text variant="caption" color="secondary">
+                        {target.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.missingActions}>
+                  <Button
+                    title="Arkadas Dolabina Bak"
+                    variant="ghost"
+                    onPress={() => {
+                      captureEvent("analytics_missing_piece_friend_route_opened", {
+                        category: piece.category,
+                        priority: piece.priority,
+                      });
+                      router.push("/social/friends");
+                    }}
+                    disabled={Boolean(activePieceKey) || isAdding}
+                    style={styles.missingAction}
+                  />
+                  <Button
+                    title="Alternatif Kombin Dene"
+                    variant="ghost"
+                    onPress={() => {
+                      captureEvent("analytics_missing_piece_outfit_route_opened", {
+                        category: piece.category,
+                        priority: piece.priority,
+                      });
+                      router.push("/(tabs)/outfit");
+                    }}
+                    disabled={Boolean(activePieceKey) || isAdding}
+                    style={styles.missingAction}
+                  />
+                </View>
                 <Button
                   title="Alisveris Listesine Ekle"
                   variant="secondary"
@@ -656,6 +719,10 @@ function getMissingPieceKey(piece: MissingWardrobePiece) {
 
 function getSaleSearchQuery(item: WardrobeItem) {
   return [item.brand, item.subcategory ?? formatCategory(item.category), item.colors[0]].filter(Boolean).join(" ");
+}
+
+function getMissingPieceSearchQuery(piece: MissingWardrobePiece) {
+  return [piece.suggested_colors[0], piece.label, formatCategory(piece.category)].filter(Boolean).join(" ");
 }
 
 function getSecondHandPriceHint(item: WardrobeItem) {
@@ -958,10 +1025,29 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: SPACING.xs,
   },
+  missingActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
   missingAction: {
     alignSelf: "flex-start",
     minHeight: 38,
     paddingHorizontal: SPACING.md,
+  },
+  budgetGuide: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  budgetCard: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    flexGrow: 1,
+    flexShrink: 1,
+    gap: 2,
+    minWidth: 128,
+    padding: SPACING.sm,
   },
   priorityPill: {
     alignItems: "center",

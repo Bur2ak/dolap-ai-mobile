@@ -46,6 +46,8 @@ ${JSON.stringify(promptWardrobe)}
 
 Bu kiyafeti almali miyim? Fiyat: ${safePrice ? `${safePrice} TL` : "belirtilmedi"}
 
+Degerlendirirken mevcut gardroptaki kategori, renk, sezon, marka, kumas ve usage_context alanlarini birlikte oku. Benzer urun, ayni kullanim alani fazlaligi, eksik kullanim alani, ikinci el/indirim bekleme ihtimali ve kullanim basi maliyet etkisini net tart.
+
 Yalnizca JSON dondur:
 {
   "decision": "AL|BEKLEME|ALMA",

@@ -51,7 +51,9 @@ Kurallar:
 1. Sadece gardroptaki item id'lerini kullan.
 2. Etkinlik uygunsa aksesuar ekle ve accessory_note alaninda nedenini yaz.
 3. Aksesuar uygun degilse accessory_note alaninda kisa acikla.
-4. Sadece JSON dondur:
+4. Kumas, usage_context, sezon ve renk bilgisini etkinlik resmi/gunluk dengesine gore oku.
+5. Hava ve lokasyon bilgisi varsa kumas ve katman secimini buna gore yap.
+6. Sadece JSON dondur:
 [
   {"items":["id1","id2"],"name":"Kombin adi","reason":"2 cumle gerekce","accessory_note":"Aksesuar notu","formality_match":"Etkinlik uyumu"}
 ]`;
@@ -120,8 +122,9 @@ function getPromptText(value: unknown, fallback: string, maxLength: number) {
 function fallbackOutfits(wardrobe: unknown, title: unknown) {
   const items = Array.isArray(wardrobe) ? wardrobe : [];
   const allIds = items
-    .map((item) => (isRecord(item) && typeof item.id === "string" ? item.id : null))
-    .filter((id): id is string => Boolean(id));
+    .filter((item): item is Record<string, unknown> => isRecord(item) && typeof item.id === "string")
+    .sort((a, b) => scoreEventItem(b, title) - scoreEventItem(a, title))
+    .map((item) => String(item.id));
   const accessoryId = getFirstCategoryId(items, "aksesuar");
   const ids = allIds.slice(0, 4);
 
@@ -138,6 +141,35 @@ function fallbackOutfits(wardrobe: unknown, title: unknown) {
       formality_match: "Temel uyum",
     },
   ];
+}
+
+function scoreEventItem(item: Record<string, unknown>, title: unknown) {
+  const signal = normalizeText(String(title ?? ""));
+  const category = String(item.category ?? "");
+  const text = normalizeText([
+    item.subcategory,
+    item.brand,
+    item.fabric,
+    ...(Array.isArray(item.colors) ? item.colors : []),
+    ...(Array.isArray(item.season) ? item.season : []),
+    ...(Array.isArray(item.usage_context) ? item.usage_context : []),
+  ].join(" "));
+  let score = 0;
+
+  if (signal.includes("dugun") || signal.includes("davet") || signal.includes("gece")) {
+    score += text.includes("resmi") || text.includes("gece") || category === "elbise" || category === "aksesuar" ? 3 : 0;
+  }
+  if (signal.includes("is") || signal.includes("toplanti") || signal.includes("ofis")) {
+    score += text.includes("is") || text.includes("resmi") || ["ust", "alt", "dis_giyim", "ayakkabi"].includes(category) ? 3 : 0;
+  }
+  if (signal.includes("tatil") || signal.includes("seyahat") || signal.includes("festival")) {
+    score += text.includes("tatil") || text.includes("gunluk") || text.includes("yaz") || category === "ayakkabi" ? 3 : 0;
+  }
+  if (["ust", "alt", "elbise", "ayakkabi"].includes(category)) {
+    score += 1;
+  }
+
+  return score;
 }
 
 function getFirstCategoryId(items: unknown[], category: string) {
@@ -160,6 +192,10 @@ function withAccessory(ids: string[], accessoryId: string | null) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeText(value: string) {
+  return value.toLocaleLowerCase("tr-TR").trim();
 }
 
 async function callGemini(apiKey: string, parts: unknown[], maxOutputTokens: number) {

@@ -47,12 +47,14 @@ Kurallar:
 2. Her kombin 2-4 parca olsun.
 3. Odak parca id varsa ve etkinlik/hava ile tamamen uyumsuz degilse ilk kombin mutlaka bu parcayi icersin.
 4. Gardropta aksesuar varsa ve kombini guclendiriyorsa 1 aksesuar ekle; aksesuar gereksizse zorlama.
-5. accessory_note alaninda aksesuar neden secildi veya neden eklenmedi kisaca yaz.
-6. Yalnizca JSON dondur.
+5. Kumas, usage_context, sezon ve renk bilgisini birlikte degerlendir.
+6. accessory_note alaninda aksesuar neden secildi veya neden eklenmedi kisaca yaz.
+7. formality_match alaninda etkinlik ve ruh haline uyumu tek cumleyle acikla.
+8. Yalnizca JSON dondur.
 
 Format:
 [
-  {"items":["id1","id2"],"name":"Kombin adi","reason":"En fazla 2 cumle gerekce","accessory_note":"Aksesuar notu"}
+  {"items":["id1","id2"],"name":"Kombin adi","reason":"En fazla 2 cumle gerekce","accessory_note":"Aksesuar notu","formality_match":"Etkinlik/ruh hali uyumu"}
 ]`;
 
     const response = await callGemini(apiKey, [{ text: prompt }], 1200);
@@ -103,6 +105,7 @@ function normalizeOutfitSuggestions(value: unknown, wardrobe: unknown, focusItem
         name: typeof entry.name === "string" && entry.name.trim() ? entry.name.trim().slice(0, 80) : "Shipirio Kombini",
         reason: typeof entry.reason === "string" && entry.reason.trim() ? entry.reason.trim().slice(0, 360) : "Dolabindaki uyumlu parcalardan olusturuldu.",
         accessory_note: typeof entry.accessory_note === "string" ? entry.accessory_note.trim().slice(0, 240) || null : null,
+        formality_match: typeof entry.formality_match === "string" ? entry.formality_match.trim().slice(0, 120) || "Temel uyum" : "Temel uyum",
       };
     })
     .filter(Boolean)
@@ -117,14 +120,15 @@ function getPromptText(value: unknown, fallback: string, maxLength: number) {
 
 function fallbackOutfits(wardrobe: unknown, event: unknown, mood: unknown, focusItemId: unknown) {
   const items = Array.isArray(wardrobe) ? wardrobe : [];
-  const allIds = items
-    .map((item) => (isRecord(item) && typeof item.id === "string" ? item.id : null))
-    .filter((id): id is string => Boolean(id));
+  const candidateItems = items.filter((item): item is Record<string, unknown> => isRecord(item) && typeof item.id === "string");
   const focusId = typeof focusItemId === "string" ? focusItemId : null;
   const accessoryId = getFirstCategoryId(items, "aksesuar");
+  const sortedIds = candidateItems
+    .sort((a, b) => scoreOutfitItem(b, event, mood) - scoreOutfitItem(a, event, mood))
+    .map((item) => String(item.id));
   const ids = [
-    ...(focusId && allIds.includes(focusId) ? [focusId] : []),
-    ...allIds.filter((id) => id !== focusId),
+    ...(focusId && sortedIds.includes(focusId) ? [focusId] : []),
+    ...sortedIds.filter((id) => id !== focusId),
   ].slice(0, 4);
 
   if (ids.length < 2) {
@@ -139,8 +143,38 @@ function fallbackOutfits(wardrobe: unknown, event: unknown, mood: unknown, focus
         ? `Uzun suredir bekleyen parcayi ${String(event ?? "etkinlik")} ve ${String(mood ?? "rahat")} hissine gore tekrar kullanmak icin pratik bir oneridir.`
         : `${String(event ?? "Etkinlik")} ve ${String(mood ?? "rahat")} hissi icin dolabindaki uyumlu parcalardan pratik bir oneridir.`,
       accessory_note: accessoryId ? "Dolaptaki uygun aksesuar kombini tamamlamak icin eklendi." : "Dolapta uygun aksesuar bulunamadigi icin aksesuar eklenmedi.",
+      formality_match: "Temel uyum",
     },
   ];
+}
+
+function scoreOutfitItem(item: Record<string, unknown>, event: unknown, mood: unknown) {
+  const signal = normalizeText(`${String(event ?? "")} ${String(mood ?? "")}`);
+  const category = String(item.category ?? "");
+  const text = normalizeText([
+    item.subcategory,
+    item.brand,
+    item.fabric,
+    ...(Array.isArray(item.colors) ? item.colors : []),
+    ...(Array.isArray(item.season) ? item.season : []),
+    ...(Array.isArray(item.usage_context) ? item.usage_context : []),
+  ].join(" "));
+  let score = 0;
+
+  if (signal.includes("is") || signal.includes("ofis") || signal.includes("toplanti")) {
+    score += text.includes("is") || text.includes("resmi") || ["ust", "alt", "elbise", "dis_giyim", "ayakkabi"].includes(category) ? 3 : 0;
+  }
+  if (signal.includes("spor") || signal.includes("rahat")) {
+    score += text.includes("spor") || text.includes("gunluk") || category === "spor" || category === "ayakkabi" ? 3 : 0;
+  }
+  if (signal.includes("gece") || signal.includes("dugun") || signal.includes("sik")) {
+    score += text.includes("gece") || text.includes("resmi") || category === "elbise" || category === "aksesuar" ? 3 : 0;
+  }
+  if (["ust", "alt", "elbise", "ayakkabi"].includes(category)) {
+    score += 1;
+  }
+
+  return score;
 }
 
 function getFirstCategoryId(items: unknown[], category: string) {
@@ -163,6 +197,10 @@ function withAccessory(ids: string[], accessoryId: string | null) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeText(value: string) {
+  return value.toLocaleLowerCase("tr-TR").trim();
 }
 
 async function callGemini(apiKey: string, parts: unknown[], maxOutputTokens: number) {
