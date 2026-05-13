@@ -43,6 +43,26 @@ const rows: Array<{ key: keyof NotificationPreferences; title: string; body: str
   },
 ];
 
+type NotificationPreset = "essential" | "quiet" | "all";
+
+const presets: Array<{ body: string; label: string; value: NotificationPreset }> = [
+  {
+    body: "Fiyat dususu ve odunc istekleri acik kalir.",
+    label: "Temel",
+    value: "essential",
+  },
+  {
+    body: "Sadece uygulama ici bildirim kutusu kullanilir.",
+    label: "Sessiz",
+    value: "quiet",
+  },
+  {
+    body: "Tum sosyal, fiyat ve kombin bildirimleri acilir.",
+    label: "Hepsi",
+    value: "all",
+  },
+];
+
 export default function NotificationSettingsScreen() {
   const { preferences, registerForPush, isRegistering, updatePreferences, isUpdating } = useNotifications();
   const { items } = useWardrobe();
@@ -51,8 +71,10 @@ export default function NotificationSettingsScreen() {
   const [pushReadiness, setPushReadiness] = useState<PushNotificationReadiness | null>(null);
   const [isCheckingPush, setIsCheckingPush] = useState(false);
   const [updatingPreference, setUpdatingPreference] = useState<keyof NotificationPreferences | null>(null);
+  const [activePreset, setActivePreset] = useState<NotificationPreset | null>(null);
   const smartPlan = buildSmartOutfitNotification(weather, items);
-  const isBusy = isRegistering || isUpdating || isSchedulingReminder || isCheckingPush || Boolean(updatingPreference);
+  const enabledPreferenceCount = rows.filter((row) => preferences[row.key]).length;
+  const isBusy = isRegistering || isUpdating || isSchedulingReminder || isCheckingPush || Boolean(updatingPreference) || Boolean(activePreset);
 
   useEffect(() => {
     void refreshPushReadiness();
@@ -125,6 +147,29 @@ export default function NotificationSettingsScreen() {
     }
   }
 
+  async function handleApplyPreset(preset: NotificationPreset) {
+    if (isBusy) {
+      captureEvent("notification_preset_blocked", { preset, reason: "busy" });
+      return;
+    }
+
+    setActivePreset(preset);
+    try {
+      const nextPreferences = getPresetPreferences(preset);
+      await updatePreferences(nextPreferences);
+      captureEvent("notification_preset_applied", {
+        enabled_count: Object.values(nextPreferences).filter(Boolean).length,
+        preset,
+      });
+      Alert.alert("Bildirim profili guncellendi", getPresetConfirmation(preset));
+    } catch (error) {
+      captureError(error, { area: "notification_preset_apply", preset });
+      Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActivePreset(null);
+    }
+  }
+
   async function handleScheduleSmartReminder() {
     if (isBusy) {
       captureEvent("smart_outfit_reminder_schedule_blocked", { reason: "busy" });
@@ -182,6 +227,9 @@ export default function NotificationSettingsScreen() {
         <Text variant="body" color="secondary">
           Hatirlaticilar ve fiyat dususleri icin cihaz bildirimi izni gerekir.
         </Text>
+        <Text variant="caption" color="muted">
+          {enabledPreferenceCount}/{rows.length} bildirim turu acik.
+        </Text>
         <Button title="Bildirimleri Etkinlestir" onPress={handleEnablePush} loading={isRegistering} disabled={isBusy} />
       </Card>
 
@@ -201,6 +249,36 @@ export default function NotificationSettingsScreen() {
           </View>
         ) : null}
         <Button title="Durumu Yenile" variant="secondary" onPress={() => void refreshPushReadiness()} loading={isCheckingPush} disabled={isBusy} />
+      </Card>
+
+      <Card style={styles.intro}>
+        <Text variant="caption" color="muted">
+          HAZIR PROFILLER
+        </Text>
+        <Text variant="h3">Bildirim yogunlugunu sec</Text>
+        <Text variant="body" color="secondary">
+          Tek tek ayarlamak istemezsen Shipirio bildirimlerini hizlica dengeleyebilirsin.
+        </Text>
+        <View style={styles.presetGrid}>
+          {presets.map((preset) => (
+            <Pressable
+              key={preset.value}
+              style={[styles.presetCard, isBusy && styles.rowDisabled]}
+              onPress={() => void handleApplyPreset(preset.value)}
+              disabled={isBusy}
+            >
+              <Text variant="label">{preset.label}</Text>
+              <Text variant="caption" color="muted">
+                {preset.body}
+              </Text>
+              {activePreset === preset.value ? (
+                <Text variant="caption" color="primary">
+                  Uygulaniyor
+                </Text>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
       </Card>
 
       <Card style={styles.intro}>
@@ -258,6 +336,48 @@ function StatusPill({ label, ok }: { label: string; ok: boolean }) {
   );
 }
 
+function getPresetPreferences(preset: NotificationPreset): Partial<NotificationPreferences> {
+  if (preset === "quiet") {
+    return {
+      friend_requests: false,
+      lend_requests: false,
+      outfit_reminder: false,
+      outfit_votes: false,
+      price_drops: false,
+    };
+  }
+
+  if (preset === "essential") {
+    return {
+      friend_requests: true,
+      lend_requests: true,
+      outfit_reminder: false,
+      outfit_votes: false,
+      price_drops: true,
+    };
+  }
+
+  return {
+    friend_requests: true,
+    lend_requests: true,
+    outfit_reminder: true,
+    outfit_votes: true,
+    price_drops: true,
+  };
+}
+
+function getPresetConfirmation(preset: NotificationPreset) {
+  if (preset === "quiet") {
+    return "Tum push tercihleri kapatildi; bildirim kutusu uygulama icinde durmaya devam eder.";
+  }
+
+  if (preset === "essential") {
+    return "Onemli fiyat, arkadas ve odunc bildirimleri acik kalacak.";
+  }
+
+  return "Tum bildirim tercihleri acildi.";
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -307,6 +427,17 @@ const styles = StyleSheet.create({
   },
   statusPillWarn: {
     backgroundColor: COLORS.surfaceMuted,
+  },
+  presetGrid: {
+    gap: SPACING.sm,
+  },
+  presetCard: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+    padding: SPACING.md,
   },
   toggle: {
     backgroundColor: COLORS.surfaceMuted,

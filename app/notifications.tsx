@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -37,7 +37,7 @@ const filters: Array<{ label: string; value: NotificationFilter }> = [
 
 export default function NotificationsScreen() {
   const [filter, setFilter] = useState<NotificationFilter>("all");
-  const [activeAction, setActiveAction] = useState<"mark_all" | "delete_read" | null>(null);
+  const [activeAction, setActiveAction] = useState<"mark_all" | "delete_read" | "share_digest" | null>(null);
   const [activeDeleteNotificationId, setActiveDeleteNotificationId] = useState<string | null>(null);
   const [activeOpenNotificationId, setActiveOpenNotificationId] = useState<string | null>(null);
   const {
@@ -128,6 +128,28 @@ export default function NotificationsScreen() {
     ]);
   }
 
+  async function handleShareDigest() {
+    if (isBusy) {
+      captureEvent("notifications_digest_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    setActiveAction("share_digest");
+    try {
+      const message = buildNotificationDigest(notifications, unreadCount, actionRequiredCount);
+      const result = await Share.share({
+        message,
+        title: "Shipirio bildirim ozeti",
+      });
+      captureEvent("notifications_digest_shared", { action: result.action, notification_count: notifications.length });
+    } catch (error) {
+      captureError(error, { area: "notifications_digest_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
   function handleDeleteOne(notificationId: string) {
     if (isBusy) {
       captureEvent("notification_delete_blocked", { notification_id: notificationId, reason: "busy" });
@@ -199,6 +221,7 @@ export default function NotificationsScreen() {
         <View style={styles.summaryActions}>
           <Button title="Tumunu Oku" variant="secondary" onPress={handleMarkAllRead} loading={activeAction === "mark_all"} disabled={isBusy || unreadCount === 0} />
           <Button title="Temizle" variant="ghost" onPress={handleDeleteRead} loading={activeAction === "delete_read"} disabled={isBusy || readCount === 0} />
+          <Button title="Ozet" variant="ghost" onPress={() => void handleShareDigest()} loading={activeAction === "share_digest"} disabled={isBusy || notifications.length === 0} />
         </View>
       </Card>
 
@@ -354,6 +377,26 @@ function getFilterCount(filter: NotificationFilter, notifications: NotificationR
   return notifications.filter((notification) => notificationMatchesFilter(notification, filter)).length;
 }
 
+function buildNotificationDigest(notifications: NotificationRecord[], unreadCount: number, actionRequiredCount: number) {
+  const counts = filters
+    .filter((filter) => filter.value !== "all")
+    .map((filter) => `${filter.label}: ${getFilterCount(filter.value, notifications)}`)
+    .join("\n");
+  const latest = notifications.slice(0, 3).map((notification) => `- ${notificationLabels[notification.type]}: ${notification.title}`);
+
+  return [
+    "Shipirio bildirim ozeti",
+    `Toplam: ${notifications.length}`,
+    `Okunmamis: ${unreadCount}`,
+    `Aksiyon bekleyen: ${actionRequiredCount}`,
+    counts,
+    latest.length > 0 ? "Son bildirimler:" : null,
+    ...latest,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function notificationMatchesFilter(notification: NotificationRecord, filter: NotificationFilter) {
   if (filter === "all") {
     return true;
@@ -489,7 +532,7 @@ const styles = StyleSheet.create({
   },
   summaryActions: {
     gap: SPACING.xs,
-    width: 132,
+    width: 144,
   },
   summaryPills: {
     flexDirection: "row",
