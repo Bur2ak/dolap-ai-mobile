@@ -18,7 +18,7 @@ import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { DistributionPoint, MissingWardrobePiece, StyleProfile, UpdateWardrobeItemInput, WardrobeGoal, WardrobeItem } from "@/types";
 import { formatCurrency, formatNumber, getCostPerWearLabel } from "@/utils/formatters";
-import { buildBudgetRecommendations, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
+import { buildBudgetRecommendations, buildSecondHandListingAdvice, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
 
 export default function AnalyticsScreen() {
   const { analytics, error, isLoading, isRefetching, refetch } = useWardrobeAnalytics();
@@ -543,16 +543,17 @@ function DetoxItemList({
       return;
     }
 
-    const title = getSaleSearchQuery(item);
-    const priceHint = getSecondHandPriceHint(item);
-    captureEvent("analytics_detox_listing_draft_opened", { item_id: item.id, has_price_hint: Boolean(priceHint) });
+    const advice = buildSecondHandListingAdvice(item);
+    captureEvent("analytics_detox_listing_draft_opened", { item_id: item.id, has_price_hint: Boolean(advice.price_low) });
 
     Alert.alert(
       "Satis taslagi",
       [
-        `Baslik: ${title}`,
-        `Aciklama: Temiz kullanildi. ${item.season.length ? `${item.season.join(", ")} sezonu icin uygun.` : "Dolaptan cikarma parcasi."}`,
-        priceHint ? `Fiyat onerisi: ${formatCurrency(priceHint)} civariyla baslayabilirsin.` : "Fiyat onerisi icin alis fiyati ekleyebilirsin.",
+        `Baslik: ${advice.title}`,
+        `Aciklama: ${advice.description}`,
+        advice.price_low && advice.price_high
+          ? `Fiyat araligi: ${formatCurrency(advice.price_low)} - ${formatCurrency(advice.price_high)}`
+          : "Fiyat araligi icin alis fiyati ekleyebilirsin.",
       ].join("\n\n"),
     );
   }
@@ -592,75 +593,81 @@ function DetoxItemList({
         Uzun suredir kullanilmayan parcalar icin hizli aksiyon sec.
       </Text>
       {items.length > 0 ? (
-        items.map((item) => (
-          <View key={item.id} style={styles.detoxItem}>
-            <Pressable
-              style={styles.itemRow}
-              onPress={() => {
-                if (activeAction || isUpdating) {
-                  captureEvent("analytics_detox_item_open_blocked", { item_id: item.id, reason: "busy" });
-                  return;
-                }
+        items.map((item) => {
+          const listingAdvice = buildSecondHandListingAdvice(item);
 
-                captureEvent("analytics_detox_item_opened", { item_id: item.id });
-                router.push(`/item/${item.id}`);
-              }}
-              disabled={Boolean(activeAction) || isUpdating}
-            >
-              <View style={[styles.itemDot, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
-              <View style={styles.itemText}>
-                <Text variant="label">{item.subcategory ?? item.category}</Text>
+          return (
+            <View key={item.id} style={styles.detoxItem}>
+              <Pressable
+                style={styles.itemRow}
+                onPress={() => {
+                  if (activeAction || isUpdating) {
+                    captureEvent("analytics_detox_item_open_blocked", { item_id: item.id, reason: "busy" });
+                    return;
+                  }
+
+                  captureEvent("analytics_detox_item_opened", { item_id: item.id });
+                  router.push(`/item/${item.id}`);
+                }}
+                disabled={Boolean(activeAction) || isUpdating}
+              >
+                <View style={[styles.itemDot, { backgroundColor: item.dominant_color_hex ?? COLORS.primarySoft }]} />
+                <View style={styles.itemText}>
+                  <Text variant="label">{item.subcategory ?? item.category}</Text>
+                  <Text variant="caption" color="muted">
+                    {item.wear_count} giyim
+                  </Text>
+                </View>
                 <Text variant="caption" color="muted">
-                  {item.wear_count} giyim
+                  {item.purchase_price ? formatCurrency(item.purchase_price) : ""}
                 </Text>
+              </Pressable>
+              <View style={styles.detoxActions}>
+                <Button
+                  title="Giydim"
+                  variant="secondary"
+                  onPress={() => void handleMarkWorn(item)}
+                  loading={activeAction?.itemId === item.id && activeAction.action === "worn"}
+                  disabled={Boolean(activeAction) || isUpdating}
+                  style={styles.detoxButton}
+                />
+                <Button
+                  title="Odunc"
+                  variant="secondary"
+                  onPress={() => void handleLendable(item)}
+                  loading={activeAction?.itemId === item.id && activeAction.action === "lendable"}
+                  disabled={Boolean(activeAction) || isUpdating}
+                  style={styles.detoxButton}
+                />
+                <Button title="Satis" variant="ghost" onPress={() => handleListingDraft(item)} disabled={Boolean(activeAction) || isUpdating} style={styles.detoxButton} />
+                <Button
+                  title="Sil"
+                  variant="ghost"
+                  onPress={() => handleDelete(item)}
+                  loading={activeAction?.itemId === item.id && activeAction.action === "delete"}
+                  disabled={Boolean(activeAction) || isUpdating}
+                  style={styles.detoxButton}
+                />
               </View>
-              <Text variant="caption" color="muted">
-                {item.purchase_price ? formatCurrency(item.purchase_price) : ""}
-              </Text>
-            </Pressable>
-            <View style={styles.detoxActions}>
-              <Button
-                title="Giydim"
-                variant="secondary"
-                onPress={() => void handleMarkWorn(item)}
-                loading={activeAction?.itemId === item.id && activeAction.action === "worn"}
-                disabled={Boolean(activeAction) || isUpdating}
-                style={styles.detoxButton}
-              />
-              <Button
-                title="Odunc"
-                variant="secondary"
-                onPress={() => void handleLendable(item)}
-                loading={activeAction?.itemId === item.id && activeAction.action === "lendable"}
-                disabled={Boolean(activeAction) || isUpdating}
-                style={styles.detoxButton}
-              />
-              <Button title="Satis" variant="ghost" onPress={() => handleListingDraft(item)} disabled={Boolean(activeAction) || isUpdating} style={styles.detoxButton} />
-              <Button
-                title="Sil"
-                variant="ghost"
-                onPress={() => handleDelete(item)}
-                loading={activeAction?.itemId === item.id && activeAction.action === "delete"}
-                disabled={Boolean(activeAction) || isUpdating}
-                style={styles.detoxButton}
-              />
-            </View>
-            <View style={styles.saleGuide}>
-              <View style={styles.saleGuideHeader}>
+              <View style={styles.saleGuide}>
+                <View style={styles.saleGuideHeader}>
+                  <Text variant="caption" color="muted">
+                    IKINCI EL HAZIRLIK
+                  </Text>
+                  <Text variant="caption" color="muted">
+                    {listingAdvice.price_low && listingAdvice.price_high
+                      ? `${formatCurrency(listingAdvice.price_low)}-${formatCurrency(listingAdvice.price_high)}`
+                      : "Fiyat icin alis tutari ekle"}
+                  </Text>
+                </View>
                 <Text variant="caption" color="muted">
-                  IKINCI EL HAZIRLIK
+                  {listingAdvice.description}
                 </Text>
-                <Text variant="caption" color="muted">
-                  {getSecondHandPriceHint(item) ? `~${formatCurrency(getSecondHandPriceHint(item) ?? 0)}` : "Fiyat icin alis tutari ekle"}
+                <Text variant="caption" color="secondary">
+                  Baslik: {listingAdvice.title}
                 </Text>
-              </View>
-              <Text variant="caption" color="muted">
-                Benzer ilanlari kontrol edip baslik/fiyat taslagini kullanabilirsin.
-              </Text>
-              <View style={styles.saleTargets}>
-                {buildShoppingSearchTargets(getSaleSearchQuery(item))
-                  .slice(0, 3)
-                  .map((target) => (
+                <View style={styles.saleTargets}>
+                  {listingAdvice.platform_notes.map((target) => (
                     <Pressable
                       key={target.label}
                       style={styles.saleChip}
@@ -680,10 +687,11 @@ function DetoxItemList({
                       </Text>
                     </Pressable>
                   ))}
+                </View>
               </View>
             </View>
-          </View>
-        ))
+          );
+        })
       ) : (
         <Text variant="body" color="secondary">
           {empty}
@@ -717,22 +725,8 @@ function getMissingPieceKey(piece: MissingWardrobePiece) {
   return `${piece.category}-${piece.label}-${piece.priority}`;
 }
 
-function getSaleSearchQuery(item: WardrobeItem) {
-  return [item.brand, item.subcategory ?? formatCategory(item.category), item.colors[0]].filter(Boolean).join(" ");
-}
-
 function getMissingPieceSearchQuery(piece: MissingWardrobePiece) {
   return [piece.suggested_colors[0], piece.label, formatCategory(piece.category)].filter(Boolean).join(" ");
-}
-
-function getSecondHandPriceHint(item: WardrobeItem) {
-  if (!item.purchase_price) {
-    return null;
-  }
-
-  const agePenalty = item.last_worn ? 0.5 : 0.45;
-  const usagePenalty = item.wear_count > 10 ? 0.35 : agePenalty;
-  return Math.max(Math.round(item.purchase_price * usagePenalty), 50);
 }
 
 async function openMarketSearch(url: string) {

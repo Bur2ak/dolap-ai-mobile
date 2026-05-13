@@ -565,6 +565,11 @@ function TrackingCard({
                   Son 30 gun dip: {formatCurrency(priceInsight.lowest_price_30d)}
                 </Text>
               ) : null}
+              {priceInsight.price_drop_count_30d > 0 ? (
+                <Text variant="caption" color="muted">
+                  Son 30 gun indirim sinyali: {priceInsight.price_drop_count_30d}
+                </Text>
+              ) : null}
             </View>
           ) : null}
           {targetProgress ? (

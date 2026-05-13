@@ -56,7 +56,7 @@ export default function FriendWardrobeScreen() {
     const categoryMatch = category === "all" || item.category === category;
     const queryMatch =
       !normalizedQuery ||
-      [item.category, item.subcategory, item.brand, ...item.colors, ...item.season]
+      [item.category, item.subcategory, item.brand, item.fabric, ...item.colors, ...item.season, ...item.usage_context]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalizedQuery));
 

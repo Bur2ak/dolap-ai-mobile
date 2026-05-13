@@ -1,4 +1,4 @@
-import type { MissingWardrobePiece, PriceTracking } from "@/types";
+import type { MissingWardrobePiece, PriceTracking, WardrobeItem } from "@/types";
 
 export interface PriceHistoryPoint {
   price: number;
@@ -11,6 +11,7 @@ export interface PriceInsight {
   status: "buy" | "wait" | "watch";
   lowest_price_30d: number | null;
   discount_percent_from_initial: number | null;
+  price_drop_count_30d: number;
 }
 
 export interface ShoppingSearchTarget {
@@ -25,10 +26,20 @@ export interface BudgetRecommendation {
   note: string;
 }
 
+export interface SecondHandListingAdvice {
+  title: string;
+  description: string;
+  price_low: number | null;
+  price_high: number | null;
+  platform_notes: ShoppingSearchTarget[];
+}
+
 const marketplaceTargets = [
   { baseUrl: "https://www.google.com/search?tbm=shop&q=", label: "Google Shopping", note: "Genis fiyat karsilastirmasi" },
   { baseUrl: "https://www.trendyol.com/sr?q=", label: "Trendyol", note: "Yeni urun alternatifleri" },
   { baseUrl: "https://dolap.com/ara?q=", label: "Dolap", note: "Ikinci el alternatif ara" },
+  { baseUrl: "https://www.google.com/search?q=site%3Agardrops.com+", label: "Gardrops", note: "Ikinci el satis/listeleme aramasi" },
+  { baseUrl: "https://www.google.com/search?q=site%3Amodacruz.com+", label: "Modacruz", note: "Premium ikinci el karsilastirmasi" },
 ];
 
 const categoryBudgetRanges: Record<string, [number, number, number]> = {
@@ -53,12 +64,17 @@ export function buildPriceInsight(tracking: PriceTracking, history: PriceHistory
   const lowestPrice = comparableHistory.length > 0 ? Math.min(...comparableHistory.map((entry) => entry.price), currentPrice) : currentPrice;
   const initialPrice = tracking.initial_price ?? history[0]?.price ?? currentPrice;
   const discountPercent = initialPrice > currentPrice ? Math.round(((initialPrice - currentPrice) / initialPrice) * 100) : 0;
+  const priceDropCount = countPriceDrops(comparableHistory);
 
   if (tracking.target_price && currentPrice <= tracking.target_price) {
     return {
-      body: "Hedef fiyat yakalanmis. Gercekten ihtiyacin varsa satin alma zamani.",
+      body:
+        priceDropCount >= 2
+          ? "Hedef fiyat yakalanmis ve bu urun son donemde birden fazla kez dusmus. Gercekten ihtiyacin varsa satin alma zamani."
+          : "Hedef fiyat yakalanmis. Gercekten ihtiyacin varsa satin alma zamani.",
       discount_percent_from_initial: discountPercent,
       lowest_price_30d: lowestPrice,
+      price_drop_count_30d: priceDropCount,
       status: "buy",
       title: "Hedef fiyat geldi",
     };
@@ -66,9 +82,13 @@ export function buildPriceInsight(tracking: PriceTracking, history: PriceHistory
 
   if (currentPrice <= lowestPrice && discountPercent >= 15) {
     return {
-      body: "Fiyat son kayitlara gore dipte ve ilk fiyata gore anlamli dusmus.",
+      body:
+        priceDropCount >= 2
+          ? "Fiyat son kayitlara gore dipte. Bu urun sik indirime giriyor; ihtiyac netse firsat, degilse hedef fiyati biraz daha asagi cekebilirsin."
+          : "Fiyat son kayitlara gore dipte ve ilk fiyata gore anlamli dusmus.",
       discount_percent_from_initial: discountPercent,
       lowest_price_30d: lowestPrice,
+      price_drop_count_30d: priceDropCount,
       status: "buy",
       title: "Almaya yakin",
     };
@@ -76,18 +96,26 @@ export function buildPriceInsight(tracking: PriceTracking, history: PriceHistory
 
   if (lowestPrice < currentPrice * 0.9) {
     return {
-      body: "Bu urun daha once daha dusuk seviyeyi gormus. Acele degilse indirim beklemek mantikli.",
+      body:
+        priceDropCount >= 2
+          ? "Bu urun daha once daha dusuk seviyeyi gormus ve tekrar eden indirim sinyali var. Acele degilse beklemek mantikli."
+          : "Bu urun daha once daha dusuk seviyeyi gormus. Acele degilse indirim beklemek mantikli.",
       discount_percent_from_initial: discountPercent,
       lowest_price_30d: lowestPrice,
+      price_drop_count_30d: priceDropCount,
       status: "wait",
       title: "Indirim beklenebilir",
     };
   }
 
   return {
-    body: "Net indirim sinyali yok. Hedef fiyat belirleyip takipte tutmak daha iyi.",
+    body:
+      priceDropCount >= 2
+        ? "Tekrar eden indirim sinyali var ama mevcut fiyat henuz yeterince iyi degil. Hedef fiyatla takipte kal."
+        : "Net indirim sinyali yok. Hedef fiyat belirleyip takipte tutmak daha iyi.",
     discount_percent_from_initial: discountPercent,
     lowest_price_30d: lowestPrice,
+    price_drop_count_30d: priceDropCount,
     status: "watch",
     title: "Takipte kal",
   };
@@ -130,10 +158,44 @@ export function buildBudgetRecommendations(piece: MissingWardrobePiece): BudgetR
   ];
 }
 
+export function buildSecondHandListingAdvice(item: WardrobeItem): SecondHandListingAdvice {
+  const label = [item.brand, item.subcategory ?? item.category, item.colors[0]].filter(Boolean).join(" ").trim() || item.category;
+  const priceRange = getSecondHandPriceRange(item);
+  const condition = item.wear_count <= 1 ? "az kullanildi" : item.wear_count <= 8 ? "temiz kullanildi" : "kullanim izleri fiyata yansitildi";
+  const seasonText = item.season.length > 0 ? `${item.season.join(", ")} sezonu icin uygun` : "gunluk kombinlere uygun";
+  const fabricText = item.fabric ? `${item.fabric} dokulu` : "dolaptan cikarma";
+
+  return {
+    description: `${condition}. ${seasonText}. ${fabricText}. Renk: ${item.colors.join(", ") || "belirtilmedi"}.`,
+    platform_notes: buildShoppingSearchTargets(label).filter((target) => target.label === "Dolap" || target.label === "Gardrops" || target.label === "Modacruz"),
+    price_high: priceRange?.high ?? null,
+    price_low: priceRange?.low ?? null,
+    title: label,
+  };
+}
+
+function getSecondHandPriceRange(item: WardrobeItem) {
+  if (!item.purchase_price) {
+    return null;
+  }
+
+  const baseRate = item.wear_count > 10 ? 0.32 : item.wear_count > 3 ? 0.42 : 0.52;
+  const low = Math.max(Math.round(item.purchase_price * Math.max(baseRate - 0.08, 0.22)), 50);
+  const high = Math.max(Math.round(item.purchase_price * Math.min(baseRate + 0.1, 0.7)), low + 50);
+  return { high, low };
+}
+
 function getRecentHistory(history: PriceHistoryPoint[], days: number) {
   const cutoff = Date.now() - days * 86_400_000;
   return history.filter((entry) => {
     const time = new Date(entry.date).getTime();
     return Number.isFinite(time) && time >= cutoff;
   });
+}
+
+function countPriceDrops(history: PriceHistoryPoint[]) {
+  return history.reduce((count, entry, index) => {
+    const previous = history[index - 1];
+    return previous && entry.price < previous.price ? count + 1 : count;
+  }, 0);
 }
