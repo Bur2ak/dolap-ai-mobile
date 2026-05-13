@@ -79,6 +79,21 @@ const settingsRoutes = [
   },
 ];
 
+const reviewChecks = [
+  {
+    label: "Gizlilik",
+    route: "/settings/privacy" as const,
+  },
+  {
+    label: "Destek",
+    route: "/settings/support" as const,
+  },
+  {
+    label: "Sistem",
+    route: "/settings/diagnostics" as const,
+  },
+];
+
 export default function SettingsScreen() {
   useEffect(() => {
     captureEvent("settings_screen_viewed", { route_count: settingsRoutes.length });
@@ -91,6 +106,30 @@ export default function SettingsScreen() {
         <Text variant="h2">Ayarlar</Text>
         <View style={styles.headerSpacer} />
       </View>
+
+      <Card style={styles.reviewCard}>
+        <Text variant="caption" color="muted">
+          APP REVIEW
+        </Text>
+        <Text variant="h3">Yayin oncesi merkez</Text>
+        <Text variant="body" color="secondary">
+          Store incelemesinde sorulabilecek destek, gizlilik, abonelik ve sistem durumlarini buradan dogrula.
+        </Text>
+        <View style={styles.reviewActions}>
+          {reviewChecks.map((item) => (
+            <Button
+              key={item.route}
+              title={item.label}
+              variant="secondary"
+              onPress={() => {
+                captureEvent("settings_review_shortcut_opened", { route: item.route, label: item.label });
+                router.push(item.route);
+              }}
+              style={styles.reviewButton}
+            />
+          ))}
+        </View>
+      </Card>
 
       <View style={styles.list}>
         {settingsRoutes.map((item) => (
@@ -140,6 +179,18 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: SPACING.md,
+  },
+  reviewCard: {
+    gap: SPACING.md,
+  },
+  reviewActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  reviewButton: {
+    flex: 1,
+    minHeight: 40,
+    paddingHorizontal: SPACING.sm,
   },
   row: {
     alignItems: "center",

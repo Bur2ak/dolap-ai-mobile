@@ -45,6 +45,26 @@ export default function ProfileScreen() {
     },
   ];
   const completedQuickStartSteps = quickStartSteps.filter((step) => step.done).length;
+  const readinessSteps = [
+    {
+      body: "Env, push, analytics ve crash ayarlari.",
+      label: "Sistem",
+      route: "/settings/diagnostics" as const,
+      title: "Sistem durumunu kontrol et",
+    },
+    {
+      body: "Gizlilik, destek ve hesap silme yollarini dogrula.",
+      label: "Review",
+      route: "/settings" as const,
+      title: "Store review akislarini ac",
+    },
+    {
+      body: "Premium teklifleri, restore ve limit ekranlarini test et.",
+      label: "Premium",
+      route: "/settings/subscription" as const,
+      title: "Abonelik hazirligini incele",
+    },
+  ];
 
   useEffect(() => {
     captureEvent("profile_screen_viewed", {
@@ -194,6 +214,32 @@ export default function ProfileScreen() {
         </Card>
       ) : null}
 
+      <Card style={styles.releaseCard}>
+        <Text variant="caption" color="muted">
+          YAYIN HAZIRLIK MERKEZI
+        </Text>
+        <Text variant="h3">Store oncesi hizli kontrol</Text>
+        <Text variant="body" color="secondary">
+          App review'a girmeden once en kritik ayar, gizlilik ve abonelik yuzeylerini buradan ac.
+        </Text>
+        {readinessSteps.map((step) => (
+          <View key={step.label} style={styles.releaseRow}>
+            <View style={styles.releaseBadge}>
+              <Text variant="caption" color="primary">
+                {step.label}
+              </Text>
+            </View>
+            <View style={styles.releaseCopy}>
+              <Text variant="label">{step.title}</Text>
+              <Text variant="caption" color="secondary">
+                {step.body}
+              </Text>
+            </View>
+            <Button title="Ac" variant="ghost" onPress={() => openRoute(step.route, `release_${step.label}`)} disabled={routeDisabled} style={styles.releaseButton} />
+          </View>
+        ))}
+      </Card>
+
       <View style={styles.menu}>
         <Card>
           <Button title="Ayarlar" variant="ghost" onPress={() => openRoute("/settings", "settings")} disabled={routeDisabled} />
@@ -334,6 +380,31 @@ const styles = StyleSheet.create({
   notificationCopy: {
     flex: 1,
     gap: SPACING.xs,
+  },
+  releaseCard: {
+    gap: SPACING.md,
+  },
+  releaseRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  releaseBadge: {
+    alignItems: "center",
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 999,
+    justifyContent: "center",
+    minWidth: 70,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  releaseCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  releaseButton: {
+    minHeight: 40,
+    paddingHorizontal: SPACING.sm,
   },
   premiumCopy: {
     gap: SPACING.xs,

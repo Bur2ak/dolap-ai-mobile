@@ -51,6 +51,13 @@ const checks = [
   },
 ];
 
+const storeUrls = [
+  { label: "Marketing", value: "https://shipirio.com" },
+  { label: "Privacy", value: "https://shipirio.com/privacy.html" },
+  { label: "Support", value: "https://shipirio.com/support.html" },
+  { label: "Account deletion", value: "https://shipirio.com/delete-account.html" },
+];
+
 export default function DiagnosticsScreen() {
   const warnings = getPublicEnvWarnings();
   const [pushReadiness, setPushReadiness] = useState<PushNotificationReadiness | null>(null);
@@ -176,6 +183,21 @@ export default function DiagnosticsScreen() {
         <Button title="Raporu Paylas" variant="secondary" onPress={() => void handleShareReport()} loading={isSharingReport} disabled={isBusy} />
       </Card>
 
+      <Card style={styles.summary}>
+        <Text variant="h3">Store URL'leri</Text>
+        <Text variant="body" color="secondary">
+          App Store ve Google Play formlarinda kullanilacak public sayfalar.
+        </Text>
+        {storeUrls.map((url) => (
+          <View key={url.label} style={styles.storeUrlRow}>
+            <Text variant="label">{url.label}</Text>
+            <Text variant="caption" color="muted" style={styles.storeUrlText}>
+              {url.value}
+            </Text>
+          </View>
+        ))}
+      </Card>
+
       <View style={styles.list}>
         {checks.map((check) => (
           <Card key={check.title} style={styles.row}>
@@ -239,6 +261,7 @@ function buildDiagnosticsReport({
 }) {
   const checkLines = checks.map((check) => `- ${check.title}: ${check.configured ? "OK" : "Eksik"}`).join("\n");
   const warningLines = warnings.length > 0 ? warnings.map((warning) => `- ${warning}`).join("\n") : "- Yok";
+  const storeUrlLines = storeUrls.map((url) => `- ${url.label}: ${url.value}`).join("\n");
   const pushLines = pushReadiness
     ? [
         `- Durum: ${pushReadiness.status}`,
@@ -257,6 +280,9 @@ function buildDiagnosticsReport({
     "",
     "Public ayarlar:",
     checkLines,
+    "",
+    "Store URL'leri:",
+    storeUrlLines,
     "",
     "Push:",
     pushLines,
@@ -339,5 +365,15 @@ const styles = StyleSheet.create({
   },
   warningText: {
     flex: 1,
+  },
+  storeUrlRow: {
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 2,
+    padding: SPACING.sm,
+  },
+  storeUrlText: {
+    flexShrink: 1,
   },
 });
