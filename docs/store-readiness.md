@@ -71,6 +71,7 @@ Optional cron setup:
 - Development-only local premium preview is hidden outside `__DEV__`.
 - Account deletion is available under profile/account settings and uses a 30 day waiting period.
 - Public account deletion instructions are available at `https://shipirio.com/delete-account.html`.
+- Support screen includes direct email templates, diagnostics routing, subscription routing and public support/legal links.
 - Price tracking depends on public product pages; some stores may block automated price detection.
 
 ## Store Listing Copy
