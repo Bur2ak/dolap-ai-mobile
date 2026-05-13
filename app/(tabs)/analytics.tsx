@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -18,6 +18,7 @@ import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { DistributionPoint, MissingWardrobePiece, StyleProfile, UpdateWardrobeItemInput, WardrobeGoal, WardrobeItem } from "@/types";
 import { formatCurrency, formatNumber, getCostPerWearLabel } from "@/utils/formatters";
+import { buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
 
 export default function AnalyticsScreen() {
   const { analytics, error, isLoading, isRefetching, refetch } = useWardrobeAnalytics();
@@ -477,8 +478,8 @@ function DetoxItemList({
       return;
     }
 
-    const title = [item.brand, item.subcategory ?? formatCategory(item.category), item.colors[0]].filter(Boolean).join(" ");
-    const priceHint = item.purchase_price ? Math.max(Math.round(item.purchase_price * 0.45), 50) : null;
+    const title = getSaleSearchQuery(item);
+    const priceHint = getSecondHandPriceHint(item);
     captureEvent("analytics_detox_listing_draft_opened", { item_id: item.id, has_price_hint: Boolean(priceHint) });
 
     Alert.alert(
@@ -579,6 +580,43 @@ function DetoxItemList({
                 style={styles.detoxButton}
               />
             </View>
+            <View style={styles.saleGuide}>
+              <View style={styles.saleGuideHeader}>
+                <Text variant="caption" color="muted">
+                  IKINCI EL HAZIRLIK
+                </Text>
+                <Text variant="caption" color="muted">
+                  {getSecondHandPriceHint(item) ? `~${formatCurrency(getSecondHandPriceHint(item) ?? 0)}` : "Fiyat icin alis tutari ekle"}
+                </Text>
+              </View>
+              <Text variant="caption" color="muted">
+                Benzer ilanlari kontrol edip baslik/fiyat taslagini kullanabilirsin.
+              </Text>
+              <View style={styles.saleTargets}>
+                {buildShoppingSearchTargets(getSaleSearchQuery(item))
+                  .slice(0, 3)
+                  .map((target) => (
+                    <Pressable
+                      key={target.label}
+                      style={styles.saleChip}
+                      onPress={() => {
+                        if (activeAction || isUpdating) {
+                          captureEvent("analytics_detox_market_search_blocked", { item_id: item.id, reason: "busy", target: target.label });
+                          return;
+                        }
+
+                        captureEvent("analytics_detox_market_search_opened", { item_id: item.id, target: target.label });
+                        void openMarketSearch(target.url);
+                      }}
+                      disabled={Boolean(activeAction) || isUpdating}
+                    >
+                      <Text variant="caption" color="secondary">
+                        {target.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+              </View>
+            </View>
           </View>
         ))
       ) : (
@@ -612,6 +650,35 @@ function formatLimit(value: number | boolean) {
 
 function getMissingPieceKey(piece: MissingWardrobePiece) {
   return `${piece.category}-${piece.label}-${piece.priority}`;
+}
+
+function getSaleSearchQuery(item: WardrobeItem) {
+  return [item.brand, item.subcategory ?? formatCategory(item.category), item.colors[0]].filter(Boolean).join(" ");
+}
+
+function getSecondHandPriceHint(item: WardrobeItem) {
+  if (!item.purchase_price) {
+    return null;
+  }
+
+  const agePenalty = item.last_worn ? 0.5 : 0.45;
+  const usagePenalty = item.wear_count > 10 ? 0.35 : agePenalty;
+  return Math.max(Math.round(item.purchase_price * usagePenalty), 50);
+}
+
+async function openMarketSearch(url: string) {
+  try {
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      Alert.alert("Link acilamadi", "Benzer ilan aramasi bu cihazda acilamadi.");
+      return;
+    }
+
+    await Linking.openURL(url);
+  } catch (error) {
+    captureError(error, { area: "analytics_detox_market_search_open" });
+    Alert.alert("Link acilamadi", "Benzer ilan aramasi acilamadi.");
+  }
 }
 
 function formatDistributionLabel(value: string) {
@@ -923,5 +990,29 @@ const styles = StyleSheet.create({
     minHeight: 38,
     minWidth: 78,
     paddingHorizontal: SPACING.sm,
+  },
+  saleGuide: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    gap: SPACING.xs,
+    padding: SPACING.sm,
+  },
+  saleGuideHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  saleTargets: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  saleChip: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
   },
 });

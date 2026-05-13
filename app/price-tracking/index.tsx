@@ -16,6 +16,7 @@ import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { MissingWardrobePiece, PriceTracking } from "@/types";
 import { formatCurrency, getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
+import { buildBudgetRecommendations, buildPriceInsight, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
 import { getOptionalHttpUrlError, normalizeOptionalHttpUrl } from "@/utils/validation";
 
 export default function PriceTrackingScreen() {
@@ -359,12 +360,33 @@ function SmartShoppingListCard({
                 <Text variant="caption" color="muted">
                   Renk onerisi: {piece.suggested_colors.join(", ")}
                 </Text>
+                <View style={styles.budgetGrid}>
+                  {buildBudgetRecommendations(piece).map((recommendation) => (
+                    <View key={recommendation.label} style={styles.budgetPill}>
+                      <Text variant="caption" color="muted">
+                        {recommendation.label}
+                      </Text>
+                      <Text variant="label">{recommendation.range}</Text>
+                    </View>
+                  ))}
+                </View>
                 <Button
                   title={added ? "Listede" : "Fiyat Takibine Ekle"}
                   variant="secondary"
                   onPress={() => void onAdd(piece)}
                   loading={isAddingThis}
                   disabled={added || disabled || (isAdding && !isAddingThis)}
+                  style={styles.smartAction}
+                />
+                <Button
+                  title="Ikinci El / Alternatif Ara"
+                  variant="ghost"
+                  onPress={() => {
+                    const targets = buildShoppingSearchTargets(productName);
+                    captureEvent("price_tracking_missing_piece_search_opened", { category: piece.category, target_count: targets.length });
+                    void openSearchTarget(targets.at(-1)?.url ?? targets[0]?.url, "Eksik parca alternatif aramasi acilamadi.");
+                  }}
+                  disabled={disabled}
                   style={styles.smartAction}
                 />
               </View>
@@ -408,6 +430,8 @@ function TrackingCard({
   const history = getPriceHistory(tracking);
   const latestPrice = tracking.current_price ?? history.at(-1)?.price ?? null;
   const targetProgress = getTargetProgress(latestPrice, tracking.initial_price, tracking.target_price);
+  const priceInsight = buildPriceInsight(tracking, history);
+  const alternativeTargets = buildShoppingSearchTargets(tracking.product_name);
   const isDeletingThis = activeDeleteId === tracking.id;
 
   useEffect(() => {
@@ -525,6 +549,24 @@ function TrackingCard({
             </View>
           </View>
           <PriceTrend history={history} />
+          {priceInsight ? (
+            <View style={[styles.insightBox, styles[`insight${priceInsight.status}`]]}>
+              <View style={styles.targetHeader}>
+                <Text variant="label">{priceInsight.title}</Text>
+                <Text variant="caption" color="muted">
+                  {priceInsight.discount_percent_from_initial !== null ? `%${priceInsight.discount_percent_from_initial}` : "Trend"}
+                </Text>
+              </View>
+              <Text variant="body" color="secondary">
+                {priceInsight.body}
+              </Text>
+              {priceInsight.lowest_price_30d ? (
+                <Text variant="caption" color="muted">
+                  Son 30 gun dip: {formatCurrency(priceInsight.lowest_price_30d)}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           {targetProgress ? (
             <View style={styles.targetBox}>
               <View style={styles.targetHeader}>
@@ -560,6 +602,35 @@ function TrackingCard({
               }}
               disabled={isBusy}
             />
+          ) : null}
+          {alternativeTargets.length > 0 ? (
+            <View style={styles.alternativeBox}>
+              <Text variant="caption" color="muted">
+                DAHA UYGUN ALTERNATIF
+              </Text>
+              <View style={styles.alternativeActions}>
+                {alternativeTargets.slice(0, 3).map((target) => (
+                  <Pressable
+                    key={target.label}
+                    style={styles.searchChip}
+                    onPress={() => {
+                      if (isBusy) {
+                        captureEvent("price_tracking_alternative_search_blocked", { reason: "busy", tracking_id: tracking.id });
+                        return;
+                      }
+
+                      captureEvent("price_tracking_alternative_search_opened", { target: target.label, tracking_id: tracking.id });
+                      void openSearchTarget(target.url, "Alternatif arama acilamadi.");
+                    }}
+                    disabled={isBusy}
+                  >
+                    <Text variant="caption" color="secondary">
+                      {target.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           ) : null}
         </>
       )}
@@ -707,6 +778,26 @@ async function openProductUrl(tracking: PriceTracking) {
   }
 }
 
+async function openSearchTarget(url: string | undefined, errorMessage: string) {
+  if (!url) {
+    Alert.alert("Link yok", errorMessage);
+    return;
+  }
+
+  try {
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      Alert.alert("Link acilamadi", errorMessage);
+      return;
+    }
+
+    await Linking.openURL(url);
+  } catch (error) {
+    captureError(error, { area: "shopping_search_open" });
+    Alert.alert("Link acilamadi", errorMessage);
+  }
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -766,6 +857,19 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     minHeight: 38,
     paddingHorizontal: SPACING.md,
+  },
+  budgetGrid: {
+    flexDirection: "row",
+    gap: SPACING.xs,
+  },
+  budgetPill: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flex: 1,
+    gap: 2,
+    padding: SPACING.xs,
   },
   list: {
     gap: SPACING.sm,
@@ -861,6 +965,20 @@ const styles = StyleSheet.create({
   targetBox: {
     gap: SPACING.xs,
   },
+  insightBox: {
+    borderRadius: 8,
+    gap: SPACING.xs,
+    padding: SPACING.sm,
+  },
+  insightbuy: {
+    backgroundColor: COLORS.primarySoft,
+  },
+  insightwait: {
+    backgroundColor: COLORS.warningSoft,
+  },
+  insightwatch: {
+    backgroundColor: COLORS.surfaceMuted,
+  },
   targetHeader: {
     alignItems: "center",
     flexDirection: "row",
@@ -879,6 +997,20 @@ const styles = StyleSheet.create({
   },
   successText: {
     color: COLORS.success,
+  },
+  alternativeBox: {
+    gap: SPACING.xs,
+  },
+  alternativeActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  searchChip: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
   },
   editForm: {
     gap: SPACING.sm,
