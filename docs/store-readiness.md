@@ -6,6 +6,8 @@
 - Support URL: `https://shipirio.com/support.html`
 - Account Deletion URL: `https://shipirio.com/delete-account.html`
 - Marketing URL: `https://shipirio.com`
+- Terms URL: `https://shipirio.com/terms.html`
+- KVKK URL: `https://shipirio.com/kvkk.html`
 
 ## App Identity
 
@@ -23,6 +25,19 @@
 - `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`
 - `EXPO_PUBLIC_SENTRY_DSN`
 - `EXPO_PUBLIC_POSTHOG_API_KEY`
+
+## Store Product Setup
+
+- RevenueCat entitlement: `premium`
+- App Store product IDs:
+  - `premium_monthly`
+  - `premium_yearly`
+- Google Play product IDs:
+  - `premium_monthly`
+  - `premium_yearly`
+- Both monthly and yearly products must unlock the same `premium` entitlement.
+- RevenueCat webhook URL: Supabase `revenuecat-webhook` function URL.
+- Webhook authorization: set `REVENUECAT_WEBHOOK_SECRET` in Supabase function secrets and configure the same bearer token in RevenueCat.
 
 ## Supabase Production Checklist
 
@@ -61,6 +76,14 @@ Optional cron setup:
 ## Store Listing Copy
 
 Ready-to-paste app descriptions, keywords and data safety notes are in `docs/store-listing.md`.
+
+## Screenshot Checklist
+
+- iPhone 6.7 inch: Dolabim, Kombin, Almali Miyim, Analiz, Fiyat Takibi, Profil.
+- iPhone 6.5 inch: same core screens if App Store Connect requires the slot.
+- Android phone: same core screens for Play Console.
+- Avoid showing real personal email addresses, private names or live API keys in screenshots.
+- Use a seeded demo account with clean clothing photos and no third-party copyrighted brand-heavy imagery.
 
 ## Domain Files
 
