@@ -9,6 +9,7 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useNotificationInbox } from "@/hooks/useNotificationInbox";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useWardrobe } from "@/hooks/useWardrobe";
 import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import { formatDate } from "@/utils/formatters";
@@ -17,16 +18,43 @@ export default function ProfileScreen() {
   const { profile, signOut } = useAuthStore();
   const { premium } = useSubscription();
   const { unreadCount } = useNotificationInbox();
+  const { items } = useWardrobe();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const profileIncomplete = Boolean(profile && (!profile.username || !profile.onboarding_completed));
+  const quickStartSteps = [
+    {
+      body: items.length > 0 ? `${items.length} kiyafet dolabinda.` : "Ilk parcani ekleyip AI analizini baslat.",
+      done: items.length > 0,
+      label: "Dolap",
+      route: items.length > 0 ? ("/" as const) : ("/item/add" as const),
+      title: items.length > 0 ? "Dolap kuruldu" : "Ilk kiyafeti ekle",
+    },
+    {
+      body: profileIncomplete ? "Kullanici adi ve profil bilgilerini tamamla." : "Sosyal ve destek akislari icin profil hazir.",
+      done: !profileIncomplete,
+      label: "Profil",
+      route: "/settings/account" as const,
+      title: profileIncomplete ? "Profilini tamamla" : "Profil hazir",
+    },
+    {
+      body: premium ? "Premium limitler aktif gorunuyor." : "Premium ozellikleri ve limitleri incele.",
+      done: premium,
+      label: "Plan",
+      route: "/settings/subscription" as const,
+      title: premium ? "Premium aktif" : "Planini kontrol et",
+    },
+  ];
+  const completedQuickStartSteps = quickStartSteps.filter((step) => step.done).length;
 
   useEffect(() => {
     captureEvent("profile_screen_viewed", {
       premium,
       profile_incomplete: profileIncomplete,
       deletion_requested: Boolean(profile?.deletion_requested_at),
+      quick_start_completed: completedQuickStartSteps,
+      wardrobe_count: items.length,
     });
-  }, [premium, profile?.deletion_requested_at, profileIncomplete]);
+  }, [completedQuickStartSteps, items.length, premium, profile?.deletion_requested_at, profileIncomplete]);
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
     if (isSigningOut) {
@@ -115,6 +143,34 @@ export default function ProfileScreen() {
           <Button title="Incele" onPress={() => openRoute("/paywall", "paywall")} disabled={routeDisabled} />
         </Card>
       ) : null}
+
+      <Card style={styles.quickStartCard}>
+        <View style={styles.quickStartHeader}>
+          <View style={styles.quickStartCopy}>
+            <Text variant="h3">Baslangic kontrolu</Text>
+            <Text variant="body" color="secondary">
+              {completedQuickStartSteps}/{quickStartSteps.length} adim tamam. Shipirio'yu gunluk kullanima hazirlayan ana aksiyonlar.
+            </Text>
+          </View>
+          <View style={styles.quickStartBadge}>
+            <Text variant="caption" color="primary">
+              {completedQuickStartSteps}/{quickStartSteps.length}
+            </Text>
+          </View>
+        </View>
+        {quickStartSteps.map((step) => (
+          <View key={step.label} style={styles.quickStartRow}>
+            <View style={[styles.stepDot, step.done && styles.stepDotDone]} />
+            <View style={styles.quickStartStepCopy}>
+              <Text variant="label">{step.title}</Text>
+              <Text variant="caption" color="secondary">
+                {step.body}
+              </Text>
+            </View>
+            <Button title={step.done ? "Ac" : "Basla"} variant="ghost" onPress={() => openRoute(step.route, `quick_start_${step.label}`)} disabled={routeDisabled} style={styles.quickStartButton} />
+          </View>
+        ))}
+      </Card>
 
       {profileIncomplete ? (
         <Card style={styles.profileNudge}>
@@ -217,6 +273,51 @@ const styles = StyleSheet.create({
   },
   premiumBanner: {
     gap: SPACING.md,
+  },
+  quickStartCard: {
+    gap: SPACING.md,
+  },
+  quickStartHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
+  },
+  quickStartCopy: {
+    flex: 1,
+    gap: SPACING.xs,
+  },
+  quickStartBadge: {
+    alignItems: "center",
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 999,
+    height: 42,
+    justifyContent: "center",
+    width: 42,
+  },
+  quickStartRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  quickStartStepCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  quickStartButton: {
+    minHeight: 40,
+    paddingHorizontal: SPACING.sm,
+  },
+  stepDot: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 14,
+    width: 14,
+  },
+  stepDotDone: {
+    backgroundColor: COLORS.success,
+    borderColor: COLORS.success,
   },
   profileNudge: {
     gap: SPACING.md,
