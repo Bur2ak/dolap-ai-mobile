@@ -43,6 +43,8 @@ const requiredFiles = [
   "public/privacy.html",
   "public/support.html",
   "public/delete-account.html",
+  "public/terms.html",
+  "public/kvkk.html",
   "docs/store-readiness.md",
   "docs/store-listing.md",
   "app/settings/support.tsx",
