@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -17,7 +17,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getMonthlyBuyDecisionCount, incrementMonthlyBuyDecisionCount } from "@/lib/usageLimits";
-import type { BuyDecisionRecord, WardrobeItem } from "@/types";
+import type { BuyDecisionRecord, BuyDecisionResult, WardrobeItem } from "@/types";
 import { getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
 import { optimizeImage } from "@/utils/imageUtils";
 import { buildSimilarWardrobeSummary } from "@/utils/similarWardrobe";
@@ -60,8 +60,9 @@ export default function BuyDecisionScreen() {
   const [monthlyUsage, setMonthlyUsage] = useState<number | null>(null);
   const [activeImageSource, setActiveImageSource] = useState<"camera" | "library" | null>(null);
   const [activeDeleteId, setActiveDeleteId] = useState<string | null>(null);
+  const [isSharingResult, setIsSharingResult] = useState(false);
   const isBusy = isPicking || isDeciding || isSaving;
-  const isActionBusy = isBusy || Boolean(activeImageSource) || Boolean(activeDeleteId);
+  const isActionBusy = isBusy || Boolean(activeImageSource) || Boolean(activeDeleteId) || isSharingResult;
 
   useEffect(() => {
     captureEvent("buy_decision_screen_viewed", {
@@ -201,6 +202,32 @@ export default function BuyDecisionScreen() {
     }
   }
 
+  async function handleShareResult() {
+    if (isActionBusy) {
+      captureEvent("buy_decision_result_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    if (!result) {
+      captureEvent("buy_decision_result_share_blocked", { reason: "missing_result" });
+      return;
+    }
+
+    setIsSharingResult(true);
+    try {
+      const shareResult = await Share.share({
+        message: buildBuyDecisionShareText(result, price, items.length),
+        title: "Shipirio Almali Miyim ozeti",
+      });
+      captureEvent("buy_decision_result_shared", { action: shareResult.action, decision: result.decision });
+    } catch (error) {
+      captureError(error, { area: "buy_decision_result_share", decision: result.decision });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingResult(false);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -274,6 +301,19 @@ export default function BuyDecisionScreen() {
 
       {result ? (
         <Card style={styles.resultCard}>
+          <View style={styles.resultHeader}>
+            <View>
+              <Text variant="caption" color="muted">
+                KARAR OZETI
+              </Text>
+              <Text variant="h3">{getDecisionTitle(result.decision)}</Text>
+            </View>
+            <View style={styles.confidenceBadge}>
+              <Text variant="label" color="inverse">
+                %{Math.round(result.confidence * 100)}
+              </Text>
+            </View>
+          </View>
           {(() => {
             const similarSummary = buildSimilarWardrobeSummary(result.similar_items_in_wardrobe, items);
 
@@ -341,6 +381,7 @@ export default function BuyDecisionScreen() {
             </Text>
           ) : null}
           <Button title="Karari Kaydet" variant="secondary" onPress={handleSave} loading={isSaving} disabled={isActionBusy} />
+          <Button title="Karari Paylas" variant="ghost" onPress={() => void handleShareResult()} loading={isSharingResult} disabled={isActionBusy} />
         </Card>
       ) : null}
 
@@ -471,6 +512,34 @@ function formatLimit(value: number | boolean) {
   return typeof value === "number" && Number.isFinite(value) ? String(value) : "sinirsiz";
 }
 
+function getDecisionTitle(decision: BuyDecisionResult["decision"]) {
+  if (decision === "AL") {
+    return "Almaya yakin";
+  }
+
+  if (decision === "BEKLEME") {
+    return "Indirim veya ihtiyac netligi beklenmeli";
+  }
+
+  return "Almadan once tekrar dusun";
+}
+
+function buildBuyDecisionShareText(result: BuyDecisionResult, price: string, wardrobeCount: number) {
+  return [
+    "Shipirio Almali Miyim ozeti",
+    `Karar: ${result.decision}`,
+    `Guven: %${Math.round(result.confidence * 100)}`,
+    price.trim() ? `Fiyat: ${price.trim()} TL` : null,
+    `Dolaptaki parca sayisi: ${wardrobeCount}`,
+    `Kombin potansiyeli: ${result.combination_count}`,
+    `Ana neden: ${result.main_reason}`,
+    result.cost_per_wear_suggestion,
+    result.discount_advice,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -509,6 +578,19 @@ const styles = StyleSheet.create({
   },
   resultCard: {
     gap: SPACING.md,
+  },
+  resultHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  confidenceBadge: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 52,
+    justifyContent: "center",
+    width: 52,
   },
   limitCard: {
     gap: SPACING.xs,

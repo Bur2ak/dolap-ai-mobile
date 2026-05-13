@@ -77,6 +77,7 @@ Optional cron setup:
 - Notification settings include push readiness checks, smart reminder setup and quick preference presets; notification inbox includes filters, cleanup actions and shareable digests.
 - Subscription surfaces include RevenueCat readiness checks, restore guidance, store billing notes and shareable subscription summaries.
 - Social surfaces include friend status summaries, invite reward guidance and shareable social readiness notes.
+- Shopping surfaces include shareable buy-decision results and price-tracking digests for reviewer validation.
 - Price tracking depends on public product pages; some stores may block automated price detection.
 
 ## Store Listing Copy

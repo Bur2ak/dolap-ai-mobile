@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -45,8 +45,9 @@ export default function PriceTrackingScreen() {
   const [targetPrice, setTargetPrice] = useState("");
   const [activeSmartPieceKey, setActiveSmartPieceKey] = useState<string | null>(null);
   const [activeDeleteId, setActiveDeleteId] = useState<string | null>(null);
+  const [isSharingSummary, setIsSharingSummary] = useState(false);
   const isBusy = isCreating || isUpdating || isDeleting || isChecking;
-  const isActionBusy = isBusy || Boolean(activeSmartPieceKey) || Boolean(activeDeleteId);
+  const isActionBusy = isBusy || Boolean(activeSmartPieceKey) || Boolean(activeDeleteId) || isSharingSummary;
   const targetReadyCount = trackings.filter((tracking) => tracking.current_price !== null && tracking.target_price !== null && tracking.current_price <= tracking.target_price).length;
   const trackedUrlCount = trackings.filter((tracking) => Boolean(tracking.product_url)).length;
 
@@ -219,6 +220,27 @@ export default function PriceTrackingScreen() {
     }
   }
 
+  async function handleShareTrackingSummary() {
+    if (isActionBusy) {
+      captureEvent("price_tracking_summary_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    setIsSharingSummary(true);
+    try {
+      const result = await Share.share({
+        message: buildPriceTrackingSummary(trackings, targetReadyCount, trackedUrlCount),
+        title: "Shipirio fiyat takibi ozeti",
+      });
+      captureEvent("price_tracking_summary_shared", { action: result.action, tracking_count: trackings.length });
+    } catch (error) {
+      captureError(error, { area: "price_tracking_summary_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingSummary(false);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -249,7 +271,10 @@ export default function PriceTrackingScreen() {
       <View style={styles.list}>
         <View style={styles.listHeader}>
           <Text variant="h3">Takip listesi</Text>
-          <Button title="Kontrol Et" variant="secondary" onPress={handleCheckPrices} loading={isChecking} disabled={trackings.length === 0 || isActionBusy} />
+          <View style={styles.listHeaderActions}>
+            <Button title="Ozet" variant="ghost" onPress={() => void handleShareTrackingSummary()} loading={isSharingSummary} disabled={trackings.length === 0 || isActionBusy} />
+            <Button title="Kontrol Et" variant="secondary" onPress={handleCheckPrices} loading={isChecking} disabled={trackings.length === 0 || isActionBusy} />
+          </View>
         </View>
         {trackings.length > 0 ? (
           <View style={styles.summaryGrid}>
@@ -762,6 +787,25 @@ function getTargetProgress(currentPrice: number | null, initialPrice: number | n
   };
 }
 
+function buildPriceTrackingSummary(trackings: PriceTracking[], targetReadyCount: number, trackedUrlCount: number) {
+  const latestItems = trackings.slice(0, 5).map((tracking) => {
+    const latestPrice = tracking.current_price ?? getPriceHistory(tracking).at(-1)?.price ?? null;
+    const target = tracking.target_price ? ` hedef ${formatCurrency(tracking.target_price)}` : " hedef yok";
+    return `- ${tracking.product_name}: ${latestPrice ? formatCurrency(latestPrice) : "fiyat yok"} /${target}`;
+  });
+
+  return [
+    "Shipirio fiyat takibi ozeti",
+    `Aktif takip: ${trackings.length}`,
+    `Hedef fiyat yakalayan: ${targetReadyCount}`,
+    `Linkli takip: ${trackedUrlCount}`,
+    latestItems.length > 0 ? "Urunler:" : null,
+    ...latestItems,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function formatPriceCheckDate(value: string) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) {
@@ -925,6 +969,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: SPACING.md,
     justifyContent: "space-between",
+  },
+  listHeaderActions: {
+    flexDirection: "row",
+    gap: SPACING.xs,
   },
   summaryGrid: {
     flexDirection: "row",

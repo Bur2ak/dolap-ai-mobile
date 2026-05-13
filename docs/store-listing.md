@@ -68,6 +68,7 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 - Premium purchases are managed by RevenueCat.
 - AI features may use uploaded item images and wardrobe metadata to produce clothing analysis, outfit suggestions and purchase guidance.
 - Price tracking depends on public product pages; unsupported pages may return no detected price.
+- Almali Miyim and Fiyat Takibi screens include shareable summaries so reviewers can verify outputs without relying on external storefront access.
 - Push notifications require device permission and Expo push token registration.
 - Reviewer can test core flows with a temporary review account seeded with sample wardrobe items.
 
