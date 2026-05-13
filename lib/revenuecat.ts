@@ -20,11 +20,11 @@ export function hasPremiumEntitlement(customerInfo: CustomerInfo | null) {
 
 export function getRevenueCatApiKey() {
   if (Platform.OS === "ios") {
-    return publicEnv.revenueCatIosKey;
+    return normalizeRevenueCatKey(publicEnv.revenueCatIosKey, "appl_");
   }
 
   if (Platform.OS === "android") {
-    return publicEnv.revenueCatAndroidKey;
+    return normalizeRevenueCatKey(publicEnv.revenueCatAndroidKey, "goog_");
   }
 
   return null;
@@ -94,10 +94,19 @@ export async function getRevenueCatPackages(): Promise<PurchasesPackage[]> {
 
   const { default: Purchases } = await import("react-native-purchases");
   const offerings = await Purchases.getOfferings();
-  return offerings.current?.availablePackages ?? [];
+  return (offerings.current?.availablePackages ?? []).filter(isPurchasablePackage).slice(0, 6);
 }
 
 export async function purchaseRevenueCatPackage(revenueCatPackage: PurchasesPackage) {
+  if (!isPurchasablePackage(revenueCatPackage)) {
+    throw new Error("RevenueCat paketi gecersiz.");
+  }
+
+  const status = await configureRevenueCat(configuredForUserId);
+  if (!status.configured) {
+    throw new Error(status.reason ?? "RevenueCat hazir degil.");
+  }
+
   const { default: Purchases } = await import("react-native-purchases");
   const result = await Purchases.purchasePackage(revenueCatPackage);
   return result.customerInfo;
@@ -111,4 +120,30 @@ export async function restoreRevenueCatPurchases() {
 
   const { default: Purchases } = await import("react-native-purchases");
   return Purchases.restorePurchases();
+}
+
+function normalizeRevenueCatKey(value: string | null, expectedPrefix: string) {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.startsWith(expectedPrefix) ? trimmed : null;
+}
+
+function isPurchasablePackage(value: unknown): value is PurchasesPackage {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<PurchasesPackage>;
+  const product = candidate.product;
+  return (
+    typeof candidate.identifier === "string" &&
+    candidate.identifier.trim().length > 0 &&
+    Boolean(product) &&
+    typeof product?.identifier === "string" &&
+    typeof product.priceString === "string" &&
+    typeof product.title === "string"
+  );
 }

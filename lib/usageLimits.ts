@@ -45,7 +45,7 @@ export async function incrementDailyOutfitSuggestionCount(userId: string): Promi
   }
 
   const record = await getDailyUsageRecord(userId);
-  const nextCount = record.count + 1;
+  const nextCount = normalizeUsageCount(record.count + 1) ?? maxLocalUsageCount;
   await writeUsageRecord(getDailyOutfitSuggestionKey(userId), { date: getTodayKey(), count: nextCount }, {
     area: "usage_counter_daily_local_write",
     metric: dailyOutfitMetric,
@@ -78,7 +78,7 @@ export async function incrementMonthlyBuyDecisionCount(userId: string): Promise<
   }
 
   const record = await getMonthlyUsageRecord(userId);
-  const nextCount = record.count + 1;
+  const nextCount = normalizeUsageCount(record.count + 1) ?? maxLocalUsageCount;
   await writeUsageRecord(getMonthlyBuyDecisionKey(userId), { month: getMonthKey(), count: nextCount }, {
     area: "usage_counter_monthly_local_write",
     metric: monthlyBuyDecisionMetric,
@@ -192,11 +192,12 @@ async function writeUsageRecord(
 }
 
 function normalizeUsageCount(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+  const count = typeof value === "number" ? value : typeof value === "string" && value.trim().length > 0 ? Number(value) : NaN;
+  if (!Number.isFinite(count) || count < 0) {
     return null;
   }
 
-  return Math.min(maxLocalUsageCount, Math.floor(value));
+  return Math.min(maxLocalUsageCount, Math.floor(count));
 }
 
 function getDailyOutfitSuggestionKey(userId: string) {

@@ -18,7 +18,7 @@ export function useSubscription() {
       return value;
     }
 
-    return value > 0;
+    return Number.isFinite(value) && value > 0;
   }
 
   function isLimitReached(feature: LimitKey, currentValue: number): boolean {
@@ -27,7 +27,8 @@ export function useSubscription() {
       return !value;
     }
 
-    return currentValue >= value;
+    const safeCurrentValue = Number.isFinite(currentValue) ? Math.max(0, Math.floor(currentValue)) : 0;
+    return safeCurrentValue >= value;
   }
 
   return {
@@ -42,7 +43,8 @@ export function useSubscription() {
 }
 
 function hasActiveProfilePremium(tier: string, expiresAt: string | null): boolean {
-  if (tier !== "premium" && tier !== "family") {
+  const normalizedTier = tier.trim().toLowerCase();
+  if (normalizedTier !== "premium" && normalizedTier !== "family") {
     return false;
   }
 

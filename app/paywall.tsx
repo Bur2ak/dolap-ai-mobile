@@ -300,19 +300,19 @@ const fallbackPlanCards = [
 ];
 
 function getPackagePlanCard(revenueCatPackage: PurchasesPackage) {
-  const packageType = revenueCatPackage.packageType.toLowerCase();
-  const title = revenueCatPackage.product.title || revenueCatPackage.identifier;
+  const packageType = String(revenueCatPackage.packageType ?? "").toLowerCase();
+  const title = getPackageTitle(revenueCatPackage);
 
   return {
     body: packageType.includes("annual") ? "En avantajli plan." : packageType.includes("monthly") ? "Esnek baslangic." : title,
     key: revenueCatPackage.identifier,
     label: getPackageLabel(revenueCatPackage),
-    price: revenueCatPackage.product.priceString,
+    price: getPackagePrice(revenueCatPackage),
   };
 }
 
 function getPackageLabel(revenueCatPackage: PurchasesPackage) {
-  const packageType = revenueCatPackage.packageType.toLowerCase();
+  const packageType = String(revenueCatPackage.packageType ?? "").toLowerCase();
   if (packageType.includes("annual")) {
     return "Yillik";
   }
@@ -321,7 +321,15 @@ function getPackageLabel(revenueCatPackage: PurchasesPackage) {
     return "Aylik";
   }
 
-  return revenueCatPackage.product.title || "Premium";
+  return getPackageTitle(revenueCatPackage);
+}
+
+function getPackageTitle(revenueCatPackage: PurchasesPackage) {
+  return revenueCatPackage.product.title?.trim() || revenueCatPackage.identifier || "Premium";
+}
+
+function getPackagePrice(revenueCatPackage: PurchasesPackage) {
+  return revenueCatPackage.product.priceString?.trim() || "Fiyat hazir degil";
 }
 
 const styles = StyleSheet.create({
