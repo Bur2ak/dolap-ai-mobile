@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { FlatList, Pressable, StyleSheet, View } from "react-native";
 
 import { Card } from "@/components/ui/Card";
@@ -23,10 +23,17 @@ const seasonFilters: Array<{ label: string; value: Season | "all" }> = [
   { label: "Sonbahar", value: "sonbahar" },
   { label: "Kis", value: "kis" },
 ];
+type SortMode = "newest" | "least_worn" | "most_worn";
+const sortModes: Array<{ label: string; value: SortMode }> = [
+  { label: "Yeni", value: "newest" },
+  { label: "Az giyilen", value: "least_worn" },
+  { label: "Cok giyilen", value: "most_worn" },
+];
 
 export default function WardrobeScreen() {
   const { items, error, isLoading, isRefetching, refetch } = useWardrobe();
   const { category, season, search, setCategory, setSeason, setSearch } = useWardrobeStore();
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
   const normalizedQuery = search.trim().toLowerCase();
   const hasActiveFilters = category !== "all" || season !== "all" || Boolean(normalizedQuery);
   const isBusy = isLoading || isRefetching;
@@ -41,14 +48,29 @@ export default function WardrobeScreen() {
 
     return categoryMatch && seasonMatch && queryMatch;
   });
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    if (sortMode === "least_worn") {
+      return a.wear_count - b.wear_count || newestFirst(a.created_at, b.created_at);
+    }
+
+    if (sortMode === "most_worn") {
+      return b.wear_count - a.wear_count || newestFirst(a.created_at, b.created_at);
+    }
+
+    return newestFirst(a.created_at, b.created_at);
+  });
+  const unwornCount = items.filter((item) => item.wear_count === 0).length;
+  const shareableCount = items.filter((item) => item.is_shareable).length;
+  const metadataMissingCount = items.filter((item) => item.colors.length === 0 || item.season.length === 0 || !item.subcategory).length;
 
   useEffect(() => {
     captureEvent("wardrobe_screen_viewed", {
       item_count: items.length,
-      filtered_count: filteredItems.length,
+      filtered_count: sortedItems.length,
       has_active_filters: hasActiveFilters,
+      sort_mode: sortMode,
     });
-  }, [filteredItems.length, hasActiveFilters, items.length]);
+  }, [hasActiveFilters, items.length, sortMode, sortedItems.length]);
 
   function clearFilters(source: "summary" | "empty") {
     if (isBusy) {
@@ -147,10 +169,47 @@ export default function WardrobeScreen() {
       />
 
       <Input label="Dolapta ara" value={search} onChangeText={setSearch} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" editable={!isBusy} />
+      <View style={styles.sortSection}>
+        <Text variant="caption" color="muted">
+          Siralama
+        </Text>
+        <View style={styles.sortChips}>
+          {sortModes.map((mode) => {
+            const active = mode.value === sortMode;
+            return (
+              <Pressable
+                key={mode.value}
+                style={[styles.sortChip, active && styles.activeSortChip]}
+                onPress={() => {
+                  if (isBusy) {
+                    captureEvent("wardrobe_sort_blocked", { reason: "busy", sort_mode: mode.value });
+                    return;
+                  }
+
+                  setSortMode(mode.value);
+                  captureEvent("wardrobe_sort_changed", { sort_mode: mode.value });
+                }}
+                disabled={isBusy}
+              >
+                <Text variant="caption" color={active ? "inverse" : "secondary"}>
+                  {mode.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      {items.length > 0 ? (
+        <View style={styles.wardrobeSignals}>
+          <SummaryPill label={`${unwornCount} giyilmemis`} tone={unwornCount > 0 ? "warning" : "normal"} />
+          <SummaryPill label={`${shareableCount} paylasimda`} tone="normal" />
+          <SummaryPill label={`${metadataMissingCount} eksik metadata`} tone={metadataMissingCount > 0 ? "warning" : "normal"} />
+        </View>
+      ) : null}
       {hasActiveFilters ? (
         <View style={styles.filterSummary}>
           <Text variant="caption" color="muted">
-            {filteredItems.length}/{items.length} kiyafet gosteriliyor
+            {sortedItems.length}/{items.length} kiyafet gosteriliyor
           </Text>
           <Pressable
             onPress={() => {
@@ -180,9 +239,9 @@ export default function WardrobeScreen() {
           }}
           style={styles.emptyState}
         />
-      ) : filteredItems.length > 0 ? (
+      ) : sortedItems.length > 0 ? (
         <FlatList
-          data={filteredItems}
+          data={sortedItems}
           keyExtractor={(item) => item.id}
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
@@ -211,6 +270,9 @@ export default function WardrobeScreen() {
                 <Text variant="label">{item.subcategory ?? item.category}</Text>
                 <Text variant="caption" color="muted">
                   {item.wear_count} kez giyildi
+                </Text>
+                <Text variant="caption" color="secondary">
+                  {[item.brand, item.colors[0], item.season[0]].filter(Boolean).join(" - ") || "Metadata bekliyor"}
                 </Text>
                 <View style={styles.itemSignals}>
                   {item.is_shareable ? <SignalPill label="Paylasim" /> : null}
@@ -254,6 +316,25 @@ function SignalPill({ label }: { label: string }) {
   );
 }
 
+function SummaryPill({ label, tone }: { label: string; tone: "normal" | "warning" }) {
+  return (
+    <View style={[styles.summaryPill, tone === "warning" ? styles.summaryPillWarning : null]}>
+      <Text variant="caption" color="secondary">
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function newestFirst(a: string, b: string) {
+  return getSortableTime(b) - getSortableTime(a);
+}
+
+function getSortableTime(value: string) {
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -288,6 +369,42 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     paddingBottom: SPACING.sm,
+  },
+  sortSection: {
+    gap: SPACING.xs,
+    paddingBottom: SPACING.sm,
+  },
+  sortChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+  },
+  sortChip: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  activeSortChip: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  wardrobeSignals: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.xs,
+    paddingBottom: SPACING.sm,
+  },
+  summaryPill: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+  },
+  summaryPillWarning: {
+    backgroundColor: COLORS.warningSoft,
   },
   chip: {
     backgroundColor: COLORS.surface,

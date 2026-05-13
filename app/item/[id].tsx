@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -16,7 +16,7 @@ import { SPACING } from "@/constants/spacing";
 import { useWardrobeItem } from "@/hooks/useWardrobe";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getUuidParam } from "@/lib/routeParams";
-import type { CareRecommendation, ClothingCategory, Season, SustainabilityInsight } from "@/types";
+import type { CareRecommendation, ClothingCategory, Season, SustainabilityInsight, WardrobeItem } from "@/types";
 import { getCareRecommendations } from "@/utils/care";
 import { getCostPerWearLabel, getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
 import { getSustainabilityInsight } from "@/utils/sustainability";
@@ -35,7 +35,7 @@ export default function ItemDetailScreen() {
   const [usageContext, setUsageContext] = useState("");
   const [price, setPrice] = useState("");
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [activeAction, setActiveAction] = useState<"save" | "worn" | "shareable" | "lendable" | "delete" | null>(null);
+  const [activeAction, setActiveAction] = useState<"save" | "worn" | "shareable" | "lendable" | "share" | "delete" | null>(null);
   const isBusy = isUpdating;
   const isActionBusy = Boolean(activeAction) || isBusy;
 
@@ -211,6 +211,31 @@ export default function ItemDetailScreen() {
         },
       },
     ]);
+  }
+
+  async function handleShareItemSummary() {
+    if (!item || isActionBusy) {
+      captureEvent("wardrobe_item_summary_share_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
+      return;
+    }
+
+    setActiveAction("share");
+    try {
+      const result = await Share.share({
+        message: buildItemShareSummary(item, costPerWear?.value ?? "Yok", sustainabilityInsight?.title ?? null),
+        title: "Shipirio kiyafet ozeti",
+      });
+      captureEvent("wardrobe_item_summary_shared", {
+        action: result.action,
+        category: item.category,
+        item_id: item.id,
+      });
+    } catch (error) {
+      captureError(error, { area: "wardrobe_item_summary_share", item_id: item.id });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
+    }
   }
 
   return (
@@ -427,6 +452,7 @@ export default function ItemDetailScreen() {
 
           <View style={styles.actions}>
             <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={activeAction === "worn"} disabled={isActionBusy} />
+            <Button title="Ozet Paylas" variant="secondary" onPress={() => void handleShareItemSummary()} loading={activeAction === "share"} disabled={isActionBusy} />
             <Button title="Sil" variant="secondary" onPress={handleDelete} loading={activeAction === "delete"} disabled={isActionBusy} />
           </View>
         </>
@@ -445,6 +471,32 @@ function StatusPill({ label, enabled }: { label: string; enabled: boolean }) {
       </Text>
     </View>
   );
+}
+
+function buildItemShareSummary(item: WardrobeItem, costPerWearValue: string, sustainabilityTitle: string | null) {
+  const lines = [
+    `Shipirio kiyafet ozeti: ${item.subcategory ?? item.category}`,
+    item.brand ? `Marka: ${item.brand}` : null,
+    item.colors.length > 0 ? `Renkler: ${item.colors.join(", ")}` : null,
+    item.season.length > 0 ? `Sezon: ${item.season.join(", ")}` : null,
+    item.fabric ? `Kumas: ${item.fabric}` : null,
+    item.usage_context.length > 0 ? `Kullanim: ${item.usage_context.join(", ")}` : null,
+    `Giyilme: ${item.wear_count}`,
+    item.last_worn ? `Son giyilme: ${formatItemDate(item.last_worn)}` : null,
+    `Kullanim basi maliyet: ${costPerWearValue}`,
+    sustainabilityTitle ? `Surdurulebilirlik: ${sustainabilityTitle}` : null,
+  ];
+
+  return lines.filter(Boolean).join("\n");
+}
+
+function formatItemDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("tr-TR");
 }
 
 function CareCard({ recommendations }: { recommendations: CareRecommendation[] }) {

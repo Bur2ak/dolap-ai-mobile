@@ -73,6 +73,7 @@ Optional cron setup:
 - Public account deletion instructions are available at `https://shipirio.com/delete-account.html`.
 - Support screen includes direct email templates, diagnostics routing, subscription routing and public support/legal links.
 - Privacy screen includes share controls, data category explanations, legal routing and a shareable privacy summary.
+- Wardrobe screen includes usage-based sorting, metadata readiness signals and item-level share summaries for reviewer-visible daily use flows.
 - Price tracking depends on public product pages; some stores may block automated price detection.
 
 ## Store Listing Copy
