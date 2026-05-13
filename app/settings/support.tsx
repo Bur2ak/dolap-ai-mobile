@@ -84,6 +84,20 @@ export default function SupportScreen() {
           loading={openingLink === "email"}
           disabled={Boolean(openingLink)}
         />
+        <Button
+          title="Sistem Raporu Hazirla"
+          variant="secondary"
+          onPress={() => {
+            if (openingLink) {
+              captureEvent("support_diagnostics_route_blocked", { reason: "busy" });
+              return;
+            }
+
+            captureEvent("support_diagnostics_route_opened");
+            router.push("/settings/diagnostics");
+          }}
+          disabled={Boolean(openingLink)}
+        />
       </Card>
 
       <Card style={styles.section}>

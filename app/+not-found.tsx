@@ -23,6 +23,7 @@ export default function NotFoundScreen() {
         </Text>
         <View style={styles.actions}>
           <Button title="Ana Sayfaya Don" onPress={() => router.replace("/(tabs)")} />
+          <Button title="Destek" variant="secondary" onPress={() => router.push("/settings/support")} />
           <Button title="Geri" variant="secondary" onPress={() => router.back()} />
         </View>
       </Card>

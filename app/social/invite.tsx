@@ -18,6 +18,12 @@ import { useAuthStore } from "@/stores/authStore";
 import type { ReferralReward } from "@/types";
 import { formatDate } from "@/utils/formatters";
 
+const inviteSteps = [
+  "Linki arkadasina gonder.",
+  "Arkadasin linkten seni bulup istek gondersin.",
+  "Istek kabul edilince iki hesaba da Premium odulu yazilir.",
+];
+
 export default function InviteScreen() {
   const { premium } = useSubscription();
   const { rewards, error, isLoading, isRefetching, refetch, userId } = useReferralRewards();
@@ -137,6 +143,22 @@ export default function InviteScreen() {
               </Text>
             )}
           </Card>
+
+          <Card style={styles.howItWorksCard}>
+            <Text variant="h3">Davet nasil calisir?</Text>
+            {inviteSteps.map((step, index) => (
+              <View key={step} style={styles.stepRow}>
+                <View style={styles.stepBadge}>
+                  <Text variant="caption" color="inverse">
+                    {index + 1}
+                  </Text>
+                </View>
+                <Text variant="body" color="secondary" style={styles.stepText}>
+                  {step}
+                </Text>
+              </View>
+            ))}
+          </Card>
         </>
       )}
     </ScrollView>
@@ -204,6 +226,9 @@ const styles = StyleSheet.create({
   rewardCard: {
     gap: SPACING.md,
   },
+  howItWorksCard: {
+    gap: SPACING.sm,
+  },
   rewardHeader: {
     alignItems: "center",
     flexDirection: "row",
@@ -225,6 +250,22 @@ const styles = StyleSheet.create({
   rewardCopy: {
     flex: 1,
     gap: 2,
+  },
+  stepRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  stepBadge: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 28,
+    justifyContent: "center",
+    width: 28,
+  },
+  stepText: {
+    flex: 1,
   },
   centerText: {
     textAlign: "center",
