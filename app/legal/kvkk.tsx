@@ -30,6 +30,27 @@ const sections = [
   },
 ];
 
+const rightsActions = [
+  {
+    title: "Gizlilik ayarlari",
+    body: "Dolap paylasimi ve arkadaslik istekleri gibi tercihleri degistir.",
+    action: "Ayarlari Ac",
+    route: "/settings/privacy",
+  },
+  {
+    title: "Hesap silme",
+    body: "30 gunluk bekleme sureli hesap silme talebini baslat veya iptal et.",
+    action: "Hesaba Git",
+    route: "/settings/account",
+  },
+  {
+    title: "KVKK talebi",
+    body: "Erisim, duzeltme veya silme talepleri icin destek ekranini kullan.",
+    action: "Destek Al",
+    route: "/settings/support",
+  },
+] as const;
+
 export default function KvkkScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -42,7 +63,7 @@ export default function KvkkScreen() {
       <Card style={styles.hero}>
         <Text variant="h1">KVKK Aydinlatma Metni</Text>
         <Text variant="body" color="secondary">
-          Son guncelleme: 2026-05-08. Bu metin uygulama ici gelistirme taslagidir; yayin oncesi hukuki gozden gecirme gerekir.
+          Son guncelleme: 2026-05-08. Bu ekran uygulama icindeki KVKK ozetidir; public metin shipirio.com/kvkk.html adresinde yayinlanir.
         </Text>
       </Card>
 
@@ -54,6 +75,24 @@ export default function KvkkScreen() {
           </Text>
         </Card>
       ))}
+
+      <Card style={styles.section}>
+        <Text variant="h3">Hak kullanimi</Text>
+        <Text variant="body" color="secondary">
+          Veri haklarini kullanmak ve hesap durumunu yonetmek icin bu uygulama ici yollar hazir tutulur.
+        </Text>
+        {rightsActions.map((item) => (
+          <View key={item.title} style={styles.rightRow}>
+            <View style={styles.rightText}>
+              <Text variant="label">{item.title}</Text>
+              <Text variant="body" color="secondary">
+                {item.body}
+              </Text>
+            </View>
+            <Button title={item.action} variant="secondary" onPress={() => router.push(item.route)} style={styles.rightButton} />
+          </View>
+        ))}
+      </Card>
     </ScrollView>
   );
 }
@@ -82,5 +121,18 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: SPACING.sm,
+  },
+  rightButton: {
+    alignSelf: "stretch",
+  },
+  rightRow: {
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: SPACING.sm,
+    padding: SPACING.md,
+  },
+  rightText: {
+    gap: SPACING.xs,
   },
 });

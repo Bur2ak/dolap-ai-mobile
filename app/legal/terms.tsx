@@ -26,6 +26,21 @@ const sections = [
   },
 ];
 
+const reviewActions = [
+  {
+    title: "Abonelik yonetimi",
+    body: "Premium durumunu, restore akisini ve magazaza yonlendirmelerini kontrol et.",
+    action: "Abonelige Git",
+    route: "/settings/subscription",
+  },
+  {
+    title: "Destek ve itiraz",
+    body: "Hesap, odeme veya kullanim sartlari icin destek ekranini ac.",
+    action: "Destek Al",
+    route: "/settings/support",
+  },
+] as const;
+
 export default function TermsScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -38,7 +53,7 @@ export default function TermsScreen() {
       <Card style={styles.hero}>
         <Text variant="h1">Shipirio Kullanim Sartlari</Text>
         <Text variant="body" color="secondary">
-          Son guncelleme: 2026-05-04. Bu ekran, yayin oncesi hukuki gozden gecirme icin uygulama ici taslak metindir.
+          Son guncelleme: 2026-05-04. Bu ekran uygulama icindeki sartlar ozetidir; public metin shipirio.com/terms.html adresinde yayinlanir.
         </Text>
       </Card>
 
@@ -50,6 +65,24 @@ export default function TermsScreen() {
           </Text>
         </Card>
       ))}
+
+      <Card style={styles.section}>
+        <Text variant="h3">Abonelik ve destek</Text>
+        <Text variant="body" color="secondary">
+          Satin alma, geri yukleme ve destek adimlari uygulama icinde kullanicinin kontrol edebilecegi ekranlara baglidir.
+        </Text>
+        {reviewActions.map((item) => (
+          <View key={item.title} style={styles.actionRow}>
+            <View style={styles.actionText}>
+              <Text variant="label">{item.title}</Text>
+              <Text variant="body" color="secondary">
+                {item.body}
+              </Text>
+            </View>
+            <Button title={item.action} variant="secondary" onPress={() => router.push(item.route)} style={styles.actionButton} />
+          </View>
+        ))}
+      </Card>
     </ScrollView>
   );
 }
@@ -78,5 +111,18 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: SPACING.sm,
+  },
+  actionButton: {
+    alignSelf: "stretch",
+  },
+  actionRow: {
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: SPACING.sm,
+    padding: SPACING.md,
+  },
+  actionText: {
+    gap: SPACING.xs,
   },
 });

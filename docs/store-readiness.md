@@ -79,6 +79,7 @@ Optional cron setup:
 - Social surfaces include friend status summaries, invite reward guidance and shareable social readiness notes.
 - Shopping surfaces include shareable buy-decision results and price-tracking digests for reviewer validation.
 - Profile and settings surfaces include release-readiness shortcuts for diagnostics, privacy, support and subscription review.
+- Account and legal surfaces include shareable account control summaries plus in-app privacy, account deletion, support and subscription control routes.
 - Price tracking depends on public product pages; some stores may block automated price detection.
 
 ## Store Listing Copy

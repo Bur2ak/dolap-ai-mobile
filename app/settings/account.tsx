@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 
 import { Button } from "@/components/ui/Button";
@@ -12,6 +12,7 @@ import { SPACING } from "@/constants/spacing";
 import { createPublicAppLink } from "@/lib/links";
 import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
+import type { Profile } from "@/types";
 import { formatDate, formatDateOnly } from "@/utils/formatters";
 import { getConfirmPasswordInputError, getPasswordInputError, getUsernameInputError, isValidUsername, normalizeUsername } from "@/utils/validation";
 
@@ -28,7 +29,8 @@ export default function AccountSettingsScreen() {
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isUpdatingDeletion, setIsUpdatingDeletion] = useState(false);
   const [isOpeningDeletionInfo, setIsOpeningDeletionInfo] = useState(false);
-  const isBusy = isSaving || isSavingPassword || isUpdatingDeletion || isOpeningDeletionInfo;
+  const [isSharingAccountSummary, setIsSharingAccountSummary] = useState(false);
+  const isBusy = isSaving || isSavingPassword || isUpdatingDeletion || isOpeningDeletionInfo || isSharingAccountSummary;
   const deletionInfoUrl = createPublicAppLink("/delete-account.html");
 
   useEffect(() => {
@@ -238,6 +240,30 @@ export default function AccountSettingsScreen() {
     }
   }
 
+  async function handleShareAccountSummary() {
+    if (isBusy) {
+      captureEvent("account_summary_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    try {
+      setIsSharingAccountSummary(true);
+      await Share.share({
+        title: "Shipirio hesap kontrol ozeti",
+        message: buildAccountControlSummary(profile, session?.user.email ?? null),
+      });
+      captureEvent("account_summary_shared", {
+        has_profile: Boolean(profile),
+        deletion_requested: Boolean(profile?.deletion_requested_at),
+      });
+    } catch (error) {
+      captureError(error, { area: "account_summary_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingAccountSummary(false);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -258,6 +284,24 @@ export default function AccountSettingsScreen() {
           {bio.trim().length}/{maxBioLength}
         </Text>
         <Button title="Kaydet" onPress={handleSave} loading={isSaving} disabled={isBusy} />
+      </Card>
+
+      <Card style={styles.form}>
+        <Text variant="h3">Hesap kontrol ozeti</Text>
+        <Text variant="body" color="secondary">
+          Profil, sozlesme ve silme durumunu destek veya store review icin tek metinde paylas.
+        </Text>
+        <View style={styles.statusGrid}>
+          {getAccountReadiness(profile, session?.user.email ?? null).map((item) => (
+            <View key={item.label} style={[styles.statusPill, item.ready ? styles.statusPillReady : styles.statusPillWarn]}>
+              <Text variant="caption" color={item.ready ? "primary" : "secondary"}>
+                {item.label}
+              </Text>
+              <Text variant="label">{item.value}</Text>
+            </View>
+          ))}
+        </View>
+        <Button title="Hesap Ozetini Paylas" variant="secondary" onPress={handleShareAccountSummary} loading={isSharingAccountSummary} disabled={isBusy} />
       </Card>
 
       <Card style={styles.form}>
@@ -315,8 +359,77 @@ const styles = StyleSheet.create({
   form: {
     gap: SPACING.md,
   },
+  statusGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+  },
+  statusPill: {
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexGrow: 1,
+    gap: SPACING.xs,
+    minWidth: "45%",
+    padding: SPACING.sm,
+  },
+  statusPillReady: {
+    backgroundColor: COLORS.primarySoft,
+  },
+  statusPillWarn: {
+    backgroundColor: COLORS.surface,
+  },
   dangerZone: {
     borderColor: COLORS.danger,
     gap: SPACING.md,
   },
 });
+
+function getAccountReadiness(profile: Profile | null, email: string | null) {
+  return [
+    {
+      label: "E-posta",
+      value: email ? "Bagli" : "Eksik",
+      ready: Boolean(email),
+    },
+    {
+      label: "Profil",
+      value: profile?.full_name ? "Hazir" : "Eksik",
+      ready: Boolean(profile?.full_name),
+    },
+    {
+      label: "Onboarding",
+      value: profile?.onboarding_completed ? "Tamam" : "Devam",
+      ready: Boolean(profile?.onboarding_completed),
+    },
+    {
+      label: "Silme talebi",
+      value: profile?.deletion_requested_at ? "Beklemede" : "Yok",
+      ready: !profile?.deletion_requested_at,
+    },
+  ];
+}
+
+function buildAccountControlSummary(profile: Profile | null, email: string | null) {
+  const rows = getAccountReadiness(profile, email).map((item) => `- ${item.label}: ${item.value}`);
+  const deletionLine = profile?.deletion_requested_at
+    ? `Hesap silme talebi: ${formatDate(profile.deletion_requested_at)} tarihinde alindi. Planlanan silme: ${profile.deletion_scheduled_for ? formatDate(profile.deletion_scheduled_for) : "30 gun icinde"}.`
+    : "Hesap silme talebi: aktif talep yok.";
+
+  return [
+    "Shipirio hesap kontrol ozeti",
+    "",
+    `E-posta: ${email ?? "Yok"}`,
+    `Kullanici adi: ${profile?.username ?? "Yok"}`,
+    `Ad Soyad: ${profile?.full_name ?? "Yok"}`,
+    `Uyelik: ${profile?.subscription_tier ?? "Bilinmiyor"}`,
+    "",
+    "Durum:",
+    ...rows,
+    "",
+    deletionLine,
+    `Hesap silme bilgisi: ${createPublicAppLink("/delete-account.html")}`,
+    `Gizlilik: ${createPublicAppLink("/privacy.html")}`,
+    `Destek: ${createPublicAppLink("/support.html")}`,
+  ].join("\n");
+}

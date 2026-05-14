@@ -26,6 +26,27 @@ const sections = [
   },
 ];
 
+const controls = [
+  {
+    title: "Gizlilik tercihleri",
+    body: "Dolap gorunurlugu ve arkadaslik isteklerini yonet.",
+    action: "Tercihlere Git",
+    route: "/settings/privacy",
+  },
+  {
+    title: "Hesap ve silme",
+    body: "Profil bilgilerini, sifreni ve hesap silme talebini yonet.",
+    action: "Hesaba Git",
+    route: "/settings/account",
+  },
+  {
+    title: "Destek",
+    body: "Veri veya gizlilik talebi icin destek kanalini ac.",
+    action: "Destek Al",
+    route: "/settings/support",
+  },
+] as const;
+
 export default function PrivacyPolicyScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -38,7 +59,7 @@ export default function PrivacyPolicyScreen() {
       <Card style={styles.hero}>
         <Text variant="h1">Shipirio Gizlilik Politikasi</Text>
         <Text variant="body" color="secondary">
-          Son guncelleme: 2026-05-04. Bu ekran, uygulama ici MVP gizlilik metnidir; yayin oncesi hukuki metinle netlestirilmelidir.
+          Son guncelleme: 2026-05-04. Bu ekran uygulama icindeki gizlilik ozetidir; public metin shipirio.com/privacy.html adresinde yayinlanir.
         </Text>
       </Card>
 
@@ -50,6 +71,24 @@ export default function PrivacyPolicyScreen() {
           </Text>
         </Card>
       ))}
+
+      <Card style={styles.section}>
+        <Text variant="h3">Kontrol yollari</Text>
+        <Text variant="body" color="secondary">
+          Gizlilik ve veri yonetimi ayarlarini uygulama icinden asagidaki ekranlardan kontrol edebilirsin.
+        </Text>
+        {controls.map((control) => (
+          <View key={control.title} style={styles.controlRow}>
+            <View style={styles.controlText}>
+              <Text variant="label">{control.title}</Text>
+              <Text variant="body" color="secondary">
+                {control.body}
+              </Text>
+            </View>
+            <Button title={control.action} variant="secondary" onPress={() => router.push(control.route)} style={styles.controlButton} />
+          </View>
+        ))}
+      </Card>
     </ScrollView>
   );
 }
@@ -78,5 +117,18 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: SPACING.sm,
+  },
+  controlButton: {
+    alignSelf: "stretch",
+  },
+  controlRow: {
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: SPACING.sm,
+    padding: SPACING.md,
+  },
+  controlText: {
+    gap: SPACING.xs,
   },
 });
