@@ -24,7 +24,7 @@ Shipirio, dolabindaki kiyafetleri tek yerde toplamana ve her gun ne giyecegine d
 
 Kiyafetlerini fotografla ekleyebilir, kategori, renk, sezon ve marka bilgileriyle dolabini arayabilirsin. Kombin onerileri; dolabindaki parcalar, ruh halin, etkinlik tipi ve hava durumu gibi sinyallerle desteklenir. Alisveris karar motoru, yeni bir urunu mevcut dolabinla karsilastirarak satin alma kararina yardim eder.
 
-Shipirio ayrica fiyat takibi, bildirimler, arkadaslarla paylasim, oylama, odunc istegi, premium ozellikler ve hesap/veri yonetimi akislari sunar. Hesap silme talebi uygulama icinden baslatilabilir ve gizlilik sayfalarina uygulama icinden ulasilabilir.
+Shipirio ayrica fiyat takibi, bildirimler, arkadaslarla paylasim, oylama, odunc istegi ve odunc takip ozetleri, premium ozellikler ve hesap/veri yonetimi akislari sunar. Hesap silme talebi uygulama icinden baslatilabilir ve gizlilik sayfalarina uygulama icinden ulasilabilir.
 
 ## App Store Promotional Text
 
@@ -69,6 +69,9 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 - AI features may use uploaded item images and wardrobe metadata to produce clothing analysis, outfit suggestions and purchase guidance.
 - Price tracking depends on public product pages; unsupported pages may return no detected price.
 - Almali Miyim and Fiyat Takibi screens include shareable summaries so reviewers can verify outputs without relying on external storefront access.
+- Suraya Gidiyorum includes shareable event outfit suggestions, travel packing plans and saved event summaries.
+- Stil Panosu includes shareable trend summaries for public shared outfits.
+- Odunc Takibi includes shareable incoming/outgoing loan summaries and overdue status signals.
 - Account and legal screens include in-app privacy controls, account deletion controls and shareable account status summaries for review.
 - Support and diagnostics screens include shareable app/build context, public legal URLs and submission readiness checks for reviewer support.
 - Push notifications require device permission and Expo push token registration.

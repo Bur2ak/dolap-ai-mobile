@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { CachedImage } from "@/components/ui/CachedImage";
@@ -12,13 +12,14 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { fetchPublicOutfitFeed } from "@/lib/api/outfits";
-import { captureEvent } from "@/lib/observability";
+import { captureError, captureEvent } from "@/lib/observability";
 import type { SharedOutfit } from "@/types";
 
 type FeedMode = "trend" | "recent" | "loved";
 
 export default function StyleFeedScreen() {
   const [mode, setMode] = useState<FeedMode>("trend");
+  const [isSharingSummary, setIsSharingSummary] = useState(false);
   const feedQuery = useQuery({
     queryKey: ["public-outfit-feed"],
     queryFn: fetchPublicOutfitFeed,
@@ -33,6 +34,31 @@ export default function StyleFeedScreen() {
       mode,
     });
   }, [feed.length, feedQuery.isLoading, mode]);
+
+  async function handleShareFeedSummary() {
+    if (isSharingSummary) {
+      captureEvent("style_feed_summary_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    try {
+      setIsSharingSummary(true);
+      const result = await Share.share({
+        title: "Shipirio stil panosu ozeti",
+        message: buildFeedSummary(visibleFeed, mode),
+      });
+      captureEvent("style_feed_summary_shared", {
+        completed: result.action === Share.sharedAction,
+        feed_count: visibleFeed.length,
+        mode,
+      });
+    } catch (error) {
+      captureError(error, { area: "style_feed_summary_share", mode });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingSummary(false);
+    }
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -55,6 +81,7 @@ export default function StyleFeedScreen() {
           </View>
           <Ionicons name="albums-outline" size={28} color={COLORS.primary} />
         </View>
+        <Button title="Pano Ozetini Paylas" variant="secondary" onPress={() => void handleShareFeedSummary()} loading={isSharingSummary} disabled={isSharingSummary || visibleFeed.length === 0} />
       </Card>
 
       <View style={styles.modeRow}>
@@ -230,6 +257,27 @@ function getFeedSignals(sharedOutfit: SharedOutfit, trendScore: number, loveCoun
   ];
 
   return signals.filter(Boolean).slice(0, 4) as string[];
+}
+
+function buildFeedSummary(feed: SharedOutfit[], mode: FeedMode) {
+  const topItems = feed.slice(0, 5).map((sharedOutfit, index) => {
+    const ownerName = sharedOutfit.owner?.full_name ?? sharedOutfit.owner?.username ?? "Shipirio kullanicisi";
+    const loveCount = getLoveCount(sharedOutfit);
+    const trendScore = getTrendScore(sharedOutfit);
+    return `#${index + 1} ${sharedOutfit.outfit.name ?? "Paylasilan kombin"} - ${ownerName} - ${loveCount} favori - trend ${trendScore}`;
+  });
+
+  return [
+    "Shipirio stil panosu ozeti",
+    "",
+    `Mod: ${feedModes.find((item) => item.value === mode)?.label ?? mode}`,
+    `Paylasilan kombin: ${feed.length}`,
+    "",
+    "One cikanlar:",
+    ...(topItems.length > 0 ? topItems : ["Paylasilan kombin yok."]),
+    "",
+    "Pano, paylasima acik kombinleri ve arkadas oylarini siralar.",
+  ].join("\n");
 }
 
 function getTopValues(values: Array<string | null | undefined>) {

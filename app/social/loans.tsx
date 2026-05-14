@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -34,6 +34,7 @@ export default function LoansScreen() {
   const { loanRequests, error, isLoading, isRefetching, refetch, updateLoanRequestStatus, isUpdating, userId } = useLoanRequests();
   const [filter, setFilter] = useState<LoanFilter>("all");
   const [activeStatusAction, setActiveStatusAction] = useState<{ id: string; status: LoanRequestStatus } | null>(null);
+  const [isSharingSummary, setIsSharingSummary] = useState(false);
   const incoming = loanRequests.filter((request) => request.owner_id === userId);
   const outgoing = loanRequests.filter((request) => request.requester_id === userId);
   const pendingCount = loanRequests.filter((request) => request.status === "pending").length;
@@ -41,7 +42,7 @@ export default function LoansScreen() {
   const overdueCount = loanRequests.filter(isLoanOverdue).length;
   const filteredIncoming = filter === "outgoing" ? [] : filterLoanRequests(incoming, filter);
   const filteredOutgoing = filter === "incoming" ? [] : filterLoanRequests(outgoing, filter);
-  const isBusy = Boolean(activeStatusAction) || isUpdating;
+  const isBusy = Boolean(activeStatusAction) || isUpdating || isSharingSummary;
 
   useEffect(() => {
     captureEvent("loan_requests_screen_viewed", {
@@ -141,6 +142,39 @@ export default function LoansScreen() {
     }
   }
 
+  async function handleShareLoanSummary() {
+    if (isBusy) {
+      captureEvent("loan_requests_summary_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    try {
+      setIsSharingSummary(true);
+      const result = await Share.share({
+        title: "Shipirio odunc ozeti",
+        message: buildLoanSummary({
+          activeCount,
+          incoming,
+          loanRequests,
+          outgoing,
+          overdueCount,
+          pendingCount,
+          userId,
+        }),
+      });
+      captureEvent("loan_requests_summary_shared", {
+        completed: result.action === Share.sharedAction,
+        loan_count: loanRequests.length,
+        overdue_count: overdueCount,
+      });
+    } catch (error) {
+      captureError(error, { area: "loan_requests_summary_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingSummary(false);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -173,6 +207,14 @@ export default function LoansScreen() {
               </Text>
             </View>
           </View>
+          <Button
+            title="Ozet Paylas"
+            variant="ghost"
+            onPress={() => void handleShareLoanSummary()}
+            loading={isSharingSummary}
+            disabled={isBusy || loanRequests.length === 0}
+            style={styles.summaryButton}
+          />
         </View>
       </Card>
 
@@ -390,6 +432,47 @@ function isLoanOverdue(loanRequest: LoanRequest) {
   return loanRequest.status === "approved" && loanRequest.due_date ? new Date(loanRequest.due_date).getTime() < new Date().setHours(0, 0, 0, 0) : false;
 }
 
+function buildLoanSummary({
+  activeCount,
+  incoming,
+  loanRequests,
+  outgoing,
+  overdueCount,
+  pendingCount,
+  userId,
+}: {
+  activeCount: number;
+  incoming: LoanRequest[];
+  loanRequests: LoanRequest[];
+  outgoing: LoanRequest[];
+  overdueCount: number;
+  pendingCount: number;
+  userId?: string;
+}) {
+  const latest = loanRequests.slice(0, 5).map((request) => {
+    const role = request.owner_id === userId ? "Gelen" : "Giden";
+    const itemLabel = request.item?.subcategory ?? request.item?.brand ?? request.item?.category ?? "Kiyafet";
+    const due = request.due_date ? formatRelativeDueDate(request.due_date) : "iade tarihi yok";
+    return `- ${role}: ${itemLabel} / ${statusLabels[request.status]} / ${due}`;
+  });
+
+  return [
+    "Shipirio odunc ozeti",
+    "",
+    `Toplam kayit: ${loanRequests.length}`,
+    `Gelen: ${incoming.length}`,
+    `Giden: ${outgoing.length}`,
+    `Bekleyen: ${pendingCount}`,
+    `Aktif: ${activeCount}`,
+    `Geciken: ${overdueCount}`,
+    "",
+    "Son kayitlar:",
+    ...(latest.length > 0 ? latest : ["- Kayit yok"]),
+    "",
+    "Odunc akisi arkadas dolabi ve paylasilabilir parcalar uzerinden yonetilir.",
+  ].join("\n");
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -431,6 +514,11 @@ const styles = StyleSheet.create({
   },
   summaryPillWarning: {
     backgroundColor: COLORS.dangerSoft,
+  },
+  summaryButton: {
+    alignSelf: "flex-start",
+    minHeight: 36,
+    paddingHorizontal: SPACING.sm,
   },
   filterRow: {
     flexDirection: "row",

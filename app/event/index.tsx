@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -52,8 +52,9 @@ export default function EventPlannerScreen() {
   const [eventDate, setEventDate] = useState(getDefaultEventDate());
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
+  const [isSharingPlan, setIsSharingPlan] = useState(false);
   const styleCalendar = buildStyleCalendar(events, items);
-  const isBusy = isRecommending || isSaving;
+  const isBusy = isRecommending || isSaving || isSharingPlan;
 
   const eventInput: EventPlanInput = {
     title: title.trim(),
@@ -237,6 +238,56 @@ export default function EventPlannerScreen() {
     }
   }
 
+  async function handleSharePackingPlan(plan: TravelPackingPlan) {
+    if (isBusy) {
+      captureEvent("event_travel_packing_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    try {
+      setIsSharingPlan(true);
+      const result = await Share.share({
+        title: "Shipirio valiz plani",
+        message: buildTravelPackingShareText(plan, eventInput),
+      });
+      captureEvent("event_travel_packing_shared", {
+        completed: result.action === Share.sharedAction,
+        item_count: plan.items.length,
+        missing_count: plan.items.filter((item) => item.status === "missing").length,
+      });
+    } catch (error) {
+      captureError(error, { area: "event_travel_packing_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingPlan(false);
+    }
+  }
+
+  async function handleShareSuggestion(suggestion: OutfitSuggestion, suggestionItems: WardrobeItem[]) {
+    if (isBusy) {
+      captureEvent("event_suggestion_share_blocked", { reason: "busy", item_count: suggestion.items.length });
+      return;
+    }
+
+    try {
+      setIsSharingPlan(true);
+      const result = await Share.share({
+        title: "Shipirio etkinlik kombini",
+        message: buildEventSuggestionShareText(eventInput, suggestion, suggestionItems),
+      });
+      captureEvent("event_suggestion_shared", {
+        completed: result.action === Share.sharedAction,
+        event_type: eventInput.event_type,
+        item_count: suggestion.items.length,
+      });
+    } catch (error) {
+      captureError(error, { area: "event_suggestion_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingPlan(false);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -276,6 +327,8 @@ export default function EventPlannerScreen() {
         <TravelPackingCard
           plan={packingPlan}
           disabled={isBusy}
+          isSharing={isSharingPlan}
+          onShare={() => void handleSharePackingPlan(packingPlan)}
           onUsePlan={() => {
             const missingItems = packingPlan.items.filter((item) => item.status === "missing").map((item) => item.label);
             const planNote = `Valiz plani: ${packingPlan.items.map((item) => item.label).join(", ")}.`;
@@ -375,6 +428,7 @@ export default function EventPlannerScreen() {
                   </View>
                 ) : null}
                 <Button title="Planla ve Kaydet" variant="secondary" onPress={() => void handlePlanSuggestion(suggestion)} loading={isSaving} disabled={isBusy} />
+                <Button title="Oneriyi Paylas" variant="ghost" onPress={() => void handleShareSuggestion(suggestion, suggestionItems)} loading={isSharingPlan} disabled={isBusy} />
               </Card>
             );
           })}
@@ -450,7 +504,19 @@ function StyleCalendarCard({ days, onPlanDay, disabled }: { days: StyleCalendarD
   );
 }
 
-function TravelPackingCard({ plan, onUsePlan, disabled }: { plan: TravelPackingPlan; onUsePlan: () => void; disabled: boolean }) {
+function TravelPackingCard({
+  plan,
+  onShare,
+  onUsePlan,
+  disabled,
+  isSharing,
+}: {
+  plan: TravelPackingPlan;
+  onShare: () => void;
+  onUsePlan: () => void;
+  disabled: boolean;
+  isSharing: boolean;
+}) {
   return (
     <Card style={styles.packingCard}>
       <View style={styles.calendarHeader}>
@@ -480,7 +546,10 @@ function TravelPackingCard({ plan, onUsePlan, disabled }: { plan: TravelPackingP
         ))}
       </View>
 
-      <Button title="Nota Ekle" variant="secondary" onPress={onUsePlan} disabled={disabled} />
+      <View style={styles.inlineActions}>
+        <Button title="Nota Ekle" variant="secondary" onPress={onUsePlan} disabled={disabled} style={styles.inlineActionButton} />
+        <Button title="Paylas" variant="ghost" onPress={onShare} loading={isSharing} disabled={disabled} style={styles.inlineActionButton} />
+      </View>
     </Card>
   );
 }
@@ -504,7 +573,7 @@ function EventPlanCard({
   const [eventDate, setEventDate] = useState(event.event_date.slice(0, 16));
   const [location, setLocation] = useState(event.location ?? "");
   const [notes, setNotes] = useState(event.notes ?? "");
-  const [activeAction, setActiveAction] = useState<"save" | "calendar" | "reminder" | "delete" | null>(null);
+  const [activeAction, setActiveAction] = useState<"save" | "calendar" | "reminder" | "share" | "delete" | null>(null);
   const isCardBusy = disabled || isSaving || Boolean(activeAction);
 
   useEffect(() => {
@@ -604,6 +673,31 @@ function EventPlanCard({
     } catch (error) {
       captureError(error, { area: "event_reminder_schedule", event_id: event.id });
       Alert.alert("Hatirlatici kurulamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setActiveAction(null);
+    }
+  }
+
+  async function handleShareEvent() {
+    if (isCardBusy) {
+      captureEvent("event_plan_share_blocked", { event_id: event.id, reason: "busy" });
+      return;
+    }
+
+    setActiveAction("share");
+    try {
+      const result = await Share.share({
+        title: "Shipirio etkinlik plani",
+        message: buildSavedEventShareText(event),
+      });
+      captureEvent("event_plan_shared", {
+        completed: result.action === Share.sharedAction,
+        event_id: event.id,
+        has_outfit: Boolean(event.outfit_id),
+      });
+    } catch (error) {
+      captureError(error, { area: "event_plan_share", event_id: event.id });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setActiveAction(null);
     }
@@ -724,6 +818,7 @@ function EventPlanCard({
           {new Date(event.event_date).getTime() > Date.now() ? (
             <Button title="Hatirlatici Kur" variant="ghost" onPress={() => void handleScheduleReminder()} loading={activeAction === "reminder"} disabled={isCardBusy} />
           ) : null}
+          <Button title="Plani Paylas" variant="ghost" onPress={() => void handleShareEvent()} loading={activeAction === "share"} disabled={isCardBusy} />
         </>
       )}
     </Card>
@@ -804,6 +899,63 @@ function clearEventDraft(
   setTitle("");
   setLocation("");
   setNotes("");
+}
+
+function buildTravelPackingShareText(plan: TravelPackingPlan, input: EventPlanInput) {
+  const lines = plan.items.map((item) => `- ${item.label}: ${item.status === "ready" ? "Hazir" : "Eksik"} (${item.reason})`);
+
+  return [
+    "Shipirio valiz plani",
+    "",
+    `Etkinlik: ${input.title || "Isimsiz plan"}`,
+    `Tip: ${input.event_type}`,
+    `Tarih: ${formatEventDate(input.event_date)}`,
+    input.location ? `Lokasyon: ${input.location}` : null,
+    input.weather ? `Hava: ${input.weather.temp} C, ${input.weather.description}` : "Hava: yok",
+    "",
+    plan.summary,
+    ...lines,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildEventSuggestionShareText(input: EventPlanInput, suggestion: OutfitSuggestion, suggestionItems: WardrobeItem[]) {
+  const itemLines = suggestionItems.length > 0 ? suggestionItems.map((item) => `- ${item.subcategory ?? item.category}${item.brand ? ` (${item.brand})` : ""}`) : ["- Parcalar dolap kaydindan secildi."];
+
+  return [
+    "Shipirio etkinlik kombini",
+    "",
+    `Etkinlik: ${input.title || "Isimsiz plan"}`,
+    `Tip: ${input.event_type}`,
+    `Tarih: ${formatEventDate(input.event_date)}`,
+    input.location ? `Lokasyon: ${input.location}` : null,
+    "",
+    suggestion.name,
+    suggestion.reason,
+    suggestion.formality_match ?? null,
+    suggestion.accessory_note ?? null,
+    "",
+    "Parcalar:",
+    ...itemLines,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildSavedEventShareText(event: EventRecord) {
+  return [
+    "Shipirio etkinlik plani",
+    "",
+    `Etkinlik: ${event.title}`,
+    `Tip: ${event.event_type}`,
+    `Tarih: ${formatEventDate(event.event_date)}`,
+    event.location ? `Lokasyon: ${event.location}` : null,
+    event.notes ? `Not: ${event.notes}` : null,
+    `Durum: ${event.outfit_id ? "Kombin bagli" : event.calendar_event_id ? "Takvime eklendi" : "Sadece Shipirio plani"}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 const styles = StyleSheet.create({
@@ -900,6 +1052,13 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: SPACING.sm,
+  },
+  inlineActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  inlineActionButton: {
+    flex: 1,
   },
   results: {
     gap: SPACING.sm,
