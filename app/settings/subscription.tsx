@@ -67,6 +67,7 @@ export default function SubscriptionSettingsScreen() {
   const { trackings } = usePriceTracking();
   const { history } = useBuyDecision();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSharingSummary, setIsSharingSummary] = useState(false);
   const planName = premium ? "Premium" : "Free";
   const profilePlanName = profile?.subscription_tier ?? "free";
   const expiryLabel = profile?.subscription_expires_at ? formatDate(profile.subscription_expires_at) : "Belirtilmemis";
@@ -79,6 +80,7 @@ export default function SubscriptionSettingsScreen() {
   } satisfies Record<NonNullable<(typeof trackedLimitRows)[number]["usage"]>, number>;
   const readinessItems = getSubscriptionReadinessItems(revenueCatReadiness.configured, premium, Boolean(profile?.revenuecat_customer_id));
   const readinessScore = readinessItems.filter((item) => item.ready).length;
+  const isBusy = isRefreshing || isSharingSummary;
 
   useEffect(() => {
     captureEvent("subscription_settings_screen_viewed", {
@@ -89,7 +91,7 @@ export default function SubscriptionSettingsScreen() {
   }, [localPremiumOverride, planName, revenueCatReadiness.configured]);
 
   async function handleRefreshSubscription() {
-    if (isRefreshing) {
+    if (isBusy) {
       captureEvent("subscription_refresh_blocked", { reason: "busy" });
       return;
     }
@@ -117,7 +119,7 @@ export default function SubscriptionSettingsScreen() {
   }
 
   function handleOpenPaywall() {
-    if (isRefreshing) {
+    if (isBusy) {
       captureEvent("subscription_paywall_open_blocked", { reason: "busy" });
       return;
     }
@@ -127,12 +129,13 @@ export default function SubscriptionSettingsScreen() {
   }
 
   async function handleShareSubscriptionSummary() {
-    if (isRefreshing) {
+    if (isBusy) {
       captureEvent("subscription_summary_share_blocked", { reason: "busy" });
       return;
     }
 
     try {
+      setIsSharingSummary(true);
       const result = await Share.share({
         message: buildSubscriptionSummary({
           expiryLabel,
@@ -147,15 +150,17 @@ export default function SubscriptionSettingsScreen() {
     } catch (error) {
       captureError(error, { area: "subscription_summary_share" });
       Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingSummary(false);
     }
   }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isRefreshing} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Abonelik</Text>
-        <View style={styles.headerSpacer} />
+        <Button title="Ozet" variant="secondary" onPress={() => void handleShareSubscriptionSummary()} loading={isSharingSummary} disabled={isBusy} />
       </View>
 
       <Card style={styles.hero}>
@@ -263,16 +268,16 @@ export default function SubscriptionSettingsScreen() {
         <Button
           title={premium ? "Paywall'i Ac" : "Premium'a Gec"}
           onPress={handleOpenPaywall}
-          disabled={isRefreshing}
+          disabled={isBusy}
         />
-        <Button title="Aboneligi Yenile" variant="secondary" onPress={() => void handleRefreshSubscription()} loading={isRefreshing} disabled={isRefreshing} />
-        <Button title="Abonelik Ozetini Paylas" variant="secondary" onPress={() => void handleShareSubscriptionSummary()} disabled={isRefreshing} />
+        <Button title="Aboneligi Yenile" variant="secondary" onPress={() => void handleRefreshSubscription()} loading={isRefreshing} disabled={isBusy} />
+        <Button title="Abonelik Ozetini Paylas" variant="secondary" onPress={() => void handleShareSubscriptionSummary()} loading={isSharingSummary} disabled={isBusy} />
         {localPremiumOverride ? (
           <Button
             title="Onizlemeyi Kapat"
             variant="secondary"
             onPress={() => {
-              if (isRefreshing) {
+              if (isBusy) {
                 captureEvent("premium_preview_deactivate_blocked", { reason: "busy" });
                 return;
               }
@@ -280,7 +285,7 @@ export default function SubscriptionSettingsScreen() {
               setLocalPremiumOverride(false);
               captureEvent("premium_preview_deactivated");
             }}
-            disabled={isRefreshing}
+            disabled={isBusy}
           />
         ) : null}
       </View>
@@ -382,9 +387,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  headerSpacer: {
-    width: 72,
   },
   hero: {
     gap: SPACING.sm,
