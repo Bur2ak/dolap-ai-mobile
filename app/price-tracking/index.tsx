@@ -246,7 +246,7 @@ export default function PriceTrackingScreen() {
       <View style={styles.header}>
         <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isActionBusy} />
         <Text variant="h2">Fiyat Takibi</Text>
-        <View style={styles.headerSpacer} />
+        <Button title="Ozet" variant="secondary" onPress={() => void handleShareTrackingSummary()} loading={isSharingSummary} disabled={trackings.length === 0 || isActionBusy} />
       </View>
 
       <Card style={styles.form}>
@@ -788,6 +788,13 @@ function getTargetProgress(currentPrice: number | null, initialPrice: number | n
 }
 
 function buildPriceTrackingSummary(trackings: PriceTracking[], targetReadyCount: number, trackedUrlCount: number) {
+  const noUrlCount = trackings.length - trackedUrlCount;
+  const noTargetCount = trackings.filter((tracking) => tracking.target_price === null).length;
+  const readyPercent = trackings.length > 0 ? Math.round((targetReadyCount / trackings.length) * 100) : 0;
+  const targetReadyItems = trackings
+    .filter((tracking) => tracking.current_price !== null && tracking.target_price !== null && tracking.current_price <= tracking.target_price)
+    .slice(0, 3)
+    .map((tracking) => `- ${tracking.product_name}: hedef yakalandi (${formatCurrency(tracking.current_price ?? 0)})`);
   const latestItems = trackings.slice(0, 5).map((tracking) => {
     const latestPrice = tracking.current_price ?? getPriceHistory(tracking).at(-1)?.price ?? null;
     const target = tracking.target_price ? ` hedef ${formatCurrency(tracking.target_price)}` : " hedef yok";
@@ -797,8 +804,12 @@ function buildPriceTrackingSummary(trackings: PriceTracking[], targetReadyCount:
   return [
     "Shipirio fiyat takibi ozeti",
     `Aktif takip: ${trackings.length}`,
-    `Hedef fiyat yakalayan: ${targetReadyCount}`,
+    `Hedef fiyat yakalayan: ${targetReadyCount} (%${readyPercent})`,
     `Linkli takip: ${trackedUrlCount}`,
+    `Manuel takip: ${noUrlCount}`,
+    `Hedef fiyati olmayan: ${noTargetCount}`,
+    targetReadyItems.length > 0 ? "Hedefi yakalayanlar:" : null,
+    ...targetReadyItems,
     latestItems.length > 0 ? "Urunler:" : null,
     ...latestItems,
   ]
@@ -903,9 +914,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  headerSpacer: {
-    width: 72,
   },
   form: {
     gap: SPACING.md,

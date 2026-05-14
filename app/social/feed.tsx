@@ -26,6 +26,7 @@ export default function StyleFeedScreen() {
   });
   const feed = feedQuery.data ?? [];
   const visibleFeed = useMemo(() => sortFeed(feed, mode), [feed, mode]);
+  const isBusy = isSharingSummary;
 
   useEffect(() => {
     captureEvent("style_feed_screen_viewed", {
@@ -36,7 +37,7 @@ export default function StyleFeedScreen() {
   }, [feed.length, feedQuery.isLoading, mode]);
 
   async function handleShareFeedSummary() {
-    if (isSharingSummary) {
+    if (isBusy) {
       captureEvent("style_feed_summary_share_blocked", { reason: "busy" });
       return;
     }
@@ -63,9 +64,9 @@ export default function StyleFeedScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Stil Panosu</Text>
-        <View style={styles.headerSpacer} />
+        <Button title="Ozet" variant="secondary" onPress={() => void handleShareFeedSummary()} loading={isSharingSummary} disabled={isBusy || visibleFeed.length === 0} />
       </View>
 
       <Card style={styles.heroCard}>
@@ -81,7 +82,7 @@ export default function StyleFeedScreen() {
           </View>
           <Ionicons name="albums-outline" size={28} color={COLORS.primary} />
         </View>
-        <Button title="Pano Ozetini Paylas" variant="secondary" onPress={() => void handleShareFeedSummary()} loading={isSharingSummary} disabled={isSharingSummary || visibleFeed.length === 0} />
+        <Button title="Pano Ozetini Paylas" variant="secondary" onPress={() => void handleShareFeedSummary()} loading={isSharingSummary} disabled={isBusy || visibleFeed.length === 0} />
       </Card>
 
       <View style={styles.modeRow}>
@@ -91,11 +92,17 @@ export default function StyleFeedScreen() {
             <Pressable
               key={item.value}
               accessibilityRole="button"
-              style={[styles.modeButton, active && styles.modeButtonActive]}
+              style={[styles.modeButton, active && styles.modeButtonActive, isBusy && styles.modeButtonDisabled]}
               onPress={() => {
+                if (isBusy) {
+                  captureEvent("style_feed_mode_change_blocked", { mode: item.value, reason: "busy" });
+                  return;
+                }
+
                 setMode(item.value);
                 captureEvent("style_feed_mode_changed", { mode: item.value });
               }}
+              disabled={isBusy}
             >
               <Text variant="label" color={active ? "inverse" : "secondary"}>
                 {item.label}
@@ -260,6 +267,10 @@ function getFeedSignals(sharedOutfit: SharedOutfit, trendScore: number, loveCoun
 }
 
 function buildFeedSummary(feed: SharedOutfit[], mode: FeedMode) {
+  const totalVotes = feed.reduce((sum, sharedOutfit) => sum + sharedOutfit.votes.length, 0);
+  const topCategories = getTopValues(feed.flatMap((sharedOutfit) => sharedOutfit.items.map((item) => item.subcategory ?? item.category))).slice(0, 3);
+  const topColors = getTopValues(feed.flatMap((sharedOutfit) => sharedOutfit.items.flatMap((item) => item.colors))).slice(0, 3);
+  const topContexts = getTopValues(feed.flatMap((sharedOutfit) => sharedOutfit.items.flatMap((item) => item.usage_context))).slice(0, 3);
   const topItems = feed.slice(0, 5).map((sharedOutfit, index) => {
     const ownerName = sharedOutfit.owner?.full_name ?? sharedOutfit.owner?.username ?? "Shipirio kullanicisi";
     const loveCount = getLoveCount(sharedOutfit);
@@ -272,6 +283,10 @@ function buildFeedSummary(feed: SharedOutfit[], mode: FeedMode) {
     "",
     `Mod: ${feedModes.find((item) => item.value === mode)?.label ?? mode}`,
     `Paylasilan kombin: ${feed.length}`,
+    `Toplam oy: ${totalVotes}`,
+    `Populer kategoriler: ${topCategories.join(", ") || "Yok"}`,
+    `Populer renkler: ${topColors.join(", ") || "Yok"}`,
+    `Ortam sinyalleri: ${topContexts.join(", ") || "Yok"}`,
     "",
     "One cikanlar:",
     ...(topItems.length > 0 ? topItems : ["Paylasilan kombin yok."]),
@@ -306,9 +321,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  headerSpacer: {
-    width: 72,
-  },
   heroCard: {
     gap: SPACING.md,
   },
@@ -340,6 +352,9 @@ const styles = StyleSheet.create({
   modeButtonActive: {
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
+  },
+  modeButtonDisabled: {
+    opacity: 0.72,
   },
   feedGrid: {
     flexDirection: "row",

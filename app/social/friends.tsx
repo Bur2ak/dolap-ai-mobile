@@ -215,7 +215,13 @@ export default function FriendsScreen() {
       <View style={styles.header}>
         <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Arkadaslar</Text>
-        <View style={styles.headerSpacer} />
+        <Button
+          title="Ozet"
+          variant="secondary"
+          onPress={() => void handleShareSocialSummary()}
+          loading={activeAction?.type === "share_summary"}
+          disabled={!premium || friendships.length === 0 || isBusy}
+        />
       </View>
 
       {!premium ? (
@@ -587,9 +593,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  headerSpacer: {
-    width: 72,
   },
   searchCard: {
     gap: SPACING.md,

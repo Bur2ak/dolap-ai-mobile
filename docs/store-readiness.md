@@ -80,10 +80,10 @@ Optional cron setup:
 - Notification settings include push readiness checks, smart reminder setup, quick preference presets and shareable notification readiness summaries; notification inbox includes filters, cleanup actions and shareable digests.
 - Subscription surfaces include RevenueCat readiness checks, restore guidance, store billing notes, guarded refresh/share actions and shareable subscription summaries.
 - Profile surface includes a shareable launch-readiness summary across onboarding, wardrobe, premium and review routes.
-- Social surfaces include friend status summaries, invite reward guidance and shareable social readiness notes.
-- Style feed includes shareable trend summaries for public shared outfit validation.
+- Social surfaces include header-level friend status summaries, invite reward guidance and shareable social readiness notes.
+- Style feed includes guarded header-level trend summaries with category, color, context and vote signals for public shared outfit validation.
 - Lending surfaces include shareable incoming/outgoing loan summaries, overdue signals and status controls.
-- Shopping surfaces include shareable buy-decision results and price-tracking digests for reviewer validation.
+- Shopping surfaces include shareable buy-decision results plus header-level price-tracking digests with target, link and manual tracking signals for reviewer validation.
 - Event planner includes shareable travel packing plans, event outfit suggestions and saved event summaries.
 - Profile and settings surfaces include release-readiness shortcuts for diagnostics, privacy, support and subscription review.
 - Settings review center includes a shareable review checklist for app-review handoff.
