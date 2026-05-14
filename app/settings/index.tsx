@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -103,14 +103,41 @@ const reviewChecks = [
 ];
 
 export default function SettingsScreen() {
+  const [isSharingReviewChecklist, setIsSharingReviewChecklist] = useState(false);
+
   useEffect(() => {
     captureEvent("settings_screen_viewed", { route_count: settingsRoutes.length });
   }, []);
 
+  async function handleShareReviewChecklist() {
+    if (isSharingReviewChecklist) {
+      captureEvent("settings_review_checklist_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    try {
+      setIsSharingReviewChecklist(true);
+      const result = await Share.share({
+        title: "Shipirio review kontrol ozeti",
+        message: buildReviewChecklistShareText(),
+      });
+      captureEvent("settings_review_checklist_shared", {
+        action: result.action,
+        completed: result.action === Share.sharedAction,
+        route_count: settingsRoutes.length,
+      });
+    } catch (error) {
+      captureEvent("settings_review_checklist_share_failed", { message: error instanceof Error ? error.message : "unknown" });
+      Alert.alert("Ozet paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingReviewChecklist(false);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isSharingReviewChecklist} />
         <Text variant="h2">Ayarlar</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -123,6 +150,14 @@ export default function SettingsScreen() {
         <Text variant="body" color="secondary">
           Store incelemesinde sorulabilecek destek, gizlilik, abonelik ve sistem durumlarini buradan dogrula.
         </Text>
+        <Button
+          title="Review Ozetini Paylas"
+          variant="secondary"
+          onPress={() => void handleShareReviewChecklist()}
+          loading={isSharingReviewChecklist}
+          disabled={isSharingReviewChecklist}
+          style={styles.reviewShareButton}
+        />
         <View style={styles.reviewActions}>
           {reviewChecks.map((item) => (
             <Button
@@ -130,9 +165,15 @@ export default function SettingsScreen() {
               title={item.label}
               variant="secondary"
               onPress={() => {
+                if (isSharingReviewChecklist) {
+                  captureEvent("settings_review_shortcut_blocked", { route: item.route, label: item.label, reason: "sharing" });
+                  return;
+                }
+
                 captureEvent("settings_review_shortcut_opened", { route: item.route, label: item.label });
                 router.push(item.route);
               }}
+              disabled={isSharingReviewChecklist}
               style={styles.reviewButton}
             />
           ))}
@@ -155,15 +196,39 @@ export default function SettingsScreen() {
               title="Ac"
               variant="ghost"
               onPress={() => {
+                if (isSharingReviewChecklist) {
+                  captureEvent("settings_route_blocked", { route: item.route, title: item.title, reason: "sharing" });
+                  return;
+                }
+
                 captureEvent("settings_route_opened", { route: item.route, title: item.title });
                 router.push(item.route);
               }}
+              disabled={isSharingReviewChecklist}
             />
           </Card>
         ))}
       </View>
     </ScrollView>
   );
+}
+
+function buildReviewChecklistShareText() {
+  return [
+    "Shipirio review kontrol ozeti",
+    "",
+    "Yayin oncesi ana yuzeyler:",
+    ...reviewChecks.map((item) => `- ${item.label}: ${item.route}`),
+    "",
+    "Ayarlar menusu:",
+    ...settingsRoutes.map((item) => `- ${item.title}: ${item.body}`),
+    "",
+    "Reviewer akis onerisi:",
+    "1. Hesap ve gizlilik kontrollerini ac.",
+    "2. Abonelik/restore ekranini incele.",
+    "3. Sistem durumu ve destek baglamini paylas.",
+    "4. Yasal metinlere uygulama icinden ulasildigini dogrula.",
+  ].join("\n");
 }
 
 const styles = StyleSheet.create({
@@ -190,6 +255,11 @@ const styles = StyleSheet.create({
   },
   reviewCard: {
     gap: SPACING.md,
+  },
+  reviewShareButton: {
+    alignSelf: "flex-start",
+    minHeight: 40,
+    paddingHorizontal: SPACING.md,
   },
   reviewActions: {
     flexDirection: "row",

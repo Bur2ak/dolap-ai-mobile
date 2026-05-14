@@ -85,6 +85,7 @@ Optional cron setup:
 - Shopping surfaces include shareable buy-decision results and price-tracking digests for reviewer validation.
 - Event planner includes shareable travel packing plans, event outfit suggestions and saved event summaries.
 - Profile and settings surfaces include release-readiness shortcuts for diagnostics, privacy, support and subscription review.
+- Settings review center includes a shareable review checklist for app-review handoff.
 - Account and legal surfaces include shareable account control summaries plus in-app privacy, account deletion, support and subscription control routes.
 - Diagnostics includes a submission checklist covering app version, platform build numbers, public site, RevenueCat, push readiness and env warnings.
 - Price tracking depends on public product pages; some stores may block automated price detection.
