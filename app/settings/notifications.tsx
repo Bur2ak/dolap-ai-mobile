@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -72,9 +72,10 @@ export default function NotificationSettingsScreen() {
   const [isCheckingPush, setIsCheckingPush] = useState(false);
   const [updatingPreference, setUpdatingPreference] = useState<keyof NotificationPreferences | null>(null);
   const [activePreset, setActivePreset] = useState<NotificationPreset | null>(null);
+  const [isSharingSummary, setIsSharingSummary] = useState(false);
   const smartPlan = buildSmartOutfitNotification(weather, items);
   const enabledPreferenceCount = rows.filter((row) => preferences[row.key]).length;
-  const isBusy = isRegistering || isUpdating || isSchedulingReminder || isCheckingPush || Boolean(updatingPreference) || Boolean(activePreset);
+  const isBusy = isRegistering || isUpdating || isSchedulingReminder || isCheckingPush || isSharingSummary || Boolean(updatingPreference) || Boolean(activePreset);
 
   useEffect(() => {
     void refreshPushReadiness();
@@ -214,12 +215,40 @@ export default function NotificationSettingsScreen() {
     }
   }
 
+  async function handleShareNotificationSummary() {
+    if (isBusy) {
+      captureEvent("notification_summary_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    try {
+      setIsSharingSummary(true);
+      await Share.share({
+        title: "Shipirio bildirim ozeti",
+        message: buildNotificationSummary({
+          preferences,
+          pushReadiness,
+          smartPlan,
+        }),
+      });
+      captureEvent("notification_summary_shared", {
+        enabled_count: enabledPreferenceCount,
+        push_granted: Boolean(pushReadiness?.granted),
+      });
+    } catch (error) {
+      captureError(error, { area: "notification_summary_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingSummary(false);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Bildirimler</Text>
-        <View style={styles.headerSpacer} />
+        <Button title="Ozet" variant="secondary" onPress={() => void handleShareNotificationSummary()} loading={isSharingSummary} disabled={isBusy} />
       </View>
 
       <Card style={styles.intro}>
@@ -378,6 +407,38 @@ function getPresetConfirmation(preset: NotificationPreset) {
   return "Tum bildirim tercihleri acildi.";
 }
 
+function buildNotificationSummary(input: {
+  preferences: NotificationPreferences;
+  pushReadiness: PushNotificationReadiness | null;
+  smartPlan: ReturnType<typeof buildSmartOutfitNotification>;
+}) {
+  const enabledRows = rows.filter((row) => input.preferences[row.key]).map((row) => row.title);
+  const disabledRows = rows.filter((row) => !input.preferences[row.key]).map((row) => row.title);
+  const readiness = input.pushReadiness;
+
+  return [
+    "Shipirio bildirim ozeti",
+    "",
+    `Push durumu: ${readiness?.granted ? "Izin verilmis" : readiness?.available ? "Izin alinabilir" : "Hazir degil"}`,
+    `Cihaz: ${readiness?.deviceReady ? "OK" : "Eksik"}`,
+    `EAS proje: ${readiness?.easProjectReady ? "OK" : "Eksik"}`,
+    `Izin: ${readiness?.granted ? "OK" : "Eksik"}`,
+    readiness?.reason ? `Not: ${readiness.reason}` : null,
+    "",
+    `Acik tercihler (${enabledRows.length}/${rows.length}):`,
+    ...(enabledRows.length > 0 ? enabledRows.map((label) => `- ${label}`) : ["- Yok"]),
+    "",
+    "Kapali tercihler:",
+    ...(disabledRows.length > 0 ? disabledRows.map((label) => `- ${label}`) : ["- Yok"]),
+    "",
+    `Akilli hatirlatici: ${input.smartPlan.title}`,
+    input.smartPlan.body,
+    input.smartPlan.reason,
+  ]
+    .filter((line): line is string => Boolean(line))
+    .join("\n");
+}
+
 const styles = StyleSheet.create({
   container: {
     backgroundColor: COLORS.background,
@@ -393,9 +454,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  headerSpacer: {
-    width: 72,
   },
   intro: {
     gap: SPACING.md,

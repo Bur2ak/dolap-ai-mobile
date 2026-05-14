@@ -77,6 +77,7 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 - Account and legal screens include in-app privacy controls, account deletion controls and shareable account status summaries for review.
 - Profile screen includes a shareable launch-readiness summary for reviewer handoff.
 - Settings review center includes shareable review-checklist notes and direct shortcuts to privacy, legal, subscription, support and diagnostics surfaces.
+- Notification settings include shareable push readiness summaries for QA and app review evidence.
 - Support and diagnostics screens include shareable app/build context, public legal URLs and submission readiness checks for reviewer support.
 - Push notifications require device permission and Expo push token registration.
 - Reviewer can test core flows with a temporary review account seeded with sample wardrobe items.
