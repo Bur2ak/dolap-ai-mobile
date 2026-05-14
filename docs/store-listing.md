@@ -70,6 +70,7 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 - Price tracking depends on public product pages; unsupported pages may return no detected price.
 - Almali Miyim and Fiyat Takibi screens include shareable summaries so reviewers can verify outputs without relying on external storefront access.
 - Dolabim and Analiz screens include shareable wardrobe and analytics summaries for review, support and social validation flows.
+- Kombin screen includes shareable saved-outfit summaries in addition to public outfit voting links.
 - Suraya Gidiyorum includes shareable event outfit suggestions, travel packing plans and saved event summaries.
 - Stil Panosu includes shareable trend summaries for public shared outfits.
 - Odunc Takibi includes shareable incoming/outgoing loan summaries and overdue status signals.

@@ -54,11 +54,12 @@ export default function OutfitScreen() {
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const [dailyUsage, setDailyUsage] = useState<number | null>(null);
   const [activeSuggestionAction, setActiveSuggestionAction] = useState<{ name: string; action: "save" | "share" } | null>(null);
+  const [isSharingSavedSummary, setIsSharingSavedSummary] = useState(false);
   const repeatCandidate = useMemo(() => getRepeatCandidate(items), [items]);
   const capsulePlan = useMemo(() => buildCapsuleWardrobePlan(items), [items]);
   const accessoryRecommendations = useMemo(() => buildAccessoryRecommendations(items, weather), [items, weather]);
   const focusedItem = focusItemId ? items.find((item) => item.id === focusItemId) ?? null : null;
-  const isBusy = isRecommending || isSavingOutfit;
+  const isBusy = isRecommending || isSavingOutfit || isSharingSavedSummary;
   const isActionBusy = isBusy || Boolean(activeSuggestionAction);
 
   const recommendationInput: OutfitRecommendationInput = {
@@ -191,6 +192,37 @@ export default function OutfitScreen() {
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setActiveSuggestionAction(null);
+    }
+  }
+
+  async function handleShareSavedOutfitsSummary() {
+    if (isActionBusy) {
+      captureEvent("outfit_saved_summary_share_blocked", { reason: "busy", saved_count: savedOutfits.length });
+      return;
+    }
+
+    if (savedOutfits.length === 0) {
+      captureEvent("outfit_saved_summary_share_blocked", { reason: "empty" });
+      Alert.alert("Ozet hazir degil", "Paylasilabilir kombin ozeti icin once bir kombin kaydet.");
+      return;
+    }
+
+    try {
+      setIsSharingSavedSummary(true);
+      const result = await Share.share({
+        title: "Shipirio kayitli kombin ozeti",
+        message: buildSavedOutfitsSummary(savedOutfits),
+      });
+      captureEvent("outfit_saved_summary_shared", {
+        action: result.action,
+        completed: result.action === Share.sharedAction,
+        saved_count: savedOutfits.length,
+      });
+    } catch (error) {
+      captureError(error, { area: "outfit_saved_summary_share" });
+      Alert.alert("Ozet paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingSavedSummary(false);
     }
   }
 
@@ -551,7 +583,22 @@ export default function OutfitScreen() {
       <Button title="Kombin Oner" onPress={handleRecommend} loading={isRecommending} disabled={isActionBusy} style={styles.cta} />
 
       <View style={styles.results}>
-        <Text variant="h3">Kayitli kombinler</Text>
+        <View style={styles.savedHeader}>
+          <View style={styles.savedHeaderCopy}>
+            <Text variant="h3">Kayitli kombinler</Text>
+            <Text variant="caption" color="muted">
+              {savedOutfits.length} kayit - {savedOutfits.filter((saved) => saved.outfit.is_favorite).length} favori
+            </Text>
+          </View>
+          <Button
+            title="Ozet"
+            variant="secondary"
+            onPress={() => void handleShareSavedOutfitsSummary()}
+            loading={isSharingSavedSummary}
+            disabled={isActionBusy || savedOutfits.length === 0}
+            style={styles.savedSummaryButton}
+          />
+        </View>
         {isLoadingSavedOutfits ? (
           <EmptyState icon="sync-outline" title="Kombinler yukleniyor" body="Kayitli kombinlerin hazirlaniyor." />
         ) : savedOutfitsError ? (
@@ -638,6 +685,30 @@ function getVoteSummary(saved: SharedOutfit) {
       count: saved.votes.filter((vote) => vote.vote === option.value).length,
     }))
     .filter((option) => option.count > 0);
+}
+
+function buildSavedOutfitsSummary(savedOutfits: SharedOutfit[]) {
+  const favoriteCount = savedOutfits.filter((saved) => saved.outfit.is_favorite).length;
+  const shareableCount = savedOutfits.filter((saved) => saved.outfit.is_shareable || saved.outfit.share_token).length;
+  const wornCount = savedOutfits.filter((saved) => saved.outfit.worn_at).length;
+  const totalVotes = savedOutfits.reduce((sum, saved) => sum + saved.votes.length, 0);
+  const topOutfits = savedOutfits.slice(0, 5).map((saved, index) => {
+    const loveCount = saved.votes.filter((vote) => vote.vote === "love").length;
+    return `#${index + 1} ${saved.outfit.name ?? "Kayitli kombin"} - ${saved.items.length} parca - ${saved.votes.length} oy${loveCount > 0 ? ` - ${loveCount} favori oy` : ""}`;
+  });
+
+  return [
+    "Shipirio kayitli kombin ozeti",
+    "",
+    `Toplam kombin: ${savedOutfits.length}`,
+    `Favoriler: ${favoriteCount}`,
+    `Paylasima acik: ${shareableCount}`,
+    `Giyildi olarak isaretlenen: ${wornCount}`,
+    `Toplam oy: ${totalVotes}`,
+    "",
+    "Son kayitlar:",
+    ...(topOutfits.length > 0 ? topOutfits : ["- Kayitli kombin yok."]),
+  ].join("\n");
 }
 
 function formatLimit(value: number | boolean) {
@@ -845,6 +916,20 @@ const styles = StyleSheet.create({
   },
   results: {
     gap: SPACING.sm,
+  },
+  savedHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
+    justifyContent: "space-between",
+  },
+  savedHeaderCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  savedSummaryButton: {
+    minHeight: 38,
+    paddingHorizontal: SPACING.md,
   },
   suggestion: {
     gap: SPACING.xs,

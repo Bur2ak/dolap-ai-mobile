@@ -76,6 +76,7 @@ Optional cron setup:
 - Privacy screen includes share controls, data category explanations, legal routing and a shareable privacy summary.
 - Wardrobe screen includes usage-based sorting, metadata readiness signals, item-level share summaries and full wardrobe summary sharing for reviewer-visible daily use flows.
 - Analytics screen includes shareable wardrobe health summaries covering utilization, sustainability, gaps, style profile and weekly goals.
+- Outfit screen includes shareable saved-outfit summaries plus public outfit voting links for reviewer validation.
 - Notification settings include push readiness checks, smart reminder setup and quick preference presets; notification inbox includes filters, cleanup actions and shareable digests.
 - Subscription surfaces include RevenueCat readiness checks, restore guidance, store billing notes and shareable subscription summaries.
 - Profile surface includes a shareable launch-readiness summary across onboarding, wardrobe, premium and review routes.
