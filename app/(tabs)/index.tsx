@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, Pressable, StyleSheet, View } from "react-native";
+import { Alert, FlatList, Pressable, Share, StyleSheet, View } from "react-native";
 
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -14,7 +15,7 @@ import { SPACING } from "@/constants/spacing";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { captureEvent } from "@/lib/observability";
 import { useWardrobeStore } from "@/stores/wardrobeStore";
-import type { ClothingCategory, Season } from "@/types";
+import type { ClothingCategory, Season, WardrobeItem } from "@/types";
 
 const seasonFilters: Array<{ label: string; value: Season | "all" }> = [
   { label: "Tum sezonlar", value: "all" },
@@ -34,9 +35,10 @@ export default function WardrobeScreen() {
   const { items, error, isLoading, isRefetching, refetch } = useWardrobe();
   const { category, season, search, setCategory, setSeason, setSearch } = useWardrobeStore();
   const [sortMode, setSortMode] = useState<SortMode>("newest");
+  const [isSharingSummary, setIsSharingSummary] = useState(false);
   const normalizedQuery = search.trim().toLowerCase();
   const hasActiveFilters = category !== "all" || season !== "all" || Boolean(normalizedQuery);
-  const isBusy = isLoading || isRefetching;
+  const isBusy = isLoading || isRefetching || isSharingSummary;
   const filteredItems = items.filter((item) => {
     const categoryMatch = category === "all" || item.category === category;
     const seasonMatch = season === "all" || item.season.includes(season);
@@ -92,6 +94,46 @@ export default function WardrobeScreen() {
 
     captureEvent("wardrobe_add_item_opened");
     router.push("/item/add");
+  }
+
+  async function handleShareWardrobeSummary() {
+    if (isBusy) {
+      captureEvent("wardrobe_summary_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    if (items.length === 0) {
+      captureEvent("wardrobe_summary_share_blocked", { reason: "empty_wardrobe" });
+      Alert.alert("Ozet hazir degil", "Dolap ozeti paylasmak icin once bir kiyafet ekleyelim.");
+      return;
+    }
+
+    setIsSharingSummary(true);
+    try {
+      const result = await Share.share({
+        title: "Shipirio dolap ozeti",
+        message: buildWardrobeShareText({
+          filteredCount: sortedItems.length,
+          hasActiveFilters,
+          items,
+          metadataMissingCount,
+          shareableCount,
+          sortMode,
+          unwornCount,
+        }),
+      });
+      captureEvent("wardrobe_summary_shared", {
+        action: result.action,
+        completed: result.action === Share.sharedAction,
+        filtered_count: sortedItems.length,
+        item_count: items.length,
+      });
+    } catch (error) {
+      captureEvent("wardrobe_summary_share_failed", { message: error instanceof Error ? error.message : "unknown" });
+      Alert.alert("Ozet paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingSummary(false);
+    }
   }
 
   return (
@@ -200,10 +242,20 @@ export default function WardrobeScreen() {
         </View>
       </View>
       {items.length > 0 ? (
-        <View style={styles.wardrobeSignals}>
-          <SummaryPill label={`${unwornCount} giyilmemis`} tone={unwornCount > 0 ? "warning" : "normal"} />
-          <SummaryPill label={`${shareableCount} paylasimda`} tone="normal" />
-          <SummaryPill label={`${metadataMissingCount} eksik metadata`} tone={metadataMissingCount > 0 ? "warning" : "normal"} />
+        <View style={styles.summaryPanel}>
+          <View style={styles.wardrobeSignals}>
+            <SummaryPill label={`${unwornCount} giyilmemis`} tone={unwornCount > 0 ? "warning" : "normal"} />
+            <SummaryPill label={`${shareableCount} paylasimda`} tone="normal" />
+            <SummaryPill label={`${metadataMissingCount} eksik metadata`} tone={metadataMissingCount > 0 ? "warning" : "normal"} />
+          </View>
+          <Button
+            title="Dolap Ozetini Paylas"
+            variant="secondary"
+            onPress={() => void handleShareWardrobeSummary()}
+            loading={isSharingSummary}
+            disabled={isBusy}
+            style={styles.summaryShareButton}
+          />
         </View>
       ) : null}
       {hasActiveFilters ? (
@@ -335,6 +387,86 @@ function getSortableTime(value: string) {
   return Number.isNaN(time) ? 0 : time;
 }
 
+function buildWardrobeShareText({
+  filteredCount,
+  hasActiveFilters,
+  items,
+  metadataMissingCount,
+  shareableCount,
+  sortMode,
+  unwornCount,
+}: {
+  filteredCount: number;
+  hasActiveFilters: boolean;
+  items: WardrobeItem[];
+  metadataMissingCount: number;
+  shareableCount: number;
+  sortMode: SortMode;
+  unwornCount: number;
+}) {
+  const totalWearCount = items.reduce((sum, item) => sum + item.wear_count, 0);
+  const topCategories = summarizeValues(items.map((item) => formatCategoryLabel(item.category)));
+  const topColors = summarizeValues(items.flatMap((item) => item.colors));
+  const topSeasons = summarizeValues(items.flatMap((item) => item.season.map(formatSeasonLabel)));
+  const topBrands = summarizeValues(items.map((item) => item.brand).filter(isPresent));
+  const activeFilterLine = hasActiveFilters ? `Aktif filtre sonucu: ${filteredCount}/${items.length} parca` : "Aktif filtre yok";
+
+  return [
+    "Shipirio dolap ozeti",
+    "",
+    `Toplam kiyafet: ${items.length}`,
+    `Toplam giyilme: ${totalWearCount}`,
+    `Hic giyilmemis: ${unwornCount}`,
+    `Paylasima acik: ${shareableCount}`,
+    `Metadata eksigi: ${metadataMissingCount}`,
+    activeFilterLine,
+    `Siralama: ${getSortLabel(sortMode)}`,
+    "",
+    `Kategori agirligi: ${topCategories}`,
+    `Renk paleti: ${topColors}`,
+    `Sezon kapsami: ${topSeasons}`,
+    `Markalar: ${topBrands}`,
+  ].join("\n");
+}
+
+function summarizeValues(values: string[]) {
+  const counts = new Map<string, number>();
+  values.filter(Boolean).forEach((value) => {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  });
+
+  const summary = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([label, count]) => `${label} (${count})`)
+    .join(", ");
+
+  return summary || "Veri yok";
+}
+
+function formatCategoryLabel(value: ClothingCategory) {
+  return CATEGORIES.find((category) => category.value === value)?.label ?? value;
+}
+
+function formatSeasonLabel(value: Season) {
+  const labels: Record<Season, string> = {
+    ilkbahar: "Ilkbahar",
+    yaz: "Yaz",
+    sonbahar: "Sonbahar",
+    kis: "Kis",
+  };
+
+  return labels[value];
+}
+
+function getSortLabel(value: SortMode) {
+  return sortModes.find((mode) => mode.value === value)?.label ?? value;
+}
+
+function isPresent(value: string | null): value is string {
+  return Boolean(value);
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -391,11 +523,19 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     borderColor: COLORS.primary,
   },
+  summaryPanel: {
+    gap: SPACING.sm,
+    paddingBottom: SPACING.sm,
+  },
   wardrobeSignals: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: SPACING.xs,
-    paddingBottom: SPACING.sm,
+  },
+  summaryShareButton: {
+    alignSelf: "flex-start",
+    minHeight: 38,
+    paddingHorizontal: SPACING.md,
   },
   summaryPill: {
     backgroundColor: COLORS.surfaceMuted,

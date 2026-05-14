@@ -69,6 +69,7 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 - AI features may use uploaded item images and wardrobe metadata to produce clothing analysis, outfit suggestions and purchase guidance.
 - Price tracking depends on public product pages; unsupported pages may return no detected price.
 - Almali Miyim and Fiyat Takibi screens include shareable summaries so reviewers can verify outputs without relying on external storefront access.
+- Dolabim and Analiz screens include shareable wardrobe and analytics summaries for review, support and social validation flows.
 - Suraya Gidiyorum includes shareable event outfit suggestions, travel packing plans and saved event summaries.
 - Stil Panosu includes shareable trend summaries for public shared outfits.
 - Odunc Takibi includes shareable incoming/outgoing loan summaries and overdue status signals.

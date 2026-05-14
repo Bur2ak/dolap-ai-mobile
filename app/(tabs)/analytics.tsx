@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -16,7 +16,7 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
 import { captureError, captureEvent } from "@/lib/observability";
-import type { DistributionPoint, MissingWardrobePiece, StyleProfile, UpdateWardrobeItemInput, WardrobeGoal, WardrobeItem } from "@/types";
+import type { DistributionPoint, MissingWardrobePiece, StyleProfile, UpdateWardrobeItemInput, WardrobeAnalytics, WardrobeGoal, WardrobeItem } from "@/types";
 import { formatCurrency, formatNumber, getCostPerWearLabel } from "@/utils/formatters";
 import { buildBudgetRecommendations, buildMissingPieceActionPlan, buildSecondHandListingAdvice, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
 
@@ -26,7 +26,9 @@ export default function AnalyticsScreen() {
   const { trackings, createTracking, isCreating: isCreatingTracking, canUse: canUsePriceTracking } = usePriceTracking();
   const { checkGate, isLimitReached, limits } = useSubscription();
   const [activeMissingPieceKey, setActiveMissingPieceKey] = useState<string | null>(null);
+  const [isSharingAnalytics, setIsSharingAnalytics] = useState(false);
   const hasBlockingError = Boolean(error && analytics.total_items === 0);
+  const isAnalyticsBusy = Boolean(activeMissingPieceKey) || isCreatingTracking || isUpdating || isSharingAnalytics;
   const topCategory = analytics.category_distribution[0];
   const focusText =
     analytics.total_items === 0
@@ -56,13 +58,45 @@ export default function AnalyticsScreen() {
   }, [analytics.sustainability_score, analytics.total_items, analytics.utilization_score, hasBlockingError]);
 
   function handleRefetch() {
-    if (activeMissingPieceKey || isCreatingTracking || isUpdating) {
+    if (isAnalyticsBusy) {
       captureEvent("analytics_refetch_blocked", { reason: "busy", has_blocking_error: hasBlockingError });
       return;
     }
 
     captureEvent("analytics_refetch_requested", { has_blocking_error: hasBlockingError });
     void refetch();
+  }
+
+  async function handleShareAnalyticsSummary() {
+    if (isAnalyticsBusy) {
+      captureEvent("analytics_summary_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    if (analytics.total_items === 0) {
+      captureEvent("analytics_summary_share_blocked", { reason: "empty_wardrobe" });
+      Alert.alert("Ozet hazir degil", "Paylasilabilir analiz ozeti icin once dolaba birkac parca ekleyelim.");
+      return;
+    }
+
+    setIsSharingAnalytics(true);
+    try {
+      const result = await Share.share({
+        title: "Shipirio gardrop analiz ozeti",
+        message: buildAnalyticsShareText(analytics, focusText),
+      });
+      captureEvent("analytics_summary_shared", {
+        action: result.action,
+        completed: result.action === Share.sharedAction,
+        missing_piece_count: analytics.missing_pieces.length,
+        total_items: analytics.total_items,
+      });
+    } catch (error) {
+      captureError(error, { area: "analytics_summary_share" });
+      Alert.alert("Ozet paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingAnalytics(false);
+    }
   }
 
   async function handleAddMissingPiece(piece: MissingWardrobePiece) {
@@ -154,6 +188,14 @@ export default function AnalyticsScreen() {
             RENK SAYISI: {formatNumber(analytics.color_distribution.length)}
           </Text>
         </View>
+        <Button
+          title="Analiz Ozetini Paylas"
+          variant="secondary"
+          onPress={() => void handleShareAnalyticsSummary()}
+          loading={isSharingAnalytics}
+          disabled={isAnalyticsBusy || analytics.total_items === 0}
+          style={styles.shareButton}
+        />
       </Card>
 
       <View style={styles.grid}>
@@ -768,6 +810,54 @@ function formatDistributionLabel(value: string) {
   return SEASONS.find((season) => season.value === value)?.label ?? formatCategory(value);
 }
 
+function buildAnalyticsShareText(analytics: WardrobeAnalytics, focusText: string) {
+  const missingPieces =
+    analytics.missing_pieces.length > 0
+      ? analytics.missing_pieces.slice(0, 3).map((piece) => `- ${piece.label}: ${piece.reason}`)
+      : ["- Kritik eksik parca gorunmuyor."];
+  const weeklyGoals =
+    analytics.weekly_goals.length > 0
+      ? analytics.weekly_goals.slice(0, 3).map((goal) => `- ${goal.title}: ${Math.min(goal.current, goal.target)}/${goal.target}`)
+      : ["- Bu hafta acil hedef yok."];
+
+  return [
+    "Shipirio gardrop analiz ozeti",
+    "",
+    focusText,
+    "",
+    `Toplam kiyafet: ${formatNumber(analytics.total_items)}`,
+    `Gardrop degeri: ${formatCurrency(analytics.total_value)}`,
+    `Kullanim skoru: %${analytics.utilization_score}`,
+    `Surdurulebilirlik skoru: %${analytics.sustainability_score}`,
+    `90 gun atil parca: ${formatNumber(analytics.inactive_items_count)}`,
+    `Ort. maliyet/giyim: ${formatCurrency(analytics.avg_cost_per_wear)}`,
+    "",
+    `Stil profili: ${analytics.style_profile.label} (%${analytics.style_profile.confidence})`,
+    analytics.style_profile.summary,
+    "",
+    `Kategori dagilimi: ${formatDistributionSummary(analytics.category_distribution, true)}`,
+    `Renk dagilimi: ${formatDistributionSummary(analytics.color_distribution)}`,
+    `Sezon dagilimi: ${formatDistributionSummary(analytics.season_distribution, true)}`,
+    "",
+    "Eksik parca onerileri:",
+    ...missingPieces,
+    "",
+    "Haftalik hedefler:",
+    ...weeklyGoals,
+  ].join("\n");
+}
+
+function formatDistributionSummary(points: DistributionPoint[], shouldFormatLabel = false) {
+  if (points.length === 0) {
+    return "Veri yok";
+  }
+
+  return points
+    .slice(0, 3)
+    .map((point) => `${shouldFormatLabel ? formatDistributionLabel(point.label) : point.label} (${formatNumber(point.value)})`)
+    .join(", ");
+}
+
 function DistributionCard({ title, points, showSwatch = false }: { title: string; points: DistributionPoint[]; showSwatch?: boolean }) {
   const max = Math.max(...points.map((point) => point.value), 1);
 
@@ -872,6 +962,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: SPACING.sm,
+  },
+  shareButton: {
+    alignSelf: "flex-start",
+    minHeight: 40,
+    paddingHorizontal: SPACING.md,
   },
   barRow: {
     alignItems: "center",

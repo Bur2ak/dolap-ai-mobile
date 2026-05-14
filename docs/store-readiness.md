@@ -74,7 +74,8 @@ Optional cron setup:
 - Support screen includes direct email templates, diagnostics routing, subscription routing and public support/legal links.
 - Support screen includes a shareable support context with app/build/account metadata and all public legal/support URLs.
 - Privacy screen includes share controls, data category explanations, legal routing and a shareable privacy summary.
-- Wardrobe screen includes usage-based sorting, metadata readiness signals and item-level share summaries for reviewer-visible daily use flows.
+- Wardrobe screen includes usage-based sorting, metadata readiness signals, item-level share summaries and full wardrobe summary sharing for reviewer-visible daily use flows.
+- Analytics screen includes shareable wardrobe health summaries covering utilization, sustainability, gaps, style profile and weekly goals.
 - Notification settings include push readiness checks, smart reminder setup and quick preference presets; notification inbox includes filters, cleanup actions and shareable digests.
 - Subscription surfaces include RevenueCat readiness checks, restore guidance, store billing notes and shareable subscription summaries.
 - Social surfaces include friend status summaries, invite reward guidance and shareable social readiness notes.
