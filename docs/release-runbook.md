@@ -69,6 +69,7 @@ npm run build:production
 3. Smoke test a real device build:
 
 - Register, confirm email and sign in.
+- Confirm KVKK and terms consent are recorded on the account screen.
 - Add a wardrobe item from gallery.
 - Run clothing analysis and background removal.
 - Request an outfit.

@@ -28,11 +28,13 @@ export default function AccountSettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isSavingLegalConsent, setIsSavingLegalConsent] = useState(false);
   const [isUpdatingDeletion, setIsUpdatingDeletion] = useState(false);
   const [isOpeningDeletionInfo, setIsOpeningDeletionInfo] = useState(false);
   const [isSharingAccountSummary, setIsSharingAccountSummary] = useState(false);
-  const isBusy = isSaving || isSavingPassword || isUpdatingDeletion || isOpeningDeletionInfo || isSharingAccountSummary;
+  const isBusy = isSaving || isSavingPassword || isSavingLegalConsent || isUpdatingDeletion || isOpeningDeletionInfo || isSharingAccountSummary;
   const deletionInfoUrl = createPublicAppLink("/delete-account.html");
+  const legalConsentComplete = Boolean(profile?.kvkk_consent_at && profile.terms_accepted_at);
 
   useEffect(() => {
     setFullName(profile?.full_name ?? "");
@@ -138,6 +140,65 @@ export default function AccountSettingsScreen() {
       Alert.alert("Sifre yenilenemedi", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSavingPassword(false);
+    }
+  }
+
+  function handleAcceptLegalConsent() {
+    if (isBusy) {
+      captureEvent("account_legal_consent_blocked", { reason: "busy" });
+      return;
+    }
+
+    if (!profile) {
+      captureEvent("account_legal_consent_blocked", { reason: "missing_profile" });
+      Alert.alert("Giris gerekli", "Yasal onaylarini tamamlamak icin tekrar giris yapmalisin.");
+      return;
+    }
+
+    captureEvent("account_legal_consent_prompt_opened", {
+      has_kvkk: Boolean(profile.kvkk_consent_at),
+      has_terms: Boolean(profile.terms_accepted_at),
+    });
+    Alert.alert(
+      "Yasal onay",
+      "KVKK aydinlatma metni, gizlilik politikasi ve kullanim sartlarini okudugunu ve kabul ettigini onayliyor musun?",
+      [
+        { text: "Vazgec", style: "cancel" },
+        {
+          text: "Onayla",
+          onPress: () => {
+            void updateLegalConsent();
+          },
+        },
+      ],
+    );
+  }
+
+  async function updateLegalConsent() {
+    if (!profile) {
+      captureEvent("account_legal_consent_blocked", { reason: "missing_profile" });
+      Alert.alert("Giris gerekli", "Yasal onaylarini tamamlamak icin tekrar giris yapmalisin.");
+      return;
+    }
+
+    const consentedAt = new Date().toISOString();
+
+    try {
+      setIsSavingLegalConsent(true);
+      await updateProfile({
+        kvkk_consent_at: profile.kvkk_consent_at ?? consentedAt,
+        terms_accepted_at: profile.terms_accepted_at ?? consentedAt,
+      });
+      captureEvent("account_legal_consent_saved", {
+        filled_kvkk: !profile.kvkk_consent_at,
+        filled_terms: !profile.terms_accepted_at,
+      });
+      Alert.alert("Onay kaydedildi", "Yasal onay durumun guncellendi.");
+    } catch (error) {
+      captureError(error, { area: "account_legal_consent" });
+      Alert.alert("Onay kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSavingLegalConsent(false);
     }
   }
 
@@ -306,6 +367,39 @@ export default function AccountSettingsScreen() {
       </Card>
 
       <Card style={styles.form}>
+        <Text variant="h3">Yasal onaylar</Text>
+        <Text variant="body" color="secondary">
+          KVKK ve kullanim sartlari onayi hesap kaydinda tutulur; eski test hesaplarinda eksikse burada tamamlanabilir.
+        </Text>
+        <View style={styles.statusGrid}>
+          <View style={[styles.statusPill, profile?.kvkk_consent_at ? styles.statusPillReady : styles.statusPillWarn]}>
+            <Text variant="caption" color={profile?.kvkk_consent_at ? "primary" : "secondary"}>
+              KVKK
+            </Text>
+            <Text variant="label">{profile?.kvkk_consent_at ? formatDate(profile.kvkk_consent_at) : "Eksik"}</Text>
+          </View>
+          <View style={[styles.statusPill, profile?.terms_accepted_at ? styles.statusPillReady : styles.statusPillWarn]}>
+            <Text variant="caption" color={profile?.terms_accepted_at ? "primary" : "secondary"}>
+              Sartlar
+            </Text>
+            <Text variant="label">{profile?.terms_accepted_at ? formatDate(profile.terms_accepted_at) : "Eksik"}</Text>
+          </View>
+        </View>
+        <View style={styles.legalActions}>
+          <Button title="KVKK" variant="ghost" onPress={() => router.push("/legal/kvkk")} disabled={isBusy} style={styles.legalButton} />
+          <Button title="Gizlilik" variant="ghost" onPress={() => router.push("/legal/privacy")} disabled={isBusy} style={styles.legalButton} />
+          <Button title="Sartlar" variant="ghost" onPress={() => router.push("/legal/terms")} disabled={isBusy} style={styles.legalButton} />
+        </View>
+        <Button
+          title={legalConsentComplete ? "Yasal Onaylar Tamam" : "Yasal Onaylari Tamamla"}
+          variant="secondary"
+          onPress={handleAcceptLegalConsent}
+          loading={isSavingLegalConsent}
+          disabled={isBusy || legalConsentComplete}
+        />
+      </Card>
+
+      <Card style={styles.form}>
         <Text variant="h3">Guvenlik</Text>
         <PasswordInput
           label="Yeni sifre"
@@ -396,6 +490,14 @@ const styles = StyleSheet.create({
   statusPillWarn: {
     backgroundColor: COLORS.surface,
   },
+  legalActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  legalButton: {
+    flex: 1,
+    minHeight: 40,
+  },
   dangerZone: {
     borderColor: COLORS.danger,
     gap: SPACING.md,
@@ -420,6 +522,11 @@ function getAccountReadiness(profile: Profile | null, email: string | null) {
       ready: Boolean(profile?.onboarding_completed),
     },
     {
+      label: "Yasal onay",
+      value: profile?.kvkk_consent_at && profile.terms_accepted_at ? "Tamam" : "Eksik",
+      ready: Boolean(profile?.kvkk_consent_at && profile.terms_accepted_at),
+    },
+    {
       label: "Silme talebi",
       value: profile?.deletion_requested_at ? "Beklemede" : "Yok",
       ready: !profile?.deletion_requested_at,
@@ -440,6 +547,8 @@ function buildAccountControlSummary(profile: Profile | null, email: string | nul
     `Kullanici adi: ${profile?.username ?? "Yok"}`,
     `Ad Soyad: ${profile?.full_name ?? "Yok"}`,
     `Uyelik: ${profile?.subscription_tier ?? "Bilinmiyor"}`,
+    `KVKK onayi: ${profile?.kvkk_consent_at ? formatDate(profile.kvkk_consent_at) : "Eksik"}`,
+    `Sartlar onayi: ${profile?.terms_accepted_at ? formatDate(profile.terms_accepted_at) : "Eksik"}`,
     "",
     "Durum:",
     ...rows,

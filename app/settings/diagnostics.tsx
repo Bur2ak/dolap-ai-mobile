@@ -64,7 +64,7 @@ const backendChecklist = [
   {
     body: "supabase db push remote veritabani guncel donmeli.",
     label: "Migrations",
-    value: "001-019",
+    value: "001-020",
   },
   {
     body: "Tum Edge Function'lar production projeye deploy edilmeli.",

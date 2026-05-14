@@ -120,7 +120,7 @@ Arkadas arama, istek gonderme, istek bildirimi, istek iptali, kabul etme, arkada
 
 ## Hesap Ayarlari
 
-Profil bilgisi, dogrulanmis kullanici adi, bio siniri, gizlilik tercihleri ve 30 gun beklemeli hesap silme talebi ayarlar ekranlarindan guncellenebilir. `process-account-deletions` Edge Function `{"dryRun": false}` ile cagrildiginda suresi dolan silme talepleri icin once `wardrobe-images/{userId}` storage dosyalarini, sonra auth kullanicisini silerek cascade verileri temizler.
+Profil bilgisi, dogrulanmis kullanici adi, bio siniri, gizlilik tercihleri, yasal onay durumu ve 30 gun beklemeli hesap silme talebi ayarlar ekranlarindan guncellenebilir. Eski/test hesaplarinda KVKK veya sartlar onayi eksikse Hesap ekranindan tek seferlik tamamlanabilir. `process-account-deletions` Edge Function `{"dryRun": false}` ile cagrildiginda suresi dolan silme talepleri icin once `wardrobe-images/{userId}` storage dosyalarini, sonra auth kullanicisini silerek cascade verileri temizler.
 
 Otomatik hesap silme islemi icin `supabase/cron/account_deletion_cron.sql.example` dosyasini kopyalayip placeholder degerlerini Supabase SQL Editor'de doldurarak calistir.
 

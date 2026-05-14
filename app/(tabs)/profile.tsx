@@ -23,6 +23,7 @@ export default function ProfileScreen() {
   const [isSharingReadiness, setIsSharingReadiness] = useState(false);
   const isProfileBusy = isSigningOut || isSharingReadiness;
   const profileIncomplete = Boolean(profile && (!profile.username || !profile.onboarding_completed));
+  const legalConsentIncomplete = Boolean(profile && (!profile.kvkk_consent_at || !profile.terms_accepted_at));
   const quickStartSteps = [
     {
       body: items.length > 0 ? `${items.length} kiyafet dolabinda.` : "Ilk parcani ekleyip AI analizini baslat.",
@@ -37,6 +38,13 @@ export default function ProfileScreen() {
       label: "Profil",
       route: "/settings/account" as const,
       title: profileIncomplete ? "Profilini tamamla" : "Profil hazir",
+    },
+    {
+      body: legalConsentIncomplete ? "KVKK ve kullanim sartlari onayini tamamla." : "Yasal onaylar hesap kaydinda.",
+      done: !legalConsentIncomplete,
+      label: "Yasal",
+      route: "/settings/account" as const,
+      title: legalConsentIncomplete ? "Yasal onaylari tamamla" : "Yasal onaylar tamam",
     },
     {
       body: premium ? "Premium limitler aktif gorunuyor." : "Premium ozellikleri ve limitleri incele.",
@@ -77,12 +85,13 @@ export default function ProfileScreen() {
   useEffect(() => {
     captureEvent("profile_screen_viewed", {
       premium,
+      legal_consent_incomplete: legalConsentIncomplete,
       profile_incomplete: profileIncomplete,
       deletion_requested: Boolean(profile?.deletion_requested_at),
       quick_start_completed: completedQuickStartSteps,
       wardrobe_count: items.length,
     });
-  }, [completedQuickStartSteps, items.length, premium, profile?.deletion_requested_at, profileIncomplete]);
+  }, [completedQuickStartSteps, items.length, legalConsentIncomplete, premium, profile?.deletion_requested_at, profileIncomplete]);
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
     if (isProfileBusy) {

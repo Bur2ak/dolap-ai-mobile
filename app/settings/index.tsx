@@ -81,6 +81,10 @@ const settingsRoutes = [
 
 const reviewChecks = [
   {
+    label: "Hesap",
+    route: "/settings/account" as const,
+  },
+  {
     label: "Gizlilik",
     route: "/settings/privacy" as const,
   },

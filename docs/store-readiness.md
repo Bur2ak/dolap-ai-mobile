@@ -41,7 +41,7 @@
 
 ## Supabase Production Checklist
 
-- `supabase db push` applied through migration `019_wardrobe_fabric_usage_context.sql`
+- `supabase db push` applied through migration `020_profile_legal_consent_self_update.sql`
 - `supabase functions deploy analyze-clothing`
 - `supabase functions deploy remove-background`
 - `supabase functions deploy recommend-outfit`
@@ -88,6 +88,7 @@ Optional cron setup:
 - Profile and settings surfaces include release-readiness shortcuts for diagnostics, privacy, support and subscription review.
 - Settings review center includes a shareable review checklist for app-review handoff.
 - Account and legal surfaces include shareable account control summaries plus in-app privacy, account deletion, support and subscription control routes.
+- Account surface includes legacy/test account remediation for missing KVKK and terms consent timestamps.
 - Diagnostics includes a submission checklist covering app version, platform build numbers, public site, RevenueCat, push readiness, env warnings and manual backend production checks for functions, secrets, cron and universal links.
 - Price tracking depends on public product pages; some stores may block automated price detection.
 

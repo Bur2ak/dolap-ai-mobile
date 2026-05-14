@@ -131,6 +131,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         area: "profile_update",
         changed_bio: updates.bio !== undefined,
         changed_full_name: updates.full_name !== undefined,
+        changed_legal_consent: updates.kvkk_consent_at !== undefined || updates.terms_accepted_at !== undefined,
         changed_notifications: updates.notification_preferences !== undefined,
         changed_privacy: updates.privacy_settings !== undefined,
         changed_username: updates.username !== undefined,
@@ -142,6 +143,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     captureEvent("profile_updated", {
       changed_bio: updates.bio !== undefined,
       changed_full_name: updates.full_name !== undefined,
+      changed_legal_consent: updates.kvkk_consent_at !== undefined || updates.terms_accepted_at !== undefined,
       changed_notifications: updates.notification_preferences !== undefined,
       changed_privacy: updates.privacy_settings !== undefined,
       changed_username: updates.username !== undefined,
@@ -162,10 +164,12 @@ type ProfileUpdatePayload = Partial<
     | "deletion_requested_at"
     | "deletion_scheduled_for"
     | "full_name"
+    | "kvkk_consent_at"
     | "notification_preferences"
     | "onboarding_completed"
     | "privacy_settings"
     | "push_token"
+    | "terms_accepted_at"
     | "username"
   >
 > & { updated_at: string };
@@ -213,6 +217,14 @@ function normalizeProfileUpdates(updates: Partial<Profile>): ProfileUpdatePayloa
 
   if (updates.onboarding_completed !== undefined) {
     normalized.onboarding_completed = updates.onboarding_completed === true;
+  }
+
+  if (updates.kvkk_consent_at !== undefined) {
+    normalized.kvkk_consent_at = normalizeIsoDateTime(updates.kvkk_consent_at);
+  }
+
+  if (updates.terms_accepted_at !== undefined) {
+    normalized.terms_accepted_at = normalizeIsoDateTime(updates.terms_accepted_at);
   }
 
   if (updates.deletion_requested_at !== undefined) {

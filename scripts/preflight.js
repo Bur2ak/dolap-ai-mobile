@@ -113,6 +113,10 @@ if (!migrations.some((file) => file.includes("usage_counters"))) {
   warnings.push("Server tarafli usage counter migration'i gorunmuyor; freemium limitleri sadece lokal kalabilir.");
 }
 
+if (!migrations.some((file) => file.startsWith("020_"))) {
+  warnings.push("020 legal consent self-update migration gorunmuyor; eski hesaplar yasal onaylarini tamamlayamayabilir.");
+}
+
 printSection("Shipirio preflight");
 printList("OK", [
   `${migrations.length} migration dosyasi bulundu.`,
