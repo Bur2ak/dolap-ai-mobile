@@ -74,6 +74,7 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 - Stil Panosu includes shareable trend summaries for public shared outfits.
 - Odunc Takibi includes shareable incoming/outgoing loan summaries and overdue status signals.
 - Account and legal screens include in-app privacy controls, account deletion controls and shareable account status summaries for review.
+- Profile screen includes a shareable launch-readiness summary for reviewer handoff.
 - Support and diagnostics screens include shareable app/build context, public legal URLs and submission readiness checks for reviewer support.
 - Push notifications require device permission and Expo push token registration.
 - Reviewer can test core flows with a temporary review account seeded with sample wardrobe items.

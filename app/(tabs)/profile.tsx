@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -20,6 +20,8 @@ export default function ProfileScreen() {
   const { unreadCount } = useNotificationInbox();
   const { items } = useWardrobe();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isSharingReadiness, setIsSharingReadiness] = useState(false);
+  const isProfileBusy = isSigningOut || isSharingReadiness;
   const profileIncomplete = Boolean(profile && (!profile.username || !profile.onboarding_completed));
   const quickStartSteps = [
     {
@@ -83,8 +85,8 @@ export default function ProfileScreen() {
   }, [completedQuickStartSteps, items.length, premium, profile?.deletion_requested_at, profileIncomplete]);
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
-    if (isSigningOut) {
-      captureEvent("profile_route_blocked", { label, reason: "signing_out" });
+    if (isProfileBusy) {
+      captureEvent("profile_route_blocked", { label, reason: isSigningOut ? "signing_out" : "sharing_readiness" });
       return;
     }
 
@@ -93,8 +95,8 @@ export default function ProfileScreen() {
   }
 
   function handleSignOut() {
-    if (isSigningOut) {
-      captureEvent("profile_sign_out_blocked", { reason: "busy" });
+    if (isProfileBusy) {
+      captureEvent("profile_sign_out_blocked", { reason: isSigningOut ? "busy" : "sharing_readiness" });
       return;
     }
 
@@ -109,6 +111,39 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  }
+
+  async function handleShareProfileReadiness() {
+    if (isProfileBusy) {
+      captureEvent("profile_readiness_share_blocked", { reason: isSigningOut ? "signing_out" : "busy" });
+      return;
+    }
+
+    try {
+      setIsSharingReadiness(true);
+      const result = await Share.share({
+        title: "Shipirio profil ve yayin hazirlik ozeti",
+        message: buildProfileReadinessSummary({
+          completedQuickStartSteps,
+          itemsCount: items.length,
+          premium,
+          profileName: profile?.full_name ?? "Shipirio kullanicisi",
+          quickStartSteps,
+          readinessSteps,
+          unreadCount,
+        }),
+      });
+      captureEvent("profile_readiness_shared", {
+        action: result.action,
+        completed: result.action === Share.sharedAction,
+        quick_start_completed: completedQuickStartSteps,
+      });
+    } catch (error) {
+      captureError(error, { area: "profile_readiness_share" });
+      Alert.alert("Ozet paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingReadiness(false);
+    }
   }
 
   async function performSignOut() {
@@ -129,7 +164,7 @@ export default function ProfileScreen() {
     }
   }
 
-  const routeDisabled = isSigningOut;
+  const routeDisabled = isProfileBusy;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -244,6 +279,7 @@ export default function ProfileScreen() {
             <Button title="Ac" variant="ghost" onPress={() => openRoute(step.route, `release_${step.label}`)} disabled={routeDisabled} style={styles.releaseButton} />
           </View>
         ))}
+        <Button title="Hazirlik Ozetini Paylas" variant="secondary" onPress={() => void handleShareProfileReadiness()} loading={isSharingReadiness} disabled={routeDisabled} />
       </Card>
 
       <View style={styles.menu}>
@@ -291,9 +327,37 @@ export default function ProfileScreen() {
         </Card>
       </View>
 
-      <Button title="Cikis Yap" variant="secondary" onPress={handleSignOut} loading={isSigningOut} disabled={isSigningOut} style={styles.signOut} />
+      <Button title="Cikis Yap" variant="secondary" onPress={handleSignOut} loading={isSigningOut} disabled={routeDisabled} style={styles.signOut} />
     </ScrollView>
   );
+}
+
+interface ProfileReadinessSummaryInput {
+  completedQuickStartSteps: number;
+  itemsCount: number;
+  premium: boolean;
+  profileName: string;
+  quickStartSteps: Array<{ done: boolean; label: string; title: string }>;
+  readinessSteps: Array<{ label: string; title: string }>;
+  unreadCount: number;
+}
+
+function buildProfileReadinessSummary(input: ProfileReadinessSummaryInput) {
+  return [
+    "Shipirio profil ve yayin hazirlik ozeti",
+    "",
+    `Profil: ${input.profileName}`,
+    `Plan: ${input.premium ? "Premium" : "Free"}`,
+    `Dolap parcasi: ${input.itemsCount}`,
+    `Okunmamis bildirim: ${input.unreadCount}`,
+    `Baslangic kontrolu: ${input.completedQuickStartSteps}/${input.quickStartSteps.length}`,
+    "",
+    "Baslangic adimlari:",
+    ...input.quickStartSteps.map((step) => `- ${step.done ? "OK" : "Eksik"} ${step.title}`),
+    "",
+    "Store oncesi kontrol yuzeyleri:",
+    ...input.readinessSteps.map((step) => `- ${step.label}: ${step.title}`),
+  ].join("\n");
 }
 
 const styles = StyleSheet.create({

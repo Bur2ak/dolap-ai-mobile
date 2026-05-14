@@ -4,6 +4,7 @@ import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
@@ -89,7 +90,7 @@ export default function LoginScreen() {
 
       <View style={styles.form}>
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
-        <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry editable={!isSubmitting} />
+        <PasswordInput label="Sifre" value={password} onChangeText={setPassword} autoCapitalize="none" textContentType="password" editable={!isSubmitting} />
         <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         <Button title="Sifremi unuttum" variant="ghost" onPress={openForgotPassword} disabled={isSubmitting} />
         <Button title="Hesabin yok mu? Kayit ol" variant="ghost" onPress={openRegister} disabled={isSubmitting} />

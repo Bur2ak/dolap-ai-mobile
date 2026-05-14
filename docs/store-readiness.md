@@ -78,6 +78,7 @@ Optional cron setup:
 - Analytics screen includes shareable wardrobe health summaries covering utilization, sustainability, gaps, style profile and weekly goals.
 - Notification settings include push readiness checks, smart reminder setup and quick preference presets; notification inbox includes filters, cleanup actions and shareable digests.
 - Subscription surfaces include RevenueCat readiness checks, restore guidance, store billing notes and shareable subscription summaries.
+- Profile surface includes a shareable launch-readiness summary across onboarding, wardrobe, premium and review routes.
 - Social surfaces include friend status summaries, invite reward guidance and shareable social readiness notes.
 - Style feed includes shareable trend summaries for public shared outfit validation.
 - Lending surfaces include shareable incoming/outgoing loan summaries, overdue signals and status controls.

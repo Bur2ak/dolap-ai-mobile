@@ -5,6 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
@@ -109,7 +110,15 @@ export default function RegisterScreen() {
       <View style={styles.form}>
         <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isSubmitting} />
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
-        <Input label="Sifre" value={password} onChangeText={setPassword} secureTextEntry error={getPasswordInputError(password)} editable={!isSubmitting} />
+        <PasswordInput
+          label="Sifre"
+          value={password}
+          onChangeText={setPassword}
+          autoCapitalize="none"
+          textContentType="newPassword"
+          error={getPasswordInputError(password)}
+          editable={!isSubmitting}
+        />
         <Pressable
           style={styles.consentRow}
           onPress={() =>

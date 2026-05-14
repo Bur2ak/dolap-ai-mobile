@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
@@ -85,8 +85,24 @@ export default function ResetPasswordScreen() {
         </View>
       ) : (
         <View style={styles.form}>
-          <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry error={getPasswordInputError(password)} editable={!isSubmitting} />
-          <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry error={getConfirmPasswordInputError(password, confirmPassword)} editable={!isSubmitting} />
+          <PasswordInput
+            label="Yeni sifre"
+            value={password}
+            onChangeText={setPassword}
+            autoCapitalize="none"
+            textContentType="newPassword"
+            error={getPasswordInputError(password)}
+            editable={!isSubmitting}
+          />
+          <PasswordInput
+            label="Yeni sifre tekrar"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            autoCapitalize="none"
+            textContentType="newPassword"
+            error={getConfirmPasswordInputError(password, confirmPassword)}
+            editable={!isSubmitting}
+          />
           <Button title="Sifreyi Yenile" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
         </View>
       )}

@@ -6,6 +6,7 @@ import * as WebBrowser from "expo-web-browser";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
@@ -306,8 +307,24 @@ export default function AccountSettingsScreen() {
 
       <Card style={styles.form}>
         <Text variant="h3">Guvenlik</Text>
-        <Input label="Yeni sifre" value={password} onChangeText={setPassword} secureTextEntry autoCapitalize="none" error={getPasswordInputError(password)} editable={!isBusy} />
-        <Input label="Yeni sifre tekrar" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoCapitalize="none" error={getConfirmPasswordInputError(password, confirmPassword)} editable={!isBusy} />
+        <PasswordInput
+          label="Yeni sifre"
+          value={password}
+          onChangeText={setPassword}
+          autoCapitalize="none"
+          textContentType="newPassword"
+          error={getPasswordInputError(password)}
+          editable={!isBusy}
+        />
+        <PasswordInput
+          label="Yeni sifre tekrar"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          autoCapitalize="none"
+          textContentType="newPassword"
+          error={getConfirmPasswordInputError(password, confirmPassword)}
+          editable={!isBusy}
+        />
         <Text variant="caption" color="muted">
           Sifre en az 8 karakter olmali.
         </Text>
