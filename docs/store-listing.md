@@ -70,6 +70,7 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 - Price tracking depends on public product pages; unsupported pages may return no detected price.
 - Almali Miyim and Fiyat Takibi screens include shareable summaries so reviewers can verify outputs without relying on external storefront access.
 - Account and legal screens include in-app privacy controls, account deletion controls and shareable account status summaries for review.
+- Support and diagnostics screens include shareable app/build context, public legal URLs and submission readiness checks for reviewer support.
 - Push notifications require device permission and Expo push token registration.
 - Reviewer can test core flows with a temporary review account seeded with sample wardrobe items.
 

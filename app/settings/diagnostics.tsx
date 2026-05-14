@@ -56,6 +56,8 @@ const storeUrls = [
   { label: "Privacy", value: "https://shipirio.com/privacy.html" },
   { label: "Support", value: "https://shipirio.com/support.html" },
   { label: "Account deletion", value: "https://shipirio.com/delete-account.html" },
+  { label: "Terms", value: "https://shipirio.com/terms.html" },
+  { label: "KVKK", value: "https://shipirio.com/kvkk.html" },
 ];
 
 export default function DiagnosticsScreen() {
@@ -67,14 +69,24 @@ export default function DiagnosticsScreen() {
   const iosBuildNumber = Constants.expoConfig?.ios?.buildNumber ?? "Bilinmiyor";
   const androidVersionCode = Constants.expoConfig?.android?.versionCode ?? "Bilinmiyor";
   const readyCheckCount = checks.filter((check) => check.configured).length;
+  const submissionChecks = getSubmissionChecks({
+    androidVersionCode,
+    appVersion,
+    checks,
+    iosBuildNumber,
+    pushReadiness,
+    warningCount: warnings.length,
+  });
+  const readySubmissionCount = submissionChecks.filter((check) => check.ok).length;
   const isBusy = isCheckingPush || isSharingReport;
 
   useEffect(() => {
     captureEvent("diagnostics_screen_viewed", {
       ready_check_count: readyCheckCount,
+      ready_submission_count: readySubmissionCount,
       warning_count: warnings.length,
     });
-  }, [readyCheckCount, warnings.length]);
+  }, [readyCheckCount, readySubmissionCount, warnings.length]);
 
   useEffect(() => {
     void refreshPushReadiness();
@@ -116,6 +128,7 @@ export default function DiagnosticsScreen() {
         checks,
         iosBuildNumber,
         pushReadiness,
+        submissionChecks,
         warnings,
       });
       const result = await Share.share({
@@ -181,6 +194,27 @@ export default function DiagnosticsScreen() {
           App versiyonu, entegrasyon durumu ve uyarilari tek metin olarak paylas.
         </Text>
         <Button title="Raporu Paylas" variant="secondary" onPress={() => void handleShareReport()} loading={isSharingReport} disabled={isBusy} />
+      </Card>
+
+      <Card style={styles.summary}>
+        <Text variant="h3">Submission checklist</Text>
+        <Text variant="body" color="secondary">
+          App Store ve Play Console oncesi kritik public ayar, build ve review sinyalleri.
+        </Text>
+        <View style={styles.statusPills}>
+          <StatusPill label={`${readySubmissionCount}/${submissionChecks.length} hazir`} ok={readySubmissionCount === submissionChecks.length} />
+        </View>
+        {submissionChecks.map((check) => (
+          <View key={check.title} style={styles.storeUrlRow}>
+            <View style={styles.checkHeader}>
+              <Text variant="label">{check.title}</Text>
+              <StatusPill label={check.ok ? "Hazir" : "Eksik"} ok={check.ok} />
+            </View>
+            <Text variant="body" color="secondary">
+              {check.body}
+            </Text>
+          </View>
+        ))}
       </Card>
 
       <Card style={styles.summary}>
@@ -250,6 +284,7 @@ function buildDiagnosticsReport({
   checks,
   iosBuildNumber,
   pushReadiness,
+  submissionChecks,
   warnings,
 }: {
   androidVersionCode: string | number;
@@ -257,11 +292,13 @@ function buildDiagnosticsReport({
   checks: Array<{ configured: boolean; title: string }>;
   iosBuildNumber: string | number;
   pushReadiness: PushNotificationReadiness | null;
+  submissionChecks: Array<{ body: string; ok: boolean; title: string }>;
   warnings: string[];
 }) {
   const checkLines = checks.map((check) => `- ${check.title}: ${check.configured ? "OK" : "Eksik"}`).join("\n");
   const warningLines = warnings.length > 0 ? warnings.map((warning) => `- ${warning}`).join("\n") : "- Yok";
   const storeUrlLines = storeUrls.map((url) => `- ${url.label}: ${url.value}`).join("\n");
+  const submissionLines = submissionChecks.map((check) => `- ${check.title}: ${check.ok ? "OK" : "Eksik"} (${check.body})`).join("\n");
   const pushLines = pushReadiness
     ? [
         `- Durum: ${pushReadiness.status}`,
@@ -284,12 +321,75 @@ function buildDiagnosticsReport({
     "Store URL'leri:",
     storeUrlLines,
     "",
+    "Submission checklist:",
+    submissionLines,
+    "",
     "Push:",
     pushLines,
     "",
     "Uyarilar:",
     warningLines,
   ].join("\n");
+}
+
+function getSubmissionChecks({
+  androidVersionCode,
+  appVersion,
+  checks,
+  iosBuildNumber,
+  pushReadiness,
+  warningCount,
+}: {
+  androidVersionCode: string | number;
+  appVersion: string;
+  checks: Array<{ configured: boolean; title: string }>;
+  iosBuildNumber: string | number;
+  pushReadiness: PushNotificationReadiness | null;
+  warningCount: number;
+}) {
+  const checkByTitle = new Map(checks.map((check) => [check.title, check.configured]));
+  const appVersionReady = appVersion !== "Bilinmiyor";
+  const iosReady = iosBuildNumber !== "Bilinmiyor";
+  const androidReady = androidVersionCode !== "Bilinmiyor";
+  const pushReady = Boolean(pushReadiness?.deviceReady && pushReadiness.easProjectReady);
+
+  return [
+    {
+      body: appVersionReady ? `Surum ${appVersion}` : "app.config.js icinde production surumunu kontrol et.",
+      ok: appVersionReady,
+      title: "App version",
+    },
+    {
+      body: iosReady ? `iOS build ${iosBuildNumber}` : "iOS buildNumber eksik gorunuyor.",
+      ok: iosReady,
+      title: "iOS build",
+    },
+    {
+      body: androidReady ? `Android code ${androidVersionCode}` : "Android versionCode eksik gorunuyor.",
+      ok: androidReady,
+      title: "Android build",
+    },
+    {
+      body: checkByTitle.get("Site URL") ? "Public domain ayari hazir." : "EXPO_PUBLIC_SITE_URL production env'de ayarlanmali.",
+      ok: Boolean(checkByTitle.get("Site URL")),
+      title: "Public site",
+    },
+    {
+      body: checkByTitle.get("RevenueCat") ? "iOS ve Android public key'leri hazir gorunuyor." : "RevenueCat public key'leri production env'de gerekli.",
+      ok: Boolean(checkByTitle.get("RevenueCat")),
+      title: "RevenueCat",
+    },
+    {
+      body: pushReadiness ? pushReadiness.reason : "Push durumu henuz kontrol edilmedi.",
+      ok: pushReady,
+      title: "Push readiness",
+    },
+    {
+      body: warningCount === 0 ? "Public env uyarisi yok." : `${warningCount} public env uyarisi var.`,
+      ok: warningCount === 0,
+      title: "Env warnings",
+    },
+  ];
 }
 
 const styles = StyleSheet.create({
@@ -365,6 +465,12 @@ const styles = StyleSheet.create({
   },
   warningText: {
     flex: 1,
+  },
+  checkHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+    justifyContent: "space-between",
   },
   storeUrlRow: {
     borderColor: COLORS.border,

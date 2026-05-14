@@ -64,6 +64,12 @@ export default function ProfileScreen() {
       route: "/settings/subscription" as const,
       title: "Abonelik hazirligini incele",
     },
+    {
+      body: "Destek baglami, public yasal linkler ve e-posta sablonlari.",
+      label: "Destek",
+      route: "/settings/support" as const,
+      title: "Destek merkezini kontrol et",
+    },
   ];
 
   useEffect(() => {

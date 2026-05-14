@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import * as Linking from "expo-linking";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -12,6 +13,7 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { createPublicAppLink } from "@/lib/links";
 import { captureError, captureEvent } from "@/lib/observability";
+import { useAuthStore } from "@/stores/authStore";
 
 const supportEmail = "hello@shipirio.com";
 const supportTopics = [
@@ -81,17 +83,25 @@ const helpNotes = [
 ];
 
 export default function SupportScreen() {
+  const { profile, session } = useAuthStore();
   const [openingLink, setOpeningLink] = useState<string | null>(null);
+  const [isSharingContext, setIsSharingContext] = useState(false);
   const supportUrl = createPublicAppLink("/support.html");
   const privacyUrl = createPublicAppLink("/privacy.html");
   const deleteAccountUrl = createPublicAppLink("/delete-account.html");
+  const termsUrl = createPublicAppLink("/terms.html");
+  const kvkkUrl = createPublicAppLink("/kvkk.html");
+  const appVersion = Constants.expoConfig?.version ?? "Bilinmiyor";
+  const iosBuildNumber = Constants.expoConfig?.ios?.buildNumber ?? "Bilinmiyor";
+  const androidVersionCode = Constants.expoConfig?.android?.versionCode ?? "Bilinmiyor";
+  const isBusy = Boolean(openingLink) || isSharingContext;
 
   useEffect(() => {
     captureEvent("support_screen_viewed");
   }, []);
 
   async function openUrl(url: string, label: string) {
-    if (openingLink) {
+    if (isBusy) {
       captureEvent("support_link_open_blocked", { label, reason: "busy" });
       return;
     }
@@ -115,7 +125,7 @@ export default function SupportScreen() {
   }
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
-    if (openingLink) {
+    if (isBusy) {
       captureEvent("support_route_open_blocked", { label, reason: "busy" });
       return;
     }
@@ -129,10 +139,41 @@ export default function SupportScreen() {
     return `mailto:${supportEmail}?subject=${subject}&body=${template.body}`;
   }
 
+  async function handleShareSupportContext() {
+    if (isBusy) {
+      captureEvent("support_context_share_blocked", { reason: "busy" });
+      return;
+    }
+
+    try {
+      setIsSharingContext(true);
+      const result = await Share.share({
+        title: "Shipirio destek baglami",
+        message: buildSupportContext({
+          androidVersionCode,
+          appVersion,
+          email: session?.user.email ?? null,
+          iosBuildNumber,
+          profileName: profile?.full_name ?? null,
+          username: profile?.username ?? null,
+        }),
+      });
+      captureEvent("support_context_shared", {
+        completed: result.action === Share.sharedAction,
+        has_profile: Boolean(profile),
+      });
+    } catch (error) {
+      captureError(error, { area: "support_context_share" });
+      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSharingContext(false);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={Boolean(openingLink)} />
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Destek</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -156,13 +197,13 @@ export default function SupportScreen() {
           title="E-posta Gonder"
           onPress={() => void openUrl(`mailto:${supportEmail}?subject=Shipirio%20Destek`, "email")}
           loading={openingLink === "email"}
-          disabled={Boolean(openingLink)}
+          disabled={isBusy}
         />
         <Button
           title="Sistem Raporu Hazirla"
           variant="secondary"
           onPress={() => {
-            if (openingLink) {
+            if (isBusy) {
               captureEvent("support_diagnostics_route_blocked", { reason: "busy" });
               return;
             }
@@ -170,8 +211,22 @@ export default function SupportScreen() {
             captureEvent("support_diagnostics_route_opened");
             router.push("/settings/diagnostics");
           }}
-          disabled={Boolean(openingLink)}
+          disabled={isBusy}
         />
+      </Card>
+
+      <Card style={styles.section}>
+        <Text variant="h3">Destek baglami</Text>
+        <Text variant="body" color="secondary">
+          Hesap ve cihaz bilgilerini hassas anahtar olmadan tek metinde paylas; hata bildirirken hiz kazandirir.
+        </Text>
+        <View style={styles.contextGrid}>
+          <StatusBox label="Hesap" value={session?.user.email ? "Bagli" : "Eksik"} />
+          <StatusBox label="Surum" value={appVersion} />
+          <StatusBox label="iOS" value={String(iosBuildNumber)} />
+          <StatusBox label="Android" value={String(androidVersionCode)} />
+        </View>
+        <Button title="Destek Baglamini Paylas" variant="secondary" onPress={() => void handleShareSupportContext()} loading={isSharingContext} disabled={isBusy} />
       </Card>
 
       <Card style={styles.section}>
@@ -187,7 +242,7 @@ export default function SupportScreen() {
                 {action.body}
               </Text>
             </View>
-            <Button title="Ac" variant="ghost" onPress={() => openRoute(action.route, action.label)} disabled={Boolean(openingLink)} style={styles.actionButton} />
+            <Button title="Ac" variant="ghost" onPress={() => openRoute(action.route, action.label)} disabled={isBusy} style={styles.actionButton} />
           </View>
         ))}
       </Card>
@@ -201,7 +256,7 @@ export default function SupportScreen() {
             variant="secondary"
             onPress={() => void openUrl(getSupportMailto(template), template.label)}
             loading={openingLink === template.label}
-            disabled={Boolean(openingLink)}
+            disabled={isBusy}
           />
         ))}
       </Card>
@@ -237,25 +292,84 @@ export default function SupportScreen() {
           variant="secondary"
           onPress={() => void openUrl(supportUrl, "support")}
           loading={openingLink === "support"}
-          disabled={Boolean(openingLink)}
+          disabled={isBusy}
         />
         <Button
           title="Gizlilik Sayfasini Ac"
           variant="secondary"
           onPress={() => void openUrl(privacyUrl, "privacy")}
           loading={openingLink === "privacy"}
-          disabled={Boolean(openingLink)}
+          disabled={isBusy}
         />
         <Button
           title="Hesap Silme Bilgisini Ac"
           variant="secondary"
           onPress={() => void openUrl(deleteAccountUrl, "delete_account")}
           loading={openingLink === "delete_account"}
-          disabled={Boolean(openingLink)}
+          disabled={isBusy}
+        />
+        <Button
+          title="Kullanim Sartlarini Ac"
+          variant="secondary"
+          onPress={() => void openUrl(termsUrl, "terms")}
+          loading={openingLink === "terms"}
+          disabled={isBusy}
+        />
+        <Button
+          title="KVKK Sayfasini Ac"
+          variant="secondary"
+          onPress={() => void openUrl(kvkkUrl, "kvkk")}
+          loading={openingLink === "kvkk"}
+          disabled={isBusy}
         />
       </Card>
     </ScrollView>
   );
+}
+
+function StatusBox({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statusBox}>
+      <Text variant="caption" color="muted">
+        {label}
+      </Text>
+      <Text variant="label">{value}</Text>
+    </View>
+  );
+}
+
+function buildSupportContext({
+  androidVersionCode,
+  appVersion,
+  email,
+  iosBuildNumber,
+  profileName,
+  username,
+}: {
+  androidVersionCode: string | number;
+  appVersion: string;
+  email: string | null;
+  iosBuildNumber: string | number;
+  profileName: string | null;
+  username: string | null;
+}) {
+  return [
+    "Shipirio destek baglami",
+    "",
+    `E-posta: ${email ?? "Yok"}`,
+    `Ad Soyad: ${profileName ?? "Yok"}`,
+    `Kullanici adi: ${username ?? "Yok"}`,
+    "",
+    `App: ${appVersion}`,
+    `iOS build: ${iosBuildNumber}`,
+    `Android code: ${androidVersionCode}`,
+    "",
+    `Destek: ${createPublicAppLink("/support.html")}`,
+    `Gizlilik: ${createPublicAppLink("/privacy.html")}`,
+    `Hesap silme: ${createPublicAppLink("/delete-account.html")}`,
+    `Sartlar: ${createPublicAppLink("/terms.html")}`,
+    `KVKK: ${createPublicAppLink("/kvkk.html")}`,
+  ].join("\n");
 }
 
 const styles = StyleSheet.create({
@@ -290,6 +404,20 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: SPACING.md,
+  },
+  contextGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+  },
+  statusBox: {
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexGrow: 1,
+    gap: SPACING.xs,
+    minWidth: "45%",
+    padding: SPACING.sm,
   },
   topicRow: {
     alignItems: "flex-start",

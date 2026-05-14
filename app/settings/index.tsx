@@ -85,6 +85,14 @@ const reviewChecks = [
     route: "/settings/privacy" as const,
   },
   {
+    label: "Yasal",
+    route: "/legal/terms" as const,
+  },
+  {
+    label: "Abonelik",
+    route: "/settings/subscription" as const,
+  },
+  {
     label: "Destek",
     route: "/settings/support" as const,
   },
@@ -185,11 +193,13 @@ const styles = StyleSheet.create({
   },
   reviewActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: SPACING.sm,
   },
   reviewButton: {
     flex: 1,
     minHeight: 40,
+    minWidth: "30%",
     paddingHorizontal: SPACING.sm,
   },
   row: {

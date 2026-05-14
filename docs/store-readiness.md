@@ -72,6 +72,7 @@ Optional cron setup:
 - Account deletion is available under profile/account settings and uses a 30 day waiting period.
 - Public account deletion instructions are available at `https://shipirio.com/delete-account.html`.
 - Support screen includes direct email templates, diagnostics routing, subscription routing and public support/legal links.
+- Support screen includes a shareable support context with app/build/account metadata and all public legal/support URLs.
 - Privacy screen includes share controls, data category explanations, legal routing and a shareable privacy summary.
 - Wardrobe screen includes usage-based sorting, metadata readiness signals and item-level share summaries for reviewer-visible daily use flows.
 - Notification settings include push readiness checks, smart reminder setup and quick preference presets; notification inbox includes filters, cleanup actions and shareable digests.
@@ -80,6 +81,7 @@ Optional cron setup:
 - Shopping surfaces include shareable buy-decision results and price-tracking digests for reviewer validation.
 - Profile and settings surfaces include release-readiness shortcuts for diagnostics, privacy, support and subscription review.
 - Account and legal surfaces include shareable account control summaries plus in-app privacy, account deletion, support and subscription control routes.
+- Diagnostics includes a submission checklist covering app version, platform build numbers, public site, RevenueCat, push readiness and env warnings.
 - Price tracking depends on public product pages; some stores may block automated price detection.
 
 ## Store Listing Copy
