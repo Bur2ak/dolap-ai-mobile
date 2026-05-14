@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "deploy:functions": "sh scripts/deploy-functions.sh",
     "preflight": "node scripts/preflight.js",
+    "release:check": "npm run type-check && npm run preflight",
     "type-check": "tsc --noEmit",
     "build:dev:ios": "eas build --profile development --platform ios",
     "build:preview": "eas build --profile preview --platform all",

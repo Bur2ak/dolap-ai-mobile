@@ -82,6 +82,7 @@ dolap, gardirob, kombin, moda, kiyafet, alisveris, stil, fiyat takibi, outfit, w
 - Subscription screen includes guarded restore, paywall and share actions plus shareable plan/readiness summaries.
 - Notification settings include shareable push readiness summaries for QA and app review evidence.
 - Support and diagnostics screens include shareable app/build context, public legal URLs, backend production checks and submission readiness checks for reviewer support.
+- Release runbook documents final Supabase, domain, cron, build and smoke-test steps for store submission.
 - Push notifications require device permission and Expo push token registration.
 - Reviewer can test core flows with a temporary review account seeded with sample wardrobe items.
 

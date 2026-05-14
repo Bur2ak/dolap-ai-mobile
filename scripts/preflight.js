@@ -47,6 +47,7 @@ const requiredFiles = [
   "public/kvkk.html",
   "docs/store-readiness.md",
   "docs/store-listing.md",
+  "docs/release-runbook.md",
   "app/settings/support.tsx",
   "app/legal/kvkk.tsx",
   "app/legal/privacy.tsx",
@@ -96,6 +97,7 @@ validateAppConfig(appConfig, failures, warnings);
 validatePackageJson(packageJson, warnings);
 validateFunctionDeployment(deployFunctionsScript, expectedFunctionNames, failures, warnings);
 validateDomainFiles(warnings);
+validateCronExamples(warnings);
 
 const migrationDir = path.join(root, "supabase/migrations");
 const migrations = fs.existsSync(migrationDir) ? fs.readdirSync(migrationDir).filter((file) => file.endsWith(".sql")).sort() : [];
@@ -247,6 +249,8 @@ function validateDomainFiles(warnings) {
   const appleLive = path.join(wellKnownDir, "apple-app-site-association");
   const assetLinksExample = path.join(wellKnownDir, "assetlinks.json.example");
   const assetLinksLive = path.join(wellKnownDir, "assetlinks.json");
+  const appleLiveContent = readTextFile(appleLive);
+  const assetLinksLiveContent = readTextFile(assetLinksLive);
 
   if (fs.existsSync(appleExample) && !fs.existsSync(appleLive)) {
     warnings.push("apple-app-site-association henuz .example olarak duruyor; production domain icin gercek dosya yayinlanmali.");
@@ -254,6 +258,37 @@ function validateDomainFiles(warnings) {
 
   if (fs.existsSync(assetLinksExample) && !fs.existsSync(assetLinksLive)) {
     warnings.push("assetlinks.json henuz .example olarak duruyor; Android App Links icin gercek dosya yayinlanmali.");
+  }
+
+  if (appleLiveContent && containsPlaceholder(appleLiveContent)) {
+    warnings.push("apple-app-site-association gercek dosyasi placeholder iceriyor olabilir.");
+  }
+
+  if (assetLinksLiveContent && containsPlaceholder(assetLinksLiveContent)) {
+    warnings.push("assetlinks.json gercek dosyasi placeholder iceriyor olabilir.");
+  }
+}
+
+function validateCronExamples(warnings) {
+  const cronDir = path.join(root, "supabase/cron");
+  const priceExample = readTextFile(path.join(cronDir, "price_check_cron.sql.example"));
+  const deletionExample = readTextFile(path.join(cronDir, "account_deletion_cron.sql.example"));
+  const committedSqlFiles = fs.existsSync(cronDir)
+    ? fs
+        .readdirSync(cronDir)
+        .filter((file) => file.endsWith(".sql") && !file.endsWith(".example"))
+    : [];
+
+  if (!priceExample.includes("YOUR_PROJECT_REF") || !priceExample.includes("YOUR_SUPABASE_SERVICE_ROLE_KEY")) {
+    warnings.push("price_check_cron.sql.example beklenen placeholder/guvenlik notlarini icermiyor.");
+  }
+
+  if (!deletionExample.includes("YOUR_PROJECT_REF") || !deletionExample.includes("YOUR_ACCOUNT_DELETION_CRON_SECRET")) {
+    warnings.push("account_deletion_cron.sql.example beklenen placeholder/guvenlik notlarini icermiyor.");
+  }
+
+  for (const file of committedSqlFiles) {
+    warnings.push(`supabase/cron/${file} gercek cron SQL'i commitlenmis gorunuyor; secret icermediginden emin ol.`);
   }
 }
 
@@ -270,7 +305,11 @@ function extractDeployFunctionNames(scriptContent) {
 
 function hasRealValue(value) {
   const trimmed = value?.trim();
-  return Boolean(trimmed && !placeholderFragments.some((fragment) => trimmed.includes(fragment)));
+  return Boolean(trimmed && !containsPlaceholder(trimmed));
+}
+
+function containsPlaceholder(value) {
+  return placeholderFragments.some((fragment) => value.includes(fragment));
 }
 
 function printSection(title) {

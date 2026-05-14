@@ -95,6 +95,10 @@ Optional cron setup:
 
 Ready-to-paste app descriptions, keywords and data safety notes are in `docs/store-listing.md`.
 
+## Release Runbook
+
+Production build, Supabase, domain, cron and reviewer smoke-test steps are in `docs/release-runbook.md`.
+
 ## Screenshot Checklist
 
 - iPhone 6.7 inch: Dolabim, Kombin, Almali Miyim, Analiz, Fiyat Takibi, Profil.
