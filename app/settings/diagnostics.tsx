@@ -60,6 +60,34 @@ const storeUrls = [
   { label: "KVKK", value: "https://shipirio.com/kvkk.html" },
 ];
 
+const backendChecklist = [
+  {
+    body: "supabase db push remote veritabani guncel donmeli.",
+    label: "Migrations",
+    value: "001-019",
+  },
+  {
+    body: "Tum Edge Function'lar production projeye deploy edilmeli.",
+    label: "Functions",
+    value: "9/9",
+  },
+  {
+    body: "GOOGLE_GEMINI_API_KEY, REMOVE_BG_API_KEY, SERVICE_ROLE ve RevenueCat secret'lari Supabase secrets icinde olmali.",
+    label: "Secrets",
+    value: "Manuel",
+  },
+  {
+    body: "price-check ve account deletion cron SQL'leri production project ref ve secret ile kurulacak.",
+    label: "Cron",
+    value: "Manuel",
+  },
+  {
+    body: "apple-app-site-association ve assetlinks.json dosyalari gercek Team ID / SHA-256 ile shipirio.com altinda yayinlanacak.",
+    label: "Universal links",
+    value: "Domain",
+  },
+];
+
 export default function DiagnosticsScreen() {
   const warnings = getPublicEnvWarnings();
   const [pushReadiness, setPushReadiness] = useState<PushNotificationReadiness | null>(null);
@@ -169,7 +197,7 @@ export default function DiagnosticsScreen() {
       <Card style={styles.summary}>
         <Text variant="h3">Uygulama</Text>
         <Text variant="body" color="secondary">
-          Surum {appVersion} · iOS build {iosBuildNumber} · Android code {androidVersionCode}
+          Surum {appVersion} - iOS build {iosBuildNumber} - Android code {androidVersionCode}
         </Text>
       </Card>
 
@@ -194,6 +222,28 @@ export default function DiagnosticsScreen() {
           App versiyonu, entegrasyon durumu ve uyarilari tek metin olarak paylas.
         </Text>
         <Button title="Raporu Paylas" variant="secondary" onPress={() => void handleShareReport()} loading={isSharingReport} disabled={isBusy} />
+      </Card>
+
+      <Card style={styles.summary}>
+        <Text variant="h3">Backend production checklist</Text>
+        <Text variant="body" color="secondary">
+          Bu bolum gizli degerleri okumaz; Supabase ve domain tarafinda manuel dogrulanacak release adimlarini listeler.
+        </Text>
+        {backendChecklist.map((item) => (
+          <View key={item.label} style={styles.storeUrlRow}>
+            <View style={styles.checkHeader}>
+              <Text variant="label">{item.label}</Text>
+              <View style={styles.neutralPill}>
+                <Text variant="caption" color="secondary">
+                  {item.value}
+                </Text>
+              </View>
+            </View>
+            <Text variant="body" color="secondary">
+              {item.body}
+            </Text>
+          </View>
+        ))}
       </Card>
 
       <Card style={styles.summary}>
@@ -298,6 +348,7 @@ function buildDiagnosticsReport({
   const checkLines = checks.map((check) => `- ${check.title}: ${check.configured ? "OK" : "Eksik"}`).join("\n");
   const warningLines = warnings.length > 0 ? warnings.map((warning) => `- ${warning}`).join("\n") : "- Yok";
   const storeUrlLines = storeUrls.map((url) => `- ${url.label}: ${url.value}`).join("\n");
+  const backendLines = backendChecklist.map((item) => `- ${item.label}: ${item.value} (${item.body})`).join("\n");
   const submissionLines = submissionChecks.map((check) => `- ${check.title}: ${check.ok ? "OK" : "Eksik"} (${check.body})`).join("\n");
   const pushLines = pushReadiness
     ? [
@@ -320,6 +371,9 @@ function buildDiagnosticsReport({
     "",
     "Store URL'leri:",
     storeUrlLines,
+    "",
+    "Backend production checklist:",
+    backendLines,
     "",
     "Submission checklist:",
     submissionLines,
@@ -447,6 +501,12 @@ const styles = StyleSheet.create({
   },
   statusPillMissing: {
     backgroundColor: COLORS.surfaceMuted,
+  },
+  neutralPill: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
   },
   statusMissing: {
     backgroundColor: "#F5D3D0",

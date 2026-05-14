@@ -95,6 +95,7 @@ for (const file of requiredFiles) {
 validateAppConfig(appConfig, failures, warnings);
 validatePackageJson(packageJson, warnings);
 validateFunctionDeployment(deployFunctionsScript, expectedFunctionNames, failures, warnings);
+validateDomainFiles(warnings);
 
 const migrationDir = path.join(root, "supabase/migrations");
 const migrations = fs.existsSync(migrationDir) ? fs.readdirSync(migrationDir).filter((file) => file.endsWith(".sql")).sort() : [];
@@ -237,6 +238,22 @@ function validateFunctionDeployment(scriptContent, expectedNames, failures, warn
     if (!expectedNames.includes(name)) {
       warnings.push(`${name} function klasoru preflight kritik dosya listesine eklenmemis.`);
     }
+  }
+}
+
+function validateDomainFiles(warnings) {
+  const wellKnownDir = path.join(root, "public/.well-known");
+  const appleExample = path.join(wellKnownDir, "apple-app-site-association.example");
+  const appleLive = path.join(wellKnownDir, "apple-app-site-association");
+  const assetLinksExample = path.join(wellKnownDir, "assetlinks.json.example");
+  const assetLinksLive = path.join(wellKnownDir, "assetlinks.json");
+
+  if (fs.existsSync(appleExample) && !fs.existsSync(appleLive)) {
+    warnings.push("apple-app-site-association henuz .example olarak duruyor; production domain icin gercek dosya yayinlanmali.");
+  }
+
+  if (fs.existsSync(assetLinksExample) && !fs.existsSync(assetLinksLive)) {
+    warnings.push("assetlinks.json henuz .example olarak duruyor; Android App Links icin gercek dosya yayinlanmali.");
   }
 }
 

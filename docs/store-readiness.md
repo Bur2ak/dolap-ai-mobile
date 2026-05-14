@@ -88,7 +88,7 @@ Optional cron setup:
 - Profile and settings surfaces include release-readiness shortcuts for diagnostics, privacy, support and subscription review.
 - Settings review center includes a shareable review checklist for app-review handoff.
 - Account and legal surfaces include shareable account control summaries plus in-app privacy, account deletion, support and subscription control routes.
-- Diagnostics includes a submission checklist covering app version, platform build numbers, public site, RevenueCat, push readiness and env warnings.
+- Diagnostics includes a submission checklist covering app version, platform build numbers, public site, RevenueCat, push readiness, env warnings and manual backend production checks for functions, secrets, cron and universal links.
 - Price tracking depends on public product pages; some stores may block automated price detection.
 
 ## Store Listing Copy
