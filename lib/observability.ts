@@ -15,6 +15,7 @@ export function initializeObservability() {
     Sentry.init({
       dsn: sentryDsn,
       enableAutoSessionTracking: true,
+      sessionTrackingIntervalMillis: 30_000,
       tracesSampleRate: __DEV__ ? 0 : 0.1,
     });
     sentryReady = true;

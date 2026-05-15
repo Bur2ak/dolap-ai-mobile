@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Animated, Dimensions, FlatList, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -10,6 +10,8 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { captureEvent } from "@/lib/observability";
 import { getSafeInternalReturnTo } from "@/lib/routeParams";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
 
 const slides = [
   {
@@ -50,10 +52,17 @@ const permissionNotes = [
 export default function OnboardingScreen() {
   const { returnTo: returnToParam } = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = getSafeInternalReturnTo(returnToParam);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const scrollX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     captureEvent("onboarding_screen_viewed", { has_return_to: Boolean(returnTo) });
   }, [returnTo]);
+
+  function handleSlideScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+    setActiveSlide(Math.max(0, Math.min(idx, slides.length - 1)));
+  }
 
   function openRegister() {
     captureEvent("onboarding_register_pressed", { has_return_to: Boolean(returnTo) });
@@ -78,6 +87,7 @@ export default function OnboardingScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.heroPadded}>
       <View style={styles.hero}>
         <View style={styles.brandMark}>
           <Ionicons name="cube-outline" size={28} color={COLORS.textInverse} />
@@ -104,26 +114,41 @@ export default function OnboardingScreen() {
           </View>
         </View>
       </View>
-
-      <View style={styles.slides}>
-        {slides.map((slide, index) => (
-          <Card key={slide.title} style={styles.slide}>
-            <View style={styles.slideIcon}>
-              <Ionicons name={slide.icon} size={22} color={COLORS.primary} />
-            </View>
-            <View style={styles.slideCopy}>
-              <Text variant="caption" color="muted">
-                0{index + 1}
-              </Text>
-              <Text variant="h3">{slide.title}</Text>
-              <Text variant="body" color="secondary">
-                {slide.body}
-              </Text>
-            </View>
-          </Card>
-        ))}
       </View>
 
+      <View style={styles.carouselWrapper}>
+        <FlatList
+          data={slides}
+          keyExtractor={(item) => item.title}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleSlideScroll}
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: false })}
+          scrollEventThrottle={16}
+          renderItem={({ item, index }) => (
+            <View style={styles.slidePage}>
+              <Card style={styles.slide}>
+                <View style={styles.slideIcon}>
+                  <Ionicons name={item.icon} size={22} color={COLORS.primary} />
+                </View>
+                <View style={styles.slideCopy}>
+                  <Text variant="caption" color="muted">0{index + 1}</Text>
+                  <Text variant="h3">{item.title}</Text>
+                  <Text variant="body" color="secondary">{item.body}</Text>
+                </View>
+              </Card>
+            </View>
+          )}
+        />
+        <View style={styles.dots}>
+          {slides.map((_, i) => (
+            <View key={i} style={[styles.dot, i === activeSlide && styles.dotActive]} />
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.heroPadded}>
       <Card style={styles.trustCard}>
         <Text variant="h3">Izinleri ihtiyac aninda isteriz</Text>
         {permissionNotes.map((note) => (
@@ -158,6 +183,7 @@ export default function OnboardingScreen() {
           <Button title="Sartlar" variant="ghost" onPress={() => openLegal("/legal/terms", "terms")} style={styles.legalButton} />
         </View>
       </View>
+      </View>
     </ScrollView>
   );
 }
@@ -169,9 +195,12 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: SPACING.md,
-    padding: SPACING.lg,
     paddingBottom: SPACING.xl,
     paddingTop: 72,
+  },
+  heroPadded: {
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
   },
   hero: {
     gap: SPACING.md,
@@ -198,8 +227,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm,
     paddingVertical: 6,
   },
-  slides: {
-    gap: SPACING.md,
+  carouselWrapper: {
+    gap: SPACING.sm,
+  },
+  slidePage: {
+    paddingHorizontal: SPACING.lg,
+    width: SCREEN_WIDTH,
   },
   slide: {
     alignItems: "flex-start",
@@ -217,6 +250,21 @@ const styles = StyleSheet.create({
   slideCopy: {
     flex: 1,
     gap: SPACING.xs,
+  },
+  dots: {
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: SPACING.xs,
+  },
+  dot: {
+    backgroundColor: COLORS.border,
+    borderRadius: 999,
+    height: 8,
+    width: 8,
+  },
+  dotActive: {
+    backgroundColor: COLORS.primary,
+    width: 20,
   },
   trustCard: {
     gap: SPACING.md,

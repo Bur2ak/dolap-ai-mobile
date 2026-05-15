@@ -29,10 +29,10 @@ export async function fetchWardrobeItems(userId: string): Promise<WardrobeItem[]
     }
 
     const items = (data ?? []).map(normalizeWardrobeItemRecord).filter((item): item is WardrobeItem => item !== null);
-    await cacheWardrobeItems(userId, items);
+    cacheWardrobeItems(userId, items);
     return items;
   } catch (error) {
-    const cachedItems = await getCachedWardrobeItems(userId);
+    const cachedItems = getCachedWardrobeItems(userId);
     if (cachedItems.length > 0) {
       return cachedItems;
     }

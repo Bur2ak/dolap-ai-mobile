@@ -1,4 +1,4 @@
-import type { ClothingCategory, DistributionPoint, MissingWardrobePiece, StyleProfile, WardrobeAnalytics, WardrobeGoal, WardrobeItem } from "@/types";
+import type { ClothingCategory, DistributionPoint, MissingWardrobePiece, MonthlySpendingPoint, StyleProfile, WardrobeAnalytics, WardrobeGoal, WardrobeItem } from "@/types";
 import { getSustainabilityInsight } from "@/utils/sustainability";
 
 const validCategories = new Set<ClothingCategory>(["ust", "alt", "elbise", "etek", "dis_giyim", "ayakkabi", "canta", "aksesuar", "ic_giyim", "spor", "diger"]);
@@ -43,6 +43,7 @@ export function calculateWardrobeAnalytics(items: WardrobeItem[]): WardrobeAnaly
     total_value: roundMoney(totalValue),
     avg_cost_per_wear: roundMoney(avgCostPerWear),
     monthly_spending: roundMoney(monthlySpending),
+    monthly_spending_data: calculateMonthlySpendingData(safeItems),
     utilization_score: utilizationScore,
     sustainability_score: sustainabilityScore,
     inactive_items_count: inactiveItems.length,
@@ -123,6 +124,23 @@ function getSafeTimestamp(value: string) {
 
 function roundMoney(value: number) {
   return Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
+}
+
+function calculateMonthlySpendingData(items: WardrobeItem[]): MonthlySpendingPoint[] {
+  const map = new Map<string, number>();
+  for (const item of items) {
+    if (!item.purchase_price || !item.created_at) continue;
+    const month = item.created_at.slice(0, 7);
+    map.set(month, (map.get(month) ?? 0) + item.purchase_price);
+  }
+  const sorted = [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6)
+    .map(([month, amount]) => ({
+      month: month.slice(5),
+      amount: roundMoney(amount),
+    }));
+  return sorted;
 }
 
 function calculateWeeklyGoals(items: WardrobeItem[], utilizationScore: number, sustainabilityScore: number): WardrobeGoal[] {

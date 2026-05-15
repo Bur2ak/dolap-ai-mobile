@@ -2,6 +2,9 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
+import { CostPerWear } from "@/components/analytics/CostPerWear";
+import { MonthlySpending } from "@/components/analytics/MonthlySpending";
+import { WearCountList } from "@/components/analytics/WearCountList";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -224,8 +227,10 @@ export default function AnalyticsScreen() {
         isAdding={isCreatingTracking}
         activePieceKey={activeMissingPieceKey}
       />
-      <ItemList title="En cok giyilenler" items={analytics.most_worn} empty="Henuz giyilme verisi yok." />
-      <ItemList title="Hic giyilmeyenler" items={analytics.never_worn} empty="Harika, her sey kullanilmis gorunuyor." />
+      <WearCountList title="En çok giyilenler" items={analytics.most_worn} empty="Henüz giyilme verisi yok." />
+      <WearCountList title="Hiç giyilmeyenler" items={analytics.never_worn} empty="Harika, her şey kullanılmış görünüyor." />
+      <CostPerWear items={analytics.most_worn} />
+      <MonthlySpending data={analytics.monthly_spending_data} />
       {checkGate("ANALYTICS_FULL") ? (
         <>
           <ItemList title="Yuksek degerli atil parcalar" items={analytics.high_value_unused} empty="Yuksek degerli atil parca yok." />

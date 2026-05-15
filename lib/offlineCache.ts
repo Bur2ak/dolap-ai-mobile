@@ -1,7 +1,9 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createMMKV } from "react-native-mmkv";
 
 import { captureError } from "@/lib/observability";
 import type { OutfitSuggestion, WardrobeItem } from "@/types";
+
+const mmkv = createMMKV({ id: "shipirio-cache" });
 
 const wardrobeCacheLimit = 30;
 const outfitSuggestionCacheLimit = 3;
@@ -14,21 +16,18 @@ function getOutfitSuggestionsCacheKey(userId: string) {
   return `shipirio:offline:outfit-suggestions:${userId}`;
 }
 
-export async function cacheWardrobeItems(userId: string, items: WardrobeItem[]) {
+export function cacheWardrobeItems(userId: string, items: WardrobeItem[]) {
   try {
-    await AsyncStorage.setItem(getWardrobeCacheKey(userId), JSON.stringify(items.slice(0, wardrobeCacheLimit)));
+    mmkv.set(getWardrobeCacheKey(userId), JSON.stringify(items.slice(0, wardrobeCacheLimit)));
   } catch (error) {
     captureError(error, { area: "offline_cache_wardrobe_write", user_id: userId });
   }
 }
 
-export async function getCachedWardrobeItems(userId: string): Promise<WardrobeItem[]> {
+export function getCachedWardrobeItems(userId: string): WardrobeItem[] {
   try {
-    const rawValue = await AsyncStorage.getItem(getWardrobeCacheKey(userId));
-    if (!rawValue) {
-      return [];
-    }
-
+    const rawValue = mmkv.getString(getWardrobeCacheKey(userId));
+    if (!rawValue) return [];
     const parsed = JSON.parse(rawValue);
     return Array.isArray(parsed) ? parsed.filter(isCachedWardrobeItem) : [];
   } catch (error) {
@@ -37,21 +36,18 @@ export async function getCachedWardrobeItems(userId: string): Promise<WardrobeIt
   }
 }
 
-export async function cacheOutfitSuggestions(userId: string, suggestions: OutfitSuggestion[]) {
+export function cacheOutfitSuggestions(userId: string, suggestions: OutfitSuggestion[]) {
   try {
-    await AsyncStorage.setItem(getOutfitSuggestionsCacheKey(userId), JSON.stringify(suggestions.slice(0, outfitSuggestionCacheLimit)));
+    mmkv.set(getOutfitSuggestionsCacheKey(userId), JSON.stringify(suggestions.slice(0, outfitSuggestionCacheLimit)));
   } catch (error) {
     captureError(error, { area: "offline_cache_outfit_write", user_id: userId });
   }
 }
 
-export async function getCachedOutfitSuggestions(userId: string): Promise<OutfitSuggestion[]> {
+export function getCachedOutfitSuggestions(userId: string): OutfitSuggestion[] {
   try {
-    const rawValue = await AsyncStorage.getItem(getOutfitSuggestionsCacheKey(userId));
-    if (!rawValue) {
-      return [];
-    }
-
+    const rawValue = mmkv.getString(getOutfitSuggestionsCacheKey(userId));
+    if (!rawValue) return [];
     const parsed = JSON.parse(rawValue);
     return Array.isArray(parsed) ? parsed.filter(isCachedOutfitSuggestion) : [];
   } catch (error) {
@@ -60,11 +56,17 @@ export async function getCachedOutfitSuggestions(userId: string): Promise<Outfit
   }
 }
 
-function isCachedWardrobeItem(value: unknown): value is WardrobeItem {
-  if (!value || typeof value !== "object") {
-    return false;
+export function clearUserCache(userId: string) {
+  try {
+    mmkv.remove(getWardrobeCacheKey(userId));
+    mmkv.remove(getOutfitSuggestionsCacheKey(userId));
+  } catch (error) {
+    captureError(error, { area: "offline_cache_clear", user_id: userId });
   }
+}
 
+function isCachedWardrobeItem(value: unknown): value is WardrobeItem {
+  if (!value || typeof value !== "object") return false;
   const item = value as Partial<WardrobeItem>;
   return (
     typeof item.id === "string" &&
@@ -77,10 +79,7 @@ function isCachedWardrobeItem(value: unknown): value is WardrobeItem {
 }
 
 function isCachedOutfitSuggestion(value: unknown): value is OutfitSuggestion {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
+  if (!value || typeof value !== "object") return false;
   const suggestion = value as Partial<OutfitSuggestion>;
   return (
     Array.isArray(suggestion.items) &&

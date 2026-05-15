@@ -452,6 +452,17 @@ export default function ItemDetailScreen() {
 
           <View style={styles.actions}>
             <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={activeAction === "worn"} disabled={isActionBusy} />
+            {item.is_lendable ? (
+              <Button
+                title="Odunc Isteklerini Gor"
+                variant="secondary"
+                onPress={() => {
+                  captureEvent("wardrobe_item_loan_requests_opened", { item_id: item.id });
+                  router.push("/social/loans");
+                }}
+                disabled={isActionBusy}
+              />
+            ) : null}
             <Button title="Ozet Paylas" variant="secondary" onPress={() => void handleShareItemSummary()} loading={activeAction === "share"} disabled={isActionBusy} />
             <Button title="Sil" variant="secondary" onPress={handleDelete} loading={activeAction === "delete"} disabled={isActionBusy} />
           </View>

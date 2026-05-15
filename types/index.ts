@@ -304,11 +304,17 @@ export interface WardrobeGoal {
   priority: "high" | "medium" | "low";
 }
 
+export interface MonthlySpendingPoint {
+  month: string;
+  amount: number;
+}
+
 export interface WardrobeAnalytics {
   total_items: number;
   total_value: number;
   avg_cost_per_wear: number;
   monthly_spending: number;
+  monthly_spending_data: MonthlySpendingPoint[];
   utilization_score: number;
   sustainability_score: number;
   inactive_items_count: number;

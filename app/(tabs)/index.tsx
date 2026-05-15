@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Alert, FlatList, Pressable, Share, StyleSheet, View } from "react-native";
 
 import { AdBanner } from "@/components/shared/AdBanner";
+import { AddItemSheet } from "@/components/wardrobe/AddItemSheet";
 import { CategoryFilter } from "@/components/wardrobe/CategoryFilter";
 import { SeasonFilter } from "@/components/wardrobe/SeasonFilter";
 import { WardrobeItemCard } from "@/components/wardrobe/WardrobeItemCard";
@@ -16,6 +17,7 @@ import { CATEGORIES } from "@/constants/categories";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useWardrobe } from "@/hooks/useWardrobe";
+import { useImagePicker } from "@/hooks/useImagePicker";
 import { captureEvent } from "@/lib/observability";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobeStore } from "@/stores/wardrobeStore";
@@ -41,6 +43,8 @@ export default function WardrobeScreen() {
   const { premium } = useSubscription();
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [isSharingSummary, setIsSharingSummary] = useState(false);
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const { takePhoto, pickFromLibrary } = useImagePicker();
   const normalizedQuery = search.trim().toLowerCase();
   const hasActiveFilters = category !== "all" || season !== "all" || Boolean(normalizedQuery);
   const isBusy = isLoading || isRefetching || isSharingSummary;
@@ -96,9 +100,24 @@ export default function WardrobeScreen() {
       captureEvent("wardrobe_add_item_blocked", { reason: "busy" });
       return;
     }
+    captureEvent("wardrobe_add_item_sheet_opened");
+    setSheetVisible(true);
+  }
 
-    captureEvent("wardrobe_add_item_opened");
-    router.push("/item/add");
+  async function handleCameraAdd() {
+    const uri = await takePhoto();
+    if (uri) {
+      captureEvent("wardrobe_add_item_opened", { source: "camera" });
+      router.push({ pathname: "/item/add", params: { imageUri: uri, source: "camera" } });
+    }
+  }
+
+  async function handleLibraryAdd() {
+    const uri = await pickFromLibrary();
+    if (uri) {
+      captureEvent("wardrobe_add_item_opened", { source: "library" });
+      router.push({ pathname: "/item/add", params: { imageUri: uri, source: "library" } });
+    }
   }
 
   async function handleShareWardrobeSummary() {
@@ -143,6 +162,13 @@ export default function WardrobeScreen() {
 
   return (
     <View style={styles.container}>
+      <AddItemSheet
+        visible={sheetVisible}
+        onClose={() => setSheetVisible(false)}
+        onCamera={() => void handleCameraAdd()}
+        onLibrary={() => void handleLibraryAdd()}
+        disabled={isBusy}
+      />
       <View style={styles.header}>
         <View>
           <Text variant="h1">Dolabim</Text>
