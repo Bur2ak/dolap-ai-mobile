@@ -93,7 +93,11 @@
       "siteUrl": "https://shipirio.com",
       "router": {
         "origin": false
+      },
+      "eas": {
+        "projectId": "79a194ae-5ed3-49f9-9863-6ad2ceba212a"
       }
-    }
+    },
+    "owner": "shipirio"
   }
 }
