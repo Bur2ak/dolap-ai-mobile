@@ -8,7 +8,8 @@ type PublicEnvKey =
   | "EXPO_PUBLIC_REVENUECAT_ANDROID_KEY"
   | "EXPO_PUBLIC_SENTRY_DSN"
   | "EXPO_PUBLIC_POSTHOG_API_KEY"
-  | "EXPO_PUBLIC_POSTHOG_HOST";
+  | "EXPO_PUBLIC_POSTHOG_HOST"
+  | "EXPO_PUBLIC_R2_PUBLIC_URL";
 
 const placeholderValues = new Set([
   "https://your-project.supabase.co",
@@ -28,6 +29,7 @@ export const publicEnv = {
   openWeatherApiKey: normalizePublicEnv("EXPO_PUBLIC_OPENWEATHER_API_KEY", process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY),
   posthogApiKey: normalizePublicEnv("EXPO_PUBLIC_POSTHOG_API_KEY", process.env.EXPO_PUBLIC_POSTHOG_API_KEY),
   posthogHost: normalizePublicUrlEnv("EXPO_PUBLIC_POSTHOG_HOST", process.env.EXPO_PUBLIC_POSTHOG_HOST),
+  r2PublicUrl: normalizePublicUrlEnv("EXPO_PUBLIC_R2_PUBLIC_URL", process.env.EXPO_PUBLIC_R2_PUBLIC_URL),
   revenueCatAndroidKey: normalizePublicEnv("EXPO_PUBLIC_REVENUECAT_ANDROID_KEY", process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY),
   revenueCatIosKey: normalizePublicEnv("EXPO_PUBLIC_REVENUECAT_IOS_KEY", process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY),
   sentryDsn: normalizePublicUrlEnv("EXPO_PUBLIC_SENTRY_DSN", process.env.EXPO_PUBLIC_SENTRY_DSN),

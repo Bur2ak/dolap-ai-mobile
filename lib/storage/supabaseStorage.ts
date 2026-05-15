@@ -1,101 +1,61 @@
 import { throwApiError } from "@/lib/api/errors";
 import { captureError } from "@/lib/observability";
+import { deleteFromR2, getR2PathFromUrl, isR2Url, uploadToR2 } from "@/lib/storage/r2";
 import { supabase } from "@/lib/supabase";
 
 const wardrobeImagesBucket = "wardrobe-images";
-const maxUploadBytes = 8 * 1024 * 1024;
 
-async function uriToBlob(uri: string): Promise<Blob> {
-  const trimmedUri = uri.trim();
-  if (!trimmedUri) {
-    throw new Error("Gorsel yolu bos.");
-  }
-
-  const response = await fetch(uri);
-  if (!response.ok) {
-    throw new Error(`Gorsel okunamadi (${response.status}).`);
-  }
-
-  const blob = await response.blob();
-  if (blob.size === 0) {
-    throw new Error("Gorsel dosyasi bos gorunuyor.");
-  }
-
-  if (blob.size > maxUploadBytes) {
-    throw new Error("Gorsel dosyasi cok buyuk.");
-  }
-
-  return blob;
-}
-
-export async function uploadWardrobeImage(userId: string, localUri: string, itemId: string, suffix = "image") {
-  const normalizedUri = localUri.trim();
-  const imageType = getImageUploadType(normalizedUri);
-  const path = `${userId}/${itemId}-${suffix}.${imageType.extension}`;
-  let blob: Blob;
+export async function uploadWardrobeImage(
+  userId: string,
+  localUri: string,
+  itemId: string,
+  suffix = "image",
+): Promise<string> {
   try {
-    blob = await uriToBlob(normalizedUri);
+    return await uploadToR2(userId, localUri, itemId, suffix);
   } catch (error) {
-    captureError(error, { area: "wardrobe_image_read", user_id: userId, item_id: itemId, suffix });
-    throwApiError(error, "Gorsel okunamadi.");
-  }
-
-  const { error } = await supabase.storage.from(wardrobeImagesBucket).upload(path, blob, {
-    contentType: imageType.contentType,
-    upsert: true,
-  });
-
-  if (error) {
+    captureError(error, { area: "wardrobe_image_upload_r2", user_id: userId, item_id: itemId, suffix });
     throwApiError(error, "Gorsel yuklenemedi.");
   }
-
-  const { data } = supabase.storage.from(wardrobeImagesBucket).getPublicUrl(path);
-  return data.publicUrl;
 }
 
-export async function deleteWardrobeImagesForUserItem(userId: string, urls: Array<string | null | undefined>) {
-  const paths = urls.flatMap((url) => {
-    const path = getWardrobeImagePathFromUrl(url);
-    return path?.startsWith(`${userId}/`) ? [path] : [];
-  });
+export async function deleteWardrobeImagesForUserItem(
+  userId: string,
+  urls: Array<string | null | undefined>,
+) {
+  const r2Paths = urls
+    .filter((url): url is string => isR2Url(url))
+    .map((url) => getR2PathFromUrl(url))
+    .filter((path): path is string => path !== null && path.startsWith(`${userId}/`));
 
-  if (paths.length === 0) {
-    return;
-  }
+  const supabasePaths = urls
+    .filter((url): url is string => Boolean(url) && !isR2Url(url))
+    .flatMap((url) => {
+      const path = getSupabasePathFromUrl(url);
+      return path?.startsWith(`${userId}/`) ? [path] : [];
+    });
 
-  const { error } = await supabase.storage.from(wardrobeImagesBucket).remove([...new Set(paths)]);
-  if (error) {
-    captureError(error, { area: "wardrobe_image_delete", user_id: userId });
-  }
+  await Promise.all([
+    ...r2Paths.map((path) => deleteFromR2(path)),
+    supabasePaths.length > 0
+      ? supabase.storage
+          .from(wardrobeImagesBucket)
+          .remove([...new Set(supabasePaths)])
+          .then(({ error }) => {
+            if (error) captureError(error, { area: "wardrobe_image_delete_supabase", user_id: userId });
+          })
+      : Promise.resolve(),
+  ]);
 }
 
-function getImageUploadType(uri: string) {
-  const normalized = uri.toLowerCase().split("?")[0] ?? "";
-  if (normalized.endsWith(".png")) {
-    return { extension: "png", contentType: "image/png" };
-  }
-
-  if (normalized.endsWith(".webp")) {
-    return { extension: "webp", contentType: "image/webp" };
-  }
-
-  return { extension: "jpg", contentType: "image/jpeg" };
-}
-
-function getWardrobeImagePathFromUrl(url?: string | null) {
-  if (!url) {
-    return null;
-  }
-
+function getSupabasePathFromUrl(url?: string | null): string | null {
+  if (!url) return null;
   try {
     const parsed = new URL(url);
     const marker = `/object/public/${wardrobeImagesBucket}/`;
-    const markerIndex = parsed.pathname.indexOf(marker);
-    if (markerIndex === -1) {
-      return null;
-    }
-
-    return decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length));
+    const idx = parsed.pathname.indexOf(marker);
+    if (idx === -1) return null;
+    return decodeURIComponent(parsed.pathname.slice(idx + marker.length));
   } catch {
     return null;
   }
