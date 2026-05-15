@@ -1,13 +1,16 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
+import { Divider } from "@/components/ui/Divider";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { useAuthStore } from "@/stores/authStore";
@@ -17,9 +20,11 @@ export default function LoginScreen() {
   const { returnTo: returnToParam } = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = getSafeInternalReturnTo(returnToParam);
   const { signIn } = useAuthStore();
+  const { signInWithGoogle, isLoading: isGoogleLoading } = useGoogleAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isBusy = isSubmitting || isGoogleLoading;
 
   useEffect(() => {
     captureEvent("auth_login_screen_viewed", { has_return_to: Boolean(returnTo) });
@@ -89,11 +94,30 @@ export default function LoginScreen() {
       </Text>
 
       <View style={styles.form}>
-        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
-        <PasswordInput label="Sifre" value={password} onChangeText={setPassword} autoCapitalize="none" textContentType="password" editable={!isSubmitting} />
-        <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
-        <Button title="Sifremi unuttum" variant="ghost" onPress={openForgotPassword} disabled={isSubmitting} />
-        <Button title="Hesabin yok mu? Kayit ol" variant="ghost" onPress={openRegister} disabled={isSubmitting} />
+        <Pressable
+          style={[styles.socialButton, isBusy && styles.disabled]}
+          onPress={async () => {
+            try {
+              await signInWithGoogle();
+              router.replace(returnTo as Href ?? "/(tabs)");
+            } catch (error) {
+              captureError(error, { area: "login_google" });
+              Alert.alert("Google ile giris basarisiz", error instanceof Error ? error.message : "Tekrar dene.");
+            }
+          }}
+          disabled={isBusy}
+        >
+          <Ionicons name="logo-google" size={20} color={COLORS.text} />
+          <Text variant="label">Google ile Giris Yap</Text>
+        </Pressable>
+
+        <Divider spacing="sm" />
+
+        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isBusy} />
+        <PasswordInput label="Sifre" value={password} onChangeText={setPassword} autoCapitalize="none" textContentType="password" editable={!isBusy} />
+        <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} disabled={isBusy} />
+        <Button title="Sifremi unuttum" variant="ghost" onPress={openForgotPassword} disabled={isBusy} />
+        <Button title="Hesabin yok mu? Kayit ol" variant="ghost" onPress={openRegister} disabled={isBusy} />
       </View>
     </ScrollView>
   );
@@ -113,5 +137,19 @@ const styles = StyleSheet.create({
   form: {
     gap: SPACING.md,
     marginTop: SPACING.xl,
+  },
+  socialButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    justifyContent: "center",
+    minHeight: 52,
+  },
+  disabled: {
+    opacity: 0.52,
   },
 });

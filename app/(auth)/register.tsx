@@ -1,14 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
+import { Divider } from "@/components/ui/Divider";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getSafeInternalReturnTo } from "@/lib/routeParams";
 import { useAuthStore } from "@/stores/authStore";
@@ -18,11 +20,13 @@ export default function RegisterScreen() {
   const { returnTo: returnToParam } = useLocalSearchParams<{ returnTo?: string | string[] }>();
   const returnTo = getSafeInternalReturnTo(returnToParam);
   const { signUp } = useAuthStore();
+  const { signInWithGoogle, isLoading: isGoogleLoading } = useGoogleAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isBusy = isSubmitting || isGoogleLoading;
 
   useEffect(() => {
     captureEvent("auth_register_screen_viewed", { has_return_to: Boolean(returnTo) });
@@ -107,7 +111,26 @@ export default function RegisterScreen() {
       </Text>
 
       <View style={styles.form}>
-        <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isSubmitting} />
+        <Pressable
+          style={[styles.socialButton, isBusy && styles.disabled]}
+          onPress={async () => {
+            try {
+              await signInWithGoogle();
+              router.replace(returnTo as Href ?? "/(tabs)");
+            } catch (error) {
+              captureError(error, { area: "register_google" });
+              Alert.alert("Google ile kayit basarisiz", error instanceof Error ? error.message : "Tekrar dene.");
+            }
+          }}
+          disabled={isBusy}
+        >
+          <Ionicons name="logo-google" size={20} color={COLORS.text} />
+          <Text variant="label">Google ile Devam Et</Text>
+        </Pressable>
+
+        <Divider spacing="sm" />
+
+        <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isBusy} />
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
         <PasswordInput
           label="Sifre"
@@ -225,5 +248,19 @@ const styles = StyleSheet.create({
   linkButton: {
     flex: 1,
     minHeight: 40,
+  },
+  socialButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    justifyContent: "center",
+    minHeight: 52,
+  },
+  disabled: {
+    opacity: 0.52,
   },
 });
