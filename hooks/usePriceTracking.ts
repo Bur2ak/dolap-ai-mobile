@@ -10,7 +10,7 @@ import {
 } from "@/lib/api/priceTracking";
 import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
-import { supabase } from "@/lib/supabase";
+import { safeChannel, supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { CreatePriceTrackingInput, UpdatePriceTrackingInput } from "@/types";
 
@@ -102,8 +102,7 @@ export function usePriceTracking() {
       return;
     }
 
-    const channel = supabase
-      .channel(`price-trackings-${userId}`)
+    const channel = safeChannel(`price-trackings-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "price_tracking", filter: `user_id=eq.${userId}` }, () => {
         void queryClient.invalidateQueries({ queryKey: ["price-trackings", userId] });
       })

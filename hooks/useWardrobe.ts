@@ -11,7 +11,7 @@ import {
 } from "@/lib/api/wardrobe";
 import { requireUserId, requireValue } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
-import { supabase } from "@/lib/supabase";
+import { safeChannel, supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { CreateWardrobeItemInput, UpdateWardrobeItemInput, WardrobeItem } from "@/types";
 
@@ -81,8 +81,13 @@ export function useWardrobe() {
       return;
     }
 
-    const channel = supabase
-      .channel(`wardrobe-items-${userId}`)
+    const channelName = `wardrobe-items-${userId}`;
+    const existing = supabase.getChannels().find((c) => c.topic === `realtime:${channelName}`);
+    if (existing) {
+      void supabase.removeChannel(existing);
+    }
+
+    const channel = safeChannel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "wardrobe_items", filter: `user_id=eq.${userId}` }, () => {
         void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });
       })
@@ -164,8 +169,7 @@ export function useWardrobeItem(itemId?: string) {
       return;
     }
 
-    const channel = supabase
-      .channel(`wardrobe-item-${itemId}`)
+    const channel = safeChannel(`wardrobe-item-${itemId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "wardrobe_items", filter: `id=eq.${itemId}` }, () => {
         void queryClient.invalidateQueries({ queryKey: ["wardrobe-item", userId, itemId] });
         void queryClient.invalidateQueries({ queryKey: ["wardrobe-items", userId] });

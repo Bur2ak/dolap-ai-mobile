@@ -26,3 +26,11 @@ export const supabase = createClient(publicEnv.supabaseUrl ?? "https://placehold
     detectSessionInUrl: false,
   },
 });
+
+export function safeChannel(name: string) {
+  const existing = supabase.getChannels().find((c) => c.topic === `realtime:${name}`);
+  if (existing) {
+    void supabase.removeChannel(existing);
+  }
+  return supabase.channel(name);
+}

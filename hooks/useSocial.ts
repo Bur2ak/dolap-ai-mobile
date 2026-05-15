@@ -16,7 +16,7 @@ import {
 } from "@/lib/api/social";
 import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
-import { supabase } from "@/lib/supabase";
+import { safeChannel, supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { LoanRequest, LoanRequestStatus, WardrobeItem } from "@/types";
 
@@ -84,12 +84,10 @@ export function useSocial() {
     const invalidateFriendships = () => {
       void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
     };
-    const requesterChannel = supabase
-      .channel(`friendships-requester-${userId}`)
+    const requesterChannel = safeChannel(`friendships-requester-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "friendships", filter: `requester_id=eq.${userId}` }, invalidateFriendships)
       .subscribe();
-    const addresseeChannel = supabase
-      .channel(`friendships-addressee-${userId}`)
+    const addresseeChannel = safeChannel(`friendships-addressee-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "friendships", filter: `addressee_id=eq.${userId}` }, invalidateFriendships)
       .subscribe();
 
@@ -144,8 +142,7 @@ export function useFriendWardrobe(friendId?: string) {
       return;
     }
 
-    const channel = supabase
-      .channel(`friend-wardrobe-${friendId}`)
+    const channel = safeChannel(`friend-wardrobe-${friendId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "wardrobe_items", filter: `user_id=eq.${friendId}` }, () => {
         void queryClient.invalidateQueries({ queryKey: ["friend-wardrobe", userId, friendId] });
       })
@@ -164,12 +161,10 @@ export function useFriendWardrobe(friendId?: string) {
     const invalidateLoanRequests = () => {
       void queryClient.invalidateQueries({ queryKey: ["loan-requests", userId] });
     };
-    const ownerChannel = supabase
-      .channel(`friend-wardrobe-loans-owner-${userId}`)
+    const ownerChannel = safeChannel(`friend-wardrobe-loans-owner-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "loan_requests", filter: `owner_id=eq.${userId}` }, invalidateLoanRequests)
       .subscribe();
-    const requesterChannel = supabase
-      .channel(`friend-wardrobe-loans-requester-${userId}`)
+    const requesterChannel = safeChannel(`friend-wardrobe-loans-requester-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "loan_requests", filter: `requester_id=eq.${userId}` }, invalidateLoanRequests)
       .subscribe();
 
@@ -235,12 +230,10 @@ export function useLoanRequests() {
     const invalidateLoanRequests = () => {
       void queryClient.invalidateQueries({ queryKey: ["loan-requests", userId] });
     };
-    const ownerChannel = supabase
-      .channel(`loan-requests-owner-${userId}`)
+    const ownerChannel = safeChannel(`loan-requests-owner-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "loan_requests", filter: `owner_id=eq.${userId}` }, invalidateLoanRequests)
       .subscribe();
-    const requesterChannel = supabase
-      .channel(`loan-requests-requester-${userId}`)
+    const requesterChannel = safeChannel(`loan-requests-requester-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "loan_requests", filter: `requester_id=eq.${userId}` }, invalidateLoanRequests)
       .subscribe();
 

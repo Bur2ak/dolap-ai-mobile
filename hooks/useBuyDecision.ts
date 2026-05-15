@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { deleteBuyDecision, fetchBuyDecisionHistory, requestBuyDecision, saveBuyDecisionResult } from "@/lib/api/buyDecision";
 import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
-import { supabase } from "@/lib/supabase";
+import { safeChannel, supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { BuyDecisionInput, BuyDecisionResult } from "@/types";
 
@@ -71,8 +71,7 @@ export function useBuyDecision() {
       return;
     }
 
-    const channel = supabase
-      .channel(`buy-decisions-${userId}`)
+    const channel = safeChannel(`buy-decisions-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "buy_decisions", filter: `user_id=eq.${userId}` }, () => {
         void queryClient.invalidateQueries({ queryKey: ["buy-decisions", userId] });
       })

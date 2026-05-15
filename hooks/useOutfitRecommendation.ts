@@ -18,7 +18,7 @@ import {
 import { requireUserId, requireValue } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
 import { isUuid } from "@/lib/routeParams";
-import { supabase } from "@/lib/supabase";
+import { safeChannel, supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { OutfitRecommendationInput, OutfitSuggestion, OutfitVoteValue } from "@/types";
 
@@ -119,12 +119,10 @@ export function useOutfitRecommendation() {
     const invalidateSavedOutfits = () => {
       void queryClient.invalidateQueries({ queryKey: ["saved-outfits", userId] });
     };
-    const outfitsChannel = supabase
-      .channel(`saved-outfits-${userId}`)
+    const outfitsChannel = safeChannel(`saved-outfits-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "outfits", filter: `user_id=eq.${userId}` }, invalidateSavedOutfits)
       .subscribe();
-    const outfitItemsChannel = supabase
-      .channel(`saved-outfit-items-${userId}`)
+    const outfitItemsChannel = safeChannel(`saved-outfit-items-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "outfit_items" }, invalidateSavedOutfits)
       .subscribe();
 
@@ -234,8 +232,7 @@ export function useSharedOutfit(outfitId?: string) {
       return;
     }
 
-    const channel = supabase
-      .channel(`outfit-votes-${outfitId}`)
+    const channel = safeChannel(`outfit-votes-${outfitId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "outfit_votes", filter: `outfit_id=eq.${outfitId}` }, () => {
         void queryClient.invalidateQueries({ queryKey: ["shared-outfit", outfitId] });
       })
@@ -297,8 +294,7 @@ export function usePublicSharedOutfit(token?: string) {
       return;
     }
 
-    const channel = supabase
-      .channel(`public-outfit-votes-${outfitId}`)
+    const channel = safeChannel(`public-outfit-votes-${outfitId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "outfit_votes", filter: `outfit_id=eq.${outfitId}` }, () => {
         void queryClient.invalidateQueries({ queryKey: ["shared-outfit-token", token] });
       })

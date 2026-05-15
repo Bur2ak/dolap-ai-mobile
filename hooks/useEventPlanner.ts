@@ -5,7 +5,7 @@ import { deleteEventPlan, fetchEventPlans, recommendEventOutfits, saveEventPlan,
 import { saveOutfit } from "@/lib/api/outfits";
 import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
-import { supabase } from "@/lib/supabase";
+import { safeChannel, supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import type { EventPlanInput, OutfitSuggestion, UpdateEventInput } from "@/types";
 
@@ -133,8 +133,7 @@ export function useEventPlanner() {
       return;
     }
 
-    const channel = supabase
-      .channel(`event-plans-${userId}`)
+    const channel = safeChannel(`event-plans-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "events", filter: `user_id=eq.${userId}` }, () => {
         void queryClient.invalidateQueries({ queryKey: ["event-plans", userId] });
       })

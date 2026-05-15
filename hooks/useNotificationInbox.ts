@@ -10,7 +10,7 @@ import {
 } from "@/lib/api/notifications";
 import { requireUserId } from "@/lib/authGuards";
 import { captureError, captureEvent } from "@/lib/observability";
-import { supabase } from "@/lib/supabase";
+import { safeChannel, supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 
 export function useNotificationInbox() {
@@ -66,8 +66,7 @@ export function useNotificationInbox() {
       return;
     }
 
-    const channel = supabase
-      .channel(`notifications-${userId}`)
+    const channel = safeChannel(`notifications-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, () => {
         void queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
       })
