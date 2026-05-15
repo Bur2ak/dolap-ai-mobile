@@ -64,10 +64,9 @@ export default function RegisterScreen() {
       setIsSubmitting(true);
       await signUp(normalizedEmail, password, fullName.trim());
       captureEvent("auth_register_completed", { accepted_legal: acceptedLegal, has_return_to: Boolean(returnTo) });
-      Alert.alert("Kayit olusturuldu", "Email dogrulama ayarina gore giris yapabilirsin.");
       router.replace({
-        pathname: "/(auth)/login",
-        params: returnTo ? { returnTo } : undefined,
+        pathname: "/(auth)/verify-otp",
+        params: { email: normalizedEmail, ...(returnTo ? { returnTo } : {}) },
       });
     } catch (error) {
       captureError(error, { area: "auth_register" });
