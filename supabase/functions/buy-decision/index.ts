@@ -27,6 +27,9 @@ serve(async (req) => {
     const promptWardrobe = Array.isArray(wardrobe) ? wardrobe.slice(0, maxWardrobePromptItems) : [];
     const safePrice = typeof price === "number" && Number.isFinite(price) && price > 0 && price <= 10_000_000 ? price : null;
 
+    const vectorSimilar = apiKey ? await findSimilarByVectorSearch(req, apiKey) : [];
+    const enrichedWardrobe = mergeVectorSimilarity(promptWardrobe, vectorSimilar);
+
     if (typeof imageBase64 !== "string" || imageBase64.length === 0) {
       return json(fallbackDecision(wardrobe, safePrice, "Gecerli kiyafet gorseli bulunamadigi icin pratik dolap analizi kullanildi."), 400);
     }
@@ -42,7 +45,7 @@ serve(async (req) => {
     const prompt = `Sen Shipirio'sin. Turkce konusan, satin alma kararlarinda pratik bir stil danismanisin.
 
 Kullanicinin mevcut gardrobu:
-${JSON.stringify(promptWardrobe)}
+${JSON.stringify(enrichedWardrobe)}
 
 Bu kiyafeti almali miyim? Fiyat: ${safePrice ? `${safePrice} TL` : "belirtilmedi"}
 
@@ -197,6 +200,87 @@ function isRetryableGeminiStatus(status: number) {
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function findSimilarByVectorSearch(req: Request, apiKey: string): Promise<Array<{ id: string; similarity: number }>> {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const authHeader = req.headers.get("Authorization");
+    if (!supabaseUrl || !supabaseKey || !authHeader) return [];
+
+    const body = await req.clone().json().catch(() => null);
+    if (!body || typeof body.imageBase64 !== "string") return [];
+
+    const quickAnalysis = await getQuickTextFromImage(apiKey, body.imageBase64, body.mimeType ?? "image/jpeg");
+    if (!quickAnalysis) return [];
+
+    const embeddingRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        model: "models/text-embedding-004",
+        content: { parts: [{ text: quickAnalysis }] },
+        outputDimensionality: 512,
+      }),
+      signal: AbortSignal.timeout(6_000),
+    });
+
+    if (!embeddingRes.ok) return [];
+    const embeddingData = await embeddingRes.json();
+    const embedding: unknown = embeddingData?.embedding?.values;
+    if (!Array.isArray(embedding)) return [];
+
+    const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/find_similar_wardrobe_items`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader,
+        apikey: supabaseKey,
+      },
+      body: JSON.stringify({ query_embedding: embedding, match_count: 8 }),
+      signal: AbortSignal.timeout(5_000),
+    });
+
+    if (!rpcRes.ok) return [];
+    const similar: unknown = await rpcRes.json();
+    if (!Array.isArray(similar)) return [];
+    return similar.filter((item) => isRecord(item) && typeof item.id === "string").map((item) => ({
+      id: String((item as Record<string, unknown>).id),
+      similarity: typeof (item as Record<string, unknown>).similarity === "number" ? Number((item as Record<string, unknown>).similarity) : 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function mergeVectorSimilarity(wardrobe: unknown[], vectorSimilar: Array<{ id: string; similarity: number }>) {
+  if (vectorSimilar.length === 0) return wardrobe;
+  const simMap = new Map(vectorSimilar.map((v) => [v.id, v.similarity]));
+  return wardrobe.map((item) => {
+    if (!isRecord(item) || typeof item.id !== "string") return item;
+    const similarity = simMap.get(item.id);
+    return similarity !== undefined ? { ...item, vector_similarity: similarity } : item;
+  });
+}
+
+async function getQuickTextFromImage(apiKey: string, imageBase64: string, mimeType: string): Promise<string | null> {
+  try {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        contents: [{ parts: [{ inline_data: { mime_type: mimeType, data: imageBase64 } }, { text: "Describe this clothing item briefly: category, color, style." }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 60 },
+      }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function json(body: unknown, status = 200) {

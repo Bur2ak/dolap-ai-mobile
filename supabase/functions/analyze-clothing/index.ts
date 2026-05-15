@@ -75,7 +75,9 @@ serve(async (req) => {
       return json(fallbackAnalysis("Gemini yaniti beklenen JSON formatinda degildi."));
     }
 
-    return json(normalizeAnalysis(JSON.parse(match[0])));
+    const analysis = normalizeAnalysis(JSON.parse(match[0]));
+    const embedding = await generateEmbedding(apiKey, analysis);
+    return json({ ...analysis, embedding });
   } catch (error) {
     return json(fallbackAnalysis(error instanceof Error ? error.message : "Bilinmeyen hata."));
   }
@@ -176,6 +178,43 @@ function isRetryableGeminiStatus(status: number) {
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function generateEmbedding(apiKey: string, analysis: ReturnType<typeof normalizeAnalysis>): Promise<number[] | null> {
+  try {
+    const text = [
+      analysis.category,
+      analysis.subcategory,
+      ...analysis.colors,
+      ...analysis.season,
+      analysis.brand ?? "",
+      analysis.fabric ?? "",
+      ...analysis.usage_context,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        model: "models/text-embedding-004",
+        content: { parts: [{ text }] },
+        outputDimensionality: 512,
+      }),
+      signal: AbortSignal.timeout(8_000),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    const values: unknown = data?.embedding?.values;
+    return Array.isArray(values) ? (values as number[]) : null;
+  } catch {
+    return null;
+  }
 }
 
 function json(body: unknown, status = 200) {

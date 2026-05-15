@@ -3,9 +3,12 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, FlatList, Pressable, Share, StyleSheet, View } from "react-native";
 
+import { AdBanner } from "@/components/shared/AdBanner";
+import { CategoryFilter } from "@/components/wardrobe/CategoryFilter";
+import { SeasonFilter } from "@/components/wardrobe/SeasonFilter";
+import { WardrobeItemCard } from "@/components/wardrobe/WardrobeItemCard";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
@@ -14,6 +17,7 @@ import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { captureEvent } from "@/lib/observability";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobeStore } from "@/stores/wardrobeStore";
 import type { ClothingCategory, Season, WardrobeItem } from "@/types";
 
@@ -34,6 +38,7 @@ const sortModes: Array<{ label: string; value: SortMode }> = [
 export default function WardrobeScreen() {
   const { items, error, isLoading, isRefetching, refetch } = useWardrobe();
   const { category, season, search, setCategory, setSeason, setSearch } = useWardrobeStore();
+  const { premium } = useSubscription();
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [isSharingSummary, setIsSharingSummary] = useState(false);
   const normalizedQuery = search.trim().toLowerCase();
@@ -150,64 +155,30 @@ export default function WardrobeScreen() {
         </Pressable>
       </View>
 
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={[{ label: "Tumu", value: "all" as const }, ...CATEGORIES]}
-        keyExtractor={(item) => item.value}
-        contentContainerStyle={styles.filters}
-        renderItem={({ item }) => {
-          const active = item.value === category;
-          return (
-            <Pressable
-              style={[styles.chip, active && styles.activeChip]}
-              onPress={() => {
-                if (isBusy) {
-                  captureEvent("wardrobe_filter_blocked", { filter: "category", reason: "busy", value: item.value });
-                  return;
-                }
-
-                setCategory(item.value === "all" ? "all" : (item.value as ClothingCategory));
-                captureEvent("wardrobe_filter_changed", { filter: "category", value: item.value });
-              }}
-              disabled={isBusy}
-            >
-              <Text variant="label" color={active ? "inverse" : "secondary"}>
-                {item.label}
-              </Text>
-            </Pressable>
-          );
+      <CategoryFilter
+        value={category}
+        onChange={(val) => {
+          if (isBusy) {
+            captureEvent("wardrobe_filter_blocked", { filter: "category", reason: "busy", value: val });
+            return;
+          }
+          setCategory(val);
+          captureEvent("wardrobe_filter_changed", { filter: "category", value: val });
         }}
+        disabled={isBusy}
       />
 
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={seasonFilters}
-        keyExtractor={(item) => item.value}
-        contentContainerStyle={styles.seasonFilters}
-        renderItem={({ item }) => {
-          const active = item.value === season;
-          return (
-            <Pressable
-              style={[styles.seasonChip, active && styles.activeSeasonChip]}
-              onPress={() => {
-                if (isBusy) {
-                  captureEvent("wardrobe_filter_blocked", { filter: "season", reason: "busy", value: item.value });
-                  return;
-                }
-
-                setSeason(item.value);
-                captureEvent("wardrobe_filter_changed", { filter: "season", value: item.value });
-              }}
-              disabled={isBusy}
-            >
-              <Text variant="caption" color={active ? "inverse" : "secondary"}>
-                {item.label}
-              </Text>
-            </Pressable>
-          );
+      <SeasonFilter
+        value={season}
+        onChange={(val) => {
+          if (isBusy) {
+            captureEvent("wardrobe_filter_blocked", { filter: "season", reason: "busy", value: val });
+            return;
+          }
+          setSeason(val);
+          captureEvent("wardrobe_filter_changed", { filter: "season", value: val });
         }}
+        disabled={isBusy}
       />
 
       <Input label="Dolapta ara" value={search} onChangeText={setSearch} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" editable={!isBusy} />
@@ -298,41 +269,8 @@ export default function WardrobeScreen() {
           numColumns={2}
           columnWrapperStyle={styles.gridRow}
           contentContainerStyle={styles.grid}
-          renderItem={({ item }) => (
-            <Pressable
-              style={styles.itemPressable}
-              onPress={() => {
-                if (isBusy) {
-                  captureEvent("wardrobe_item_open_blocked", { item_id: item.id, reason: "busy" });
-                  return;
-                }
-
-                captureEvent("wardrobe_item_opened", { item_id: item.id, category: item.category });
-                router.push(`/item/${item.id}`);
-              }}
-              disabled={isBusy}
-            >
-              <Card style={styles.itemCard}>
-                <CachedImage
-                  accessibilityLabel={item.subcategory ?? item.category}
-                  fallbackColor={item.dominant_color_hex}
-                  sourceUri={item.thumbnail_url ?? item.image_url}
-                  style={styles.itemImage}
-                />
-                <Text variant="label">{item.subcategory ?? item.category}</Text>
-                <Text variant="caption" color="muted">
-                  {item.wear_count} kez giyildi
-                </Text>
-                <Text variant="caption" color="secondary">
-                  {[item.brand, item.colors[0], item.season[0]].filter(Boolean).join(" - ") || "Metadata bekliyor"}
-                </Text>
-                <View style={styles.itemSignals}>
-                  {item.is_shareable ? <SignalPill label="Paylasim" /> : null}
-                  {item.is_lendable ? <SignalPill label="Odunc" /> : null}
-                </View>
-              </Card>
-            </Pressable>
-          )}
+          renderItem={({ item }) => <WardrobeItemCard item={item} disabled={isBusy} />}
+          ListFooterComponent={!premium ? <AdBanner /> : null}
         />
       ) : (
         <EmptyState

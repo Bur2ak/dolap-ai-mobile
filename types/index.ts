@@ -81,6 +81,7 @@ export interface ClothingAnalysisResult {
   brand?: string | null;
   fabric?: string | null;
   usage_context?: string[];
+  embedding?: number[] | null;
 }
 
 export interface CareRecommendation {
@@ -111,6 +112,7 @@ export interface CreateWardrobeItemInput {
   purchase_price?: number | null;
   is_shareable?: boolean;
   is_lendable?: boolean;
+  embedding?: number[] | null;
 }
 
 export type UpdateWardrobeItemInput = Partial<Omit<CreateWardrobeItemInput, "image_url" | "thumbnail_url">> & {

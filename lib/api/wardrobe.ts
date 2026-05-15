@@ -81,6 +81,10 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
     thumbnailUrl = await uploadWardrobeImage(userId, normalizedInput.thumbnail_url, itemId, "thumb");
   }
 
+  const embedding = Array.isArray(normalizedInput.embedding) && normalizedInput.embedding.length === 512
+    ? normalizedInput.embedding
+    : null;
+
   const { data, error } = await supabase
     .from("wardrobe_items")
     .insert({
@@ -98,6 +102,7 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
       purchase_price: normalizedInput.purchase_price ?? null,
       is_shareable: socialFlags.is_shareable ?? false,
       is_lendable: socialFlags.is_lendable ?? false,
+      embedding,
     })
     .select("*")
     .single();
