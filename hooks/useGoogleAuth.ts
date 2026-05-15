@@ -1,11 +1,18 @@
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
 import { useState } from "react";
 
 import { captureError, captureEvent } from "@/lib/observability";
 import { supabase } from "@/lib/supabase";
 
 WebBrowser.maybeCompleteAuthSession();
+
+const googleClientId = Platform.OS === "ios"
+  ? process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
+  : Platform.OS === "android"
+    ? process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID
+    : process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
 export function useGoogleAuth() {
   const [isLoading, setIsLoading] = useState(false);

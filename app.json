@@ -24,8 +24,16 @@
         "NSCameraUsageDescription": "Kiyafetlerinizi gardirobunuza eklemek icin kameraniza erismemiz gerekiyor.",
         "NSPhotoLibraryUsageDescription": "Kiyafet fotograflarinizi secmek icin fotograf kitapliginiza erismemiz gerekiyor.",
         "NSLocationWhenInUseUsageDescription": "Hava durumuna gore kombin onerisi sunmak icin konumunuza erismemiz gerekiyor.",
-        "NSCalendarsUsageDescription": "Etkinlik planlarini takviminize eklemek icin takvim erisimi gerekiyor."
-      }
+        "NSCalendarsUsageDescription": "Etkinlik planlarini takviminize eklemek icin takvim erisimi gerekiyor.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.285698671002-k27t3vdj2g71pl2mfdmg19qc08rjfhnp"
+            ]
+          }
+        ]
+      },
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "package": "com.shipirio.app",
@@ -59,6 +67,18 @@
             {
               "scheme": "https",
               "host": "www.shipirio.com"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "com.googleusercontent.apps.285698671002-sad725ge090pv4qr80jvfvuamug3ske2"
             }
           ],
           "category": [
