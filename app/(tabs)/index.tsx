@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, FlatList, Pressable, Share, StyleSheet, View } from "react-native";
+import { FlashList } from "@shopify/flash-list";
+import { Alert, Pressable, Share, StyleSheet, View } from "react-native";
 
 import { AdBanner } from "@/components/shared/AdBanner";
 import { AddItemSheet } from "@/components/wardrobe/AddItemSheet";
@@ -289,11 +290,10 @@ export default function WardrobeScreen() {
           style={styles.emptyState}
         />
       ) : sortedItems.length > 0 ? (
-        <FlatList
+        <FlashList<WardrobeItem>
           data={sortedItems}
           keyExtractor={(item) => item.id}
           numColumns={2}
-          columnWrapperStyle={styles.gridRow}
           contentContainerStyle={styles.grid}
           renderItem={({ item }) => <WardrobeItemCard item={item} disabled={isBusy} />}
           ListFooterComponent={!premium ? <AdBanner /> : null}

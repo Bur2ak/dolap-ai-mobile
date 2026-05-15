@@ -19,6 +19,7 @@ import { useWeather } from "@/hooks/useWeather";
 import { createPublicAppLink } from "@/lib/links";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getDailyOutfitSuggestionCount, incrementDailyOutfitSuggestionCount } from "@/lib/usageLimits";
+import { useOutfitStore } from "@/stores/outfitStore";
 import type { OutfitRecommendationInput, OutfitSuggestion, OutfitVoteValue, SharedOutfit, WardrobeItem } from "@/types";
 import type { AccessoryRecommendation } from "@/utils/accessoryRecommendations";
 import { buildAccessoryRecommendations } from "@/utils/accessoryRecommendations";
@@ -49,6 +50,7 @@ export default function OutfitScreen() {
     askFriendsToVote,
     isSavingOutfit,
   } = useOutfitRecommendation();
+  const { setLastWeather, setSelectedEvent: storeSetEvent, setSelectedMood: storeSetMood } = useOutfitStore();
   const [selectedEvent, setSelectedEvent] = useState<string>(EVENT_TYPES[0].value);
   const [selectedMood, setSelectedMood] = useState(moods[0]);
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
@@ -117,13 +119,15 @@ export default function OutfitScreen() {
         }
       }
 
-      await recommend({
-        ...recommendationInput,
-      });
+      storeSetEvent(selectedEvent);
+      storeSetMood(selectedMood);
+      setLastWeather(weather ?? null);
+      await recommend({ ...recommendationInput });
       if (!premium) {
         const nextUsage = await incrementDailyOutfitSuggestionCount(userId);
         setDailyUsage(nextUsage);
       }
+      router.push({ pathname: "/outfit/result", params: { event: selectedEvent, mood: selectedMood } });
     } catch (error) {
       captureError(error, { area: "outfit_recommend_action", event: selectedEvent, mood: selectedMood });
       Alert.alert("Kombin onerilemedi", error instanceof Error ? error.message : "Tekrar dene.");

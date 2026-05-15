@@ -153,7 +153,7 @@ export default function BuyDecisionScreen() {
 
       const numericPrice = parseCurrencyInput(price);
 
-      await decide({
+      const decisionResult = await decide({
         imageUri,
         price: numericPrice,
         wardrobe: items,
@@ -161,6 +161,16 @@ export default function BuyDecisionScreen() {
       if (!premium) {
         const nextUsage = await incrementMonthlyBuyDecisionCount(userId);
         setMonthlyUsage(nextUsage);
+      }
+      if (decisionResult) {
+        router.push({
+          pathname: "/buy-decision/result",
+          params: {
+            resultJson: JSON.stringify(decisionResult),
+            imageUri: imageUri ?? undefined,
+            price: price.trim() || undefined,
+          },
+        });
       }
     } catch (error) {
       captureError(error, { area: "buy_decision_analyze_action", has_price: Boolean(price.trim()) });

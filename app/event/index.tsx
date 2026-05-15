@@ -15,7 +15,7 @@ import { SPACING } from "@/constants/spacing";
 import { useEventPlanner } from "@/hooks/useEventPlanner";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
-import { useWeather } from "@/hooks/useWeather";
+import { useEventWeather, useWeather } from "@/hooks/useWeather";
 import { createCalendarEvent } from "@/lib/calendar";
 import { cancelEventReminder, scheduleEventReminder } from "@/lib/notifications";
 import { captureError, captureEvent } from "@/lib/observability";
@@ -29,7 +29,7 @@ const eventDateFormatMessage = "Tarih ve saat YYYY-AA-GGTHH:mm formatinda ve gel
 
 export default function EventPlannerScreen() {
   const { items } = useWardrobe();
-  const { weather, isLoading: isWeatherLoading } = useWeather();
+  const { weather: currentWeather, isLoading: isWeatherLoading } = useWeather();
   const {
     events,
     eventsError,
@@ -53,6 +53,8 @@ export default function EventPlannerScreen() {
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [isSharingPlan, setIsSharingPlan] = useState(false);
+  const { weather: forecastWeather } = useEventWeather(eventDate);
+  const weather = forecastWeather ?? currentWeather;
   const styleCalendar = buildStyleCalendar(events, items);
   const isBusy = isRecommending || isSaving || isSharingPlan;
 
@@ -104,7 +106,17 @@ export default function EventPlannerScreen() {
     }
 
     try {
-      await recommend(eventInput);
+      const newSuggestions = await recommend(eventInput);
+      router.push({
+        pathname: "/event/result",
+        params: {
+          title: eventInput.title,
+          eventType: eventInput.event_type,
+          eventDate: eventInput.event_date,
+          location: eventInput.location ?? undefined,
+          suggestionsJson: JSON.stringify(newSuggestions ?? suggestions),
+        },
+      });
     } catch (error) {
       captureError(error, { area: "event_recommend_action", event_type: eventInput.event_type, wardrobe_count: items.length });
       Alert.alert("Kombin bulunamadi", error instanceof Error ? error.message : "Tekrar dene.");
