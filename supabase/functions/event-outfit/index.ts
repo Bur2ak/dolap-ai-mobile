@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { fetchUserWardrobe, json, requireAuth } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,9 +20,14 @@ serve(async (req) => {
   }
 
   try {
-    const { title, event_type, event_date, location, notes, weather, wardrobe } = await req.json();
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
+    const { title, event_type, event_date, location, notes, weather } = await req.json();
     const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-    const promptWardrobe = Array.isArray(wardrobe) ? wardrobe.slice(0, maxWardrobePromptItems) : [];
+
+    const wardrobe = await fetchUserWardrobe(auth.userId);
+    const promptWardrobe = wardrobe.slice(0, maxWardrobePromptItems);
     const safeTitle = getPromptText(title, "Etkinlik", 120);
     const safeEventType = getPromptText(event_type, "genel", 80);
     const safeEventDate = getPromptText(event_date, "belirtilmedi", 80);
@@ -242,12 +248,3 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json",
-    },
-  });
-}

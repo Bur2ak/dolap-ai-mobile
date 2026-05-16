@@ -9,6 +9,13 @@ export function getApiErrorMessage(error: unknown, fallbackMessage = "Islem tama
   const normalizedMessage = message?.toLowerCase() ?? "";
 
   if (code === "23505") {
+    // Provide specific messages based on which unique constraint was violated
+    if (normalizedMessage.includes("username")) {
+      return "Bu kullanici adi baska biri tarafindan alindi. Farkli bir kullanici adi dene.";
+    }
+    if (normalizedMessage.includes("email")) {
+      return "Bu e-posta adresiyle zaten bir hesap var.";
+    }
     return "Bu kayit zaten mevcut.";
   }
 

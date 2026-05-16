@@ -1,4 +1,4 @@
-import { nanoid } from "nanoid/non-secure";
+import { nanoid } from "nanoid";
 
 import { throwApiError } from "@/lib/api/errors";
 import { cacheWardrobeItems, getCachedWardrobeItems } from "@/lib/offlineCache";
@@ -73,12 +73,18 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
   let thumbnailUrl = normalizedInput.thumbnail_url ?? null;
   const socialFlags = normalizeWardrobeSocialFlags(normalizedInput);
 
-  if (normalizedInput.image_url.startsWith("file:") || normalizedInput.image_url.startsWith("blob:")) {
-    imageUrl = await uploadWardrobeImage(userId, normalizedInput.image_url, itemId, "image");
-  }
+  try {
+    if (normalizedInput.image_url.startsWith("file:") || normalizedInput.image_url.startsWith("blob:")) {
+      imageUrl = await uploadWardrobeImage(userId, normalizedInput.image_url, itemId, "image");
+    }
 
-  if (normalizedInput.thumbnail_url?.startsWith("file:") || normalizedInput.thumbnail_url?.startsWith("blob:")) {
-    thumbnailUrl = await uploadWardrobeImage(userId, normalizedInput.thumbnail_url, itemId, "thumb");
+    if (normalizedInput.thumbnail_url?.startsWith("file:") || normalizedInput.thumbnail_url?.startsWith("blob:")) {
+      thumbnailUrl = await uploadWardrobeImage(userId, normalizedInput.thumbnail_url, itemId, "thumb");
+    }
+  } catch (uploadError) {
+    // Upload failed before DB insert — no orphan in DB, just cleanup any partial uploads
+    await cleanupUploadedImages(userId, [imageUrl, thumbnailUrl]);
+    throwApiError(uploadError, "Gorsel yuklenemedi. Lutfen tekrar deneyin.");
   }
 
   const embedding = Array.isArray(normalizedInput.embedding) && normalizedInput.embedding.length === 512
@@ -372,14 +378,14 @@ export async function findSimilarWardrobeItems(itemId: string, userId: string, l
       .eq("user_id", userId)
       .single();
 
+    // No embedding → item not yet analyzed, return empty silently
     if (itemError || !item?.embedding) {
       return [];
     }
 
     const { data, error } = await supabase.rpc("find_similar_wardrobe_items", {
       query_embedding: item.embedding,
-      match_user_id: userId,
-      match_limit: limit + 1,
+      match_count: limit + 1,  // +1 because source item may appear in results
     });
 
     if (error) {
@@ -387,7 +393,7 @@ export async function findSimilarWardrobeItems(itemId: string, userId: string, l
       return [];
     }
 
-    return (data as WardrobeItem[])
+    return ((data as WardrobeItem[]) ?? [])
       .filter((row) => row.id !== itemId)
       .slice(0, limit);
   } catch (error) {

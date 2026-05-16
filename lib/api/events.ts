@@ -6,7 +6,16 @@ import type { EventPlanInput, EventRecord, OutfitSuggestion, UpdateEventInput } 
 
 export async function recommendEventOutfits(input: EventPlanInput): Promise<OutfitSuggestion[]> {
   const normalizedInput = normalizeEventPlanInput(input);
-  const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("event-outfit", normalizedInput);
+  // Wardrobe NOT sent — edge function fetches it server-side using JWT
+  const payload = {
+    title: normalizedInput.title,
+    event_type: normalizedInput.event_type,
+    event_date: normalizedInput.event_date,
+    location: normalizedInput.location,
+    notes: normalizedInput.notes,
+    weather: normalizedInput.weather,
+  };
+  const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("event-outfit", payload);
   return normalizeOutfitSuggestions(data, new Set(normalizedInput.wardrobe.map((item) => item.id)));
 }
 

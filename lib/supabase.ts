@@ -28,9 +28,12 @@ export const supabase = createClient(publicEnv.supabaseUrl ?? "https://placehold
 });
 
 export function safeChannel(name: string) {
-  const existing = supabase.getChannels().find((c) => c.topic === `realtime:${name}`);
-  if (existing) {
-    void supabase.removeChannel(existing);
-  }
+  // Remove ALL existing channels with this topic synchronously (fire-and-forget),
+  // then return a fresh channel. Using a unique suffix prevents topic collisions
+  // when two components briefly co-exist during React StrictMode double-invoke.
+  const topic = `realtime:${name}`;
+  supabase.getChannels()
+    .filter((c) => c.topic === topic)
+    .forEach((ch) => { void supabase.removeChannel(ch); });
   return supabase.channel(name);
 }

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { fetchUserWardrobe, json, requireAuth } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,16 +20,21 @@ serve(async (req) => {
   }
 
   try {
-    const { wardrobe, event, weather, mood, focus_item_id } = await req.json();
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
+    const { event, weather, mood, focus_item_id } = await req.json();
     const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-    const promptWardrobe = Array.isArray(wardrobe) ? wardrobe.slice(0, maxWardrobePromptItems) : [];
-    const safeEvent = getPromptText(event, "kombin", 80);
-    const safeMood = getPromptText(mood, "rahat", 80);
-    const safeFocusItemId = typeof focus_item_id === "string" && focus_item_id.trim() ? focus_item_id.trim().slice(0, 80) : null;
 
     if (!apiKey) {
       return json({ error: "GOOGLE_GEMINI_API_KEY is not configured" }, 500);
     }
+
+    const wardrobe = await fetchUserWardrobe(auth.userId);
+    const promptWardrobe = wardrobe.slice(0, maxWardrobePromptItems);
+    const safeEvent = getPromptText(event, "kombin", 80);
+    const safeMood = getPromptText(mood, "rahat", 80);
+    const safeFocusItemId = typeof focus_item_id === "string" && focus_item_id.trim() ? focus_item_id.trim().slice(0, 80) : null;
 
     const prompt = `Sen Shipirio'sin. Turkce konusan pratik bir stilist asistansin.
 
@@ -247,12 +253,3 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json",
-    },
-  });
-}

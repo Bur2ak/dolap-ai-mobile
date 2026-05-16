@@ -1,4 +1,4 @@
-import { nanoid } from "nanoid/non-secure";
+import { nanoid } from "nanoid";
 
 import { throwApiError } from "@/lib/api/errors";
 import { invokeFunctionWithRetry } from "@/lib/api/functions";
@@ -19,7 +19,14 @@ export async function recommendOutfits(input: OutfitRecommendationInput): Promis
   const normalizedInput = normalizeOutfitRecommendationInput(input);
 
   try {
-    const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("recommend-outfit", normalizedInput);
+    // Wardrobe is NOT sent — edge function fetches it server-side using JWT
+    const payload = {
+      event: normalizedInput.event,
+      mood: normalizedInput.mood,
+      weather: normalizedInput.weather,
+      focus_item_id: normalizedInput.focus_item_id,
+    };
+    const data = await invokeFunctionWithRetry<OutfitSuggestion[]>("recommend-outfit", payload);
     const allowedItemIds = new Set(normalizedInput.wardrobe.map((item) => item.id));
     const suggestions = normalizeOutfitSuggestions(data, allowedItemIds);
 

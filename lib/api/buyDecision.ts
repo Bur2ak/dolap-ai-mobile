@@ -1,5 +1,5 @@
 import * as FileSystem from "expo-file-system/legacy";
-import { nanoid } from "nanoid/non-secure";
+import { nanoid } from "nanoid";
 
 import { throwApiError } from "@/lib/api/errors";
 import { invokeFunctionWithRetry } from "@/lib/api/functions";
@@ -17,10 +17,10 @@ export async function requestBuyDecision(input: BuyDecisionInput): Promise<BuyDe
     encoding: FileSystem.EncodingType.Base64,
   });
 
+  // Wardrobe NOT sent — edge function fetches it server-side using JWT
   const data = await invokeFunctionWithRetry<BuyDecisionResult>("buy-decision", {
     imageBase64,
     mimeType: "image/jpeg",
-    wardrobe: input.wardrobe,
     price: input.price,
   });
 

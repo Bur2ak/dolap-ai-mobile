@@ -71,10 +71,9 @@ export default function GroupOutfitScreen() {
     setIsGenerating(true);
     setSuggestions([]);
     try {
+      // Only send friend_id and event — both wardrobes fetched server-side
       const data = await invokeFunctionWithRetry<{ suggestions: GroupOutfitSuggestion[] }>("group-outfit", {
-        my_wardrobe: myItems,
-        friend_wardrobe: friendItems,
-        friend_name: friendName,
+        friend_id: friendId,
         event,
       });
 

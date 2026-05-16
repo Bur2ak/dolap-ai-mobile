@@ -1,4 +1,6 @@
 import { FREE_LIMITS, PREMIUM_LIMITS, type LimitKey } from "@/constants/limits";
+import { captureError } from "@/lib/observability";
+import { getRevenueCatCustomerInfo, hasPremiumEntitlement } from "@/lib/revenuecat";
 import { useAuthStore } from "@/stores/authStore";
 import { useSubscriptionStore } from "@/stores/subscriptionStore";
 
@@ -31,6 +33,18 @@ export function useSubscription() {
     return safeCurrentValue >= value;
   }
 
+  async function refreshPremiumStatus() {
+    try {
+      const customerInfo = await getRevenueCatCustomerInfo();
+      const freshPremium = hasPremiumEntitlement(customerInfo);
+      useSubscriptionStore.getState().setRevenueCatPremium(freshPremium);
+      return freshPremium;
+    } catch (error) {
+      captureError(error, { area: "subscription_refresh" });
+      return premium;
+    }
+  }
+
   return {
     premium,
     localPremiumOverride: effectiveLocalPremiumOverride,
@@ -39,6 +53,7 @@ export function useSubscription() {
     checkGate,
     isLimitReached,
     setLocalPremiumOverride,
+    refreshPremiumStatus,
   };
 }
 

@@ -56,6 +56,28 @@ serve(async (req) => {
     }
 
     if (isRecord(expoResult?.data) && expoResult.data.status === "error") {
+      const errDetails = expoResult.data.details;
+      // DeviceNotRegistered = stale token — clean it from the profile
+      if (
+        isRecord(errDetails) &&
+        errDetails.error === "DeviceNotRegistered" &&
+        typeof body.user_id === "string"
+      ) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (supabaseUrl && serviceKey) {
+          await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${body.user_id}`, {
+            method: "PATCH",
+            headers: {
+              "apikey": serviceKey,
+              "Authorization": `Bearer ${serviceKey}`,
+              "Content-Type": "application/json",
+              "Prefer": "return=minimal",
+            },
+            body: JSON.stringify({ push_token: null }),
+          }).catch(() => null);
+        }
+      }
       return json({ sent: false, error: expoResult.data.message ?? "expo_push_error", expo_result: expoResult }, 502);
     }
 

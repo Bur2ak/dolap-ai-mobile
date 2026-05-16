@@ -154,8 +154,20 @@ export default function RootLayout() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       useAuthStore.setState({ session: nextSession });
+
+      if (event === "SIGNED_OUT" || (event as string) === "USER_DELETED") {
+        // Token expired + refresh failed, or explicit sign-out
+        captureEvent("auth_session_ended", { event });
+        useAuthStore.setState({ session: null, profile: null });
+        return;
+      }
+
+      if (event === "TOKEN_REFRESHED") {
+        captureEvent("auth_token_refreshed");
+      }
+
       if (nextSession) {
         fetchProfileSafely("profile_auth_state_fetch");
       }
