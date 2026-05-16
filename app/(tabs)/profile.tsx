@@ -1,6 +1,7 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -291,50 +292,35 @@ export default function ProfileScreen() {
         <Button title="Hazirlik Ozetini Paylas" variant="secondary" onPress={() => void handleShareProfileReadiness()} loading={isSharingReadiness} disabled={routeDisabled} />
       </Card>
 
-      <View style={styles.menu}>
-        <Card>
-          <Button title="Ayarlar" variant="ghost" onPress={() => openRoute("/settings", "settings")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Hesap Ayarlari" variant="ghost" onPress={() => openRoute("/settings/account", "account")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Gizlilik" variant="ghost" onPress={() => openRoute("/settings/privacy", "privacy")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Arkadaslarim" variant="ghost" onPress={() => openRoute("/social/friends", "friends")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Stil Panosu" variant="ghost" onPress={() => openRoute("/social/feed", "style_feed")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Odunc Takibi" variant="ghost" onPress={() => openRoute("/social/loans", "loans")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Fiyat Takibi" variant="ghost" onPress={() => openRoute("/price-tracking", "price_tracking")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Bildirim Ayarlari" variant="ghost" onPress={() => openRoute("/settings/notifications", "notification_settings")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title={unreadCount > 0 ? `Bildirim Kutusu (${unreadCount})` : "Bildirim Kutusu"} variant="ghost" onPress={() => openRoute("/notifications", "notification_inbox")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Sistem Durumu" variant="ghost" onPress={() => openRoute("/settings/diagnostics", "diagnostics")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Destek" variant="ghost" onPress={() => openRoute("/settings/support", "support")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Aboneligim" variant="ghost" onPress={() => openRoute("/settings/subscription", "subscription")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Almali Miyim?" variant="ghost" onPress={() => openRoute("/buy-decision", "buy_decision")} disabled={routeDisabled} />
-        </Card>
-        <Card>
-          <Button title="Suraya Gidiyorum" variant="ghost" onPress={() => openRoute("/event", "event")} disabled={routeDisabled} />
-        </Card>
-      </View>
+      {/* Grouped menu — replaces 14 individual cards */}
+      <Card style={styles.menuGroup}>
+        <Text variant="caption" color="muted" style={styles.menuGroupLabel}>SOSYAL</Text>
+        <MenuRow label="Arkadaşlarım" icon="people-outline" onPress={() => openRoute("/social/friends", "friends")} disabled={routeDisabled} />
+        <MenuRow label="Stil Panosu" icon="grid-outline" onPress={() => openRoute("/social/feed", "style_feed")} disabled={routeDisabled} />
+        <MenuRow label="Ödünç Takibi" icon="repeat-outline" onPress={() => openRoute("/social/loans", "loans")} disabled={routeDisabled} />
+      </Card>
+
+      <Card style={styles.menuGroup}>
+        <Text variant="caption" color="muted" style={styles.menuGroupLabel}>ARAÇLAR</Text>
+        <MenuRow label="Fiyat Takibi" icon="trending-down-outline" onPress={() => openRoute("/price-tracking", "price_tracking")} disabled={routeDisabled} />
+        <MenuRow label="Almalı Mıyım?" icon="bag-check-outline" onPress={() => openRoute("/buy-decision", "buy_decision")} disabled={routeDisabled} />
+        <MenuRow label="Etkinlik Planlayıcı" icon="calendar-outline" onPress={() => openRoute("/event", "event")} disabled={routeDisabled} />
+      </Card>
+
+      <Card style={styles.menuGroup}>
+        <Text variant="caption" color="muted" style={styles.menuGroupLabel}>HESAP & AYARLAR</Text>
+        <MenuRow
+          label={unreadCount > 0 ? `Bildirimler (${unreadCount})` : "Bildirimler"}
+          icon="notifications-outline"
+          badge={unreadCount > 0}
+          onPress={() => openRoute("/notifications", "notification_inbox")}
+          disabled={routeDisabled}
+        />
+        <MenuRow label="Aboneliğim" icon="star-outline" onPress={() => openRoute("/settings/subscription", "subscription")} disabled={routeDisabled} />
+        <MenuRow label="Hesap Ayarları" icon="person-outline" onPress={() => openRoute("/settings/account", "account")} disabled={routeDisabled} />
+        <MenuRow label="Gizlilik" icon="shield-outline" onPress={() => openRoute("/settings/privacy", "privacy")} disabled={routeDisabled} />
+        <MenuRow label="Destek" icon="help-circle-outline" onPress={() => openRoute("/settings/support", "support")} disabled={routeDisabled} />
+      </Card>
 
       <Button title="Cikis Yap" variant="secondary" onPress={handleSignOut} loading={isSigningOut} disabled={routeDisabled} style={styles.signOut} />
     </ScrollView>
@@ -491,4 +477,59 @@ const styles = StyleSheet.create({
   signOut: {
     marginTop: SPACING.md,
   },
+  menuGroup: {
+    gap: 0,
+    padding: 0,
+    overflow: "hidden",
+  },
+  menuGroupLabel: {
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xs,
+  },
+  menuRow: {
+    alignItems: "center",
+    borderTopColor: COLORS.border,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+  },
+  menuRowText: {
+    flex: 1,
+  },
+  menuBadge: {
+    backgroundColor: COLORS.danger,
+    borderRadius: 999,
+    height: 8,
+    width: 8,
+  },
 });
+
+function MenuRow({
+  label,
+  icon,
+  badge,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  badge?: boolean;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.menuRow, pressed && { opacity: 0.7 }]}
+      onPress={onPress}
+      disabled={disabled}
+    >
+      <Ionicons name={icon} size={20} color={COLORS.textSecondary} />
+      <Text variant="body" style={styles.menuRowText}>{label}</Text>
+      {badge && <View style={styles.menuBadge} />}
+      <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+    </Pressable>
+  );
+}

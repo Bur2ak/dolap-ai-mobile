@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 
 import { AILoadingAnimation } from "@/components/shared/AILoadingAnimation";
 import { Button } from "@/components/ui/Button";
@@ -65,6 +65,7 @@ export default function AddItemScreen() {
   const [price, setPrice] = useState("");
   const [isShareable, setIsShareable] = useState(false);
   const [isLendable, setIsLendable] = useState(false);
+  const [showOptional, setShowOptional] = useState(false);
   const [isRemovingBg, setIsRemovingBg] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const processedPreselected = useRef(false);
@@ -324,36 +325,57 @@ export default function AddItemScreen() {
             ))}
           </View>
 
+          {/* Required fields */}
           <Input label="Alt kategori" value={analysis.subcategory}
             onChangeText={(v) => setAnalysis((a) => ({ ...a, subcategory: v }))}
             error={getSubcategoryInputError(analysis.subcategory)} editable={!isBusy} />
           <Input label="Renkler" value={analysis.colors.join(", ")}
             onChangeText={(v) => setAnalysis((a) => ({ ...a, colors: parseColorList(v) }))}
             error={getColorListInputError(analysis.colors.join(", "))} editable={!isBusy} />
-          <Input label="Marka" value={brand} onChangeText={setBrand} editable={!isBusy} />
-          <Input label="Kumaş" value={fabric} onChangeText={setFabric} placeholder="pamuk, denim, keten" editable={!isBusy} />
-          <Input label="Kullanım alanı" value={usageContext} onChangeText={setUsageContext}
-            placeholder="günlük, iş, gece" error={getUsageContextInputError(usageContext)} editable={!isBusy} />
-          <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad"
-            error={getCurrencyInputError(price)} editable={!isBusy} />
 
-          <Card style={styles.socialCard}>
-            <Text variant="h3">Sosyal ayarlar</Text>
-            <View style={styles.actions}>
-              <Button
-                title={isShareable ? "Arkadaş Dolabında Açık" : "Arkadaş Dolabında Paylaş"}
-                variant={isShareable ? "primary" : "secondary"}
-                onPress={() => { if (!isBusy) { setIsShareable((v) => { if (v) setIsLendable(false); return !v; }); } }}
-                disabled={isBusy}
-              />
-              <Button
-                title={isLendable ? "Ödünç Verilebilir" : "Ödünç Verilebilir Yap"}
-                variant={isLendable ? "primary" : "secondary"}
-                onPress={() => { if (!isBusy) { setIsLendable((v) => { if (!v) setIsShareable(true); return !v; }); } }}
-                disabled={isBusy}
-              />
-            </View>
-          </Card>
+          {/* Optional details — collapsed by default to reduce cognitive load */}
+          <Pressable
+            style={styles.optionalToggle}
+            onPress={() => setShowOptional((v) => !v)}
+            disabled={isBusy}
+          >
+            <Ionicons
+              name={showOptional ? "chevron-up-outline" : "chevron-down-outline"}
+              size={16}
+              color={COLORS.textSecondary}
+            />
+            <Text variant="caption" color="secondary">
+              {showOptional ? "Detayları Gizle" : "Detay Ekle (opsiyonel) — Marka, Kumaş, Fiyat…"}
+            </Text>
+          </Pressable>
+
+          {showOptional && (
+            <>
+              <Input label="Marka" value={brand} onChangeText={setBrand} editable={!isBusy} />
+              <Input label="Kumaş" value={fabric} onChangeText={setFabric} placeholder="pamuk, denim, keten" editable={!isBusy} />
+              <Input label="Kullanım alanı" value={usageContext} onChangeText={setUsageContext}
+                placeholder="günlük, iş, gece" error={getUsageContextInputError(usageContext)} editable={!isBusy} />
+              <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad"
+                error={getCurrencyInputError(price)} editable={!isBusy} />
+              <Card style={styles.socialCard}>
+                <Text variant="h3">Sosyal ayarlar</Text>
+                <View style={styles.actions}>
+                  <Button
+                    title={isShareable ? "Arkadaş Dolabında Açık" : "Arkadaş Dolabında Paylaş"}
+                    variant={isShareable ? "primary" : "secondary"}
+                    onPress={() => { if (!isBusy) { setIsShareable((v) => { if (v) setIsLendable(false); return !v; }); } }}
+                    disabled={isBusy}
+                  />
+                  <Button
+                    title={isLendable ? "Ödünç Verilebilir" : "Ödünç Verilebilir Yap"}
+                    variant={isLendable ? "primary" : "secondary"}
+                    onPress={() => { if (!isBusy) { setIsLendable((v) => { if (!v) setIsShareable(true); return !v; }); } }}
+                    disabled={isBusy}
+                  />
+                </View>
+              </Card>
+            </>
+          )}
 
           <Button title="Dolaba Ekle" onPress={() => void handleSave()} loading={isCreating} disabled={isBusy} />
         </View>
@@ -401,6 +423,16 @@ const styles = StyleSheet.create({
   compareItem: { flex: 1, gap: SPACING.xs },
   compareImage: { aspectRatio: 4 / 5, backgroundColor: COLORS.surfaceMuted, borderRadius: 8, width: "100%" },
   actions: { gap: SPACING.sm, width: "100%" },
+  optionalToggle: {
+    alignItems: "center",
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: SPACING.xs,
+    justifyContent: "center",
+    paddingVertical: SPACING.sm,
+  },
   form: { gap: SPACING.md },
   preview: { alignSelf: "center", aspectRatio: 4 / 5, backgroundColor: COLORS.surfaceMuted, borderRadius: 8, width: "72%" },
   analysisCard: { gap: SPACING.xs },

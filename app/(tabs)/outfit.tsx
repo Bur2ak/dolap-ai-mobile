@@ -250,6 +250,7 @@ export default function OutfitScreen() {
   }
 
   return (
+    <View style={styles.rootContainer}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text variant="h1">Kombin</Text>
       <Text variant="body" color="secondary">
@@ -584,7 +585,8 @@ export default function OutfitScreen() {
         })}
       </View>
 
-      <Button title="Kombin Oner" onPress={handleRecommend} loading={isRecommending} disabled={isActionBusy} style={styles.cta} />
+      {/* Spacer so content doesn't hide under sticky CTA */}
+      <View style={styles.ctaSpacer} />
 
       <View style={styles.results}>
         <View style={styles.savedHeader}>
@@ -679,6 +681,18 @@ export default function OutfitScreen() {
         )}
       </View>
     </ScrollView>
+
+    {/* Sticky CTA — always visible regardless of scroll position */}
+    <View style={styles.stickyBottom}>
+      <Button
+        title="Kombin Öner"
+        onPress={handleRecommend}
+        loading={isRecommending}
+        disabled={isActionBusy}
+        style={styles.stickyButton}
+      />
+    </View>
+    </View>
   );
 }
 
@@ -765,9 +779,25 @@ function getPriorityDotStyle(priority: AccessoryRecommendation["priority"]) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  rootContainer: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  container: {
+    flex: 1,
+  },
+  stickyBottom: {
+    backgroundColor: COLORS.background,
+    borderTopColor: COLORS.border,
+    borderTopWidth: 1,
+    padding: SPACING.md,
+    paddingBottom: SPACING.lg,
+  },
+  stickyButton: {
+    minHeight: 52,
+  },
+  ctaSpacer: {
+    height: SPACING.md,
   },
   content: {
     gap: SPACING.md,

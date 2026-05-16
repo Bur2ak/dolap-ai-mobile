@@ -306,7 +306,6 @@ export default function BuyDecisionScreen() {
         </Card>
       ) : null}
 
-      <Input label="Fiyat" value={price} onChangeText={setPrice} keyboardType="decimal-pad" error={getCurrencyInputError(price)} editable={!isActionBusy} />
       <Button title="Analiz Et" onPress={handleAnalyze} loading={isDeciding} disabled={!imageUri || isActionBusy} />
 
       {result ? (
@@ -390,6 +389,15 @@ export default function BuyDecisionScreen() {
               {result.discount_advice}
             </Text>
           ) : null}
+          {/* Price input after seeing result — reduces initial friction */}
+          <Input
+            label="Fiyat (opsiyonel — kaydet için)"
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="decimal-pad"
+            error={getCurrencyInputError(price)}
+            editable={!isActionBusy}
+          />
           <Button title="Karari Kaydet" variant="secondary" onPress={handleSave} loading={isSaving} disabled={isActionBusy} />
           <Button title="Karari Paylas" variant="ghost" onPress={() => void handleShareResult()} loading={isSharingResult} disabled={isActionBusy} />
         </Card>

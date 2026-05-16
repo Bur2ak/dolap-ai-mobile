@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, TouchableOpacity, View } from "react-native";
 
 import { CostPerWear } from "@/components/analytics/CostPerWear";
 import { MonthlySpending } from "@/components/analytics/MonthlySpending";
@@ -23,8 +23,17 @@ import type { DistributionPoint, MissingWardrobePiece, StyleProfile, UpdateWardr
 import { formatCurrency, formatNumber, getCostPerWearLabel } from "@/utils/formatters";
 import { buildBudgetRecommendations, buildMissingPieceActionPlan, buildSecondHandListingAdvice, buildShoppingSearchTargets } from "@/utils/shoppingAdvisor";
 
+type AnalyticsTab = "ozet" | "aliskanliklar" | "eksiksizlik";
+
+const analyticsTabs: Array<{ value: AnalyticsTab; label: string }> = [
+  { value: "ozet", label: "Özet" },
+  { value: "aliskanliklar", label: "Alışkanlıklar" },
+  { value: "eksiksizlik", label: "Dolap Dengesi" },
+];
+
 export default function AnalyticsScreen() {
   const { analytics, error, isLoading, isRefetching, refetch } = useWardrobeAnalytics();
+  const [activeTab, setActiveTab] = useState<AnalyticsTab>("ozet");
   const { markWorn, updateItem, deleteItem, isUpdating } = useWardrobe();
   const { trackings, createTracking, isCreating: isCreatingTracking, canUse: canUsePriceTracking } = usePriceTracking();
   const { checkGate, isLimitReached, limits } = useSubscription();
@@ -166,6 +175,25 @@ export default function AnalyticsScreen() {
         {isLoading ? "Gardrop verileri yukleniyor." : "Kullanim, harcama ve dolap dengesi."}
       </Text>
 
+      {/* Segment tabs */}
+      <View style={styles.tabBar}>
+        {analyticsTabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.value}
+            style={[styles.tab, activeTab === tab.value && styles.tabActive]}
+            onPress={() => setActiveTab(tab.value)}
+            accessibilityRole="tab"
+          >
+            <Text
+              variant="label"
+              color={activeTab === tab.value ? "inverse" : "secondary"}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {hasBlockingError ? (
         <EmptyState
           icon="cloud-offline-outline"
@@ -212,43 +240,60 @@ export default function AnalyticsScreen() {
         ))}
       </View>
 
-      <DistributionCard title="Kategori dagilimi" points={analytics.category_distribution} />
-      <DistributionCard title="Renk dagilimi" points={analytics.color_distribution} showSwatch />
-      <DistributionCard title="Sezon dagilimi" points={analytics.season_distribution} />
-      <DistributionCard title="Marka agirligi" points={analytics.brand_distribution} />
-      <DistributionCard title="Kumas dagilimi" points={analytics.fabric_distribution} />
-      <DistributionCard title="Kullanim alani" points={analytics.usage_context_distribution} />
-      <StyleProfileCard profile={analytics.style_profile} />
-      <WeeklyGoalsCard goals={analytics.weekly_goals} />
-      <SustainabilitySummaryCard score={analytics.sustainability_score} items={analytics.sustainability_focus_items} />
-      <MissingPiecesCard
-        pieces={analytics.missing_pieces}
-        onAddToTracking={handleAddMissingPiece}
-        isAdding={isCreatingTracking}
-        activePieceKey={activeMissingPieceKey}
-      />
-      <WearCountList title="En çok giyilenler" items={analytics.most_worn} empty="Henüz giyilme verisi yok." />
-      <WearCountList title="Hiç giyilmeyenler" items={analytics.never_worn} empty="Harika, her şey kullanılmış görünüyor." />
-      <CostPerWear items={analytics.most_worn} />
-      <MonthlySpending data={analytics.monthly_spending_data} />
-      {checkGate("ANALYTICS_FULL") ? (
+      {/* ÖZET tab */}
+      {activeTab === "ozet" && (
         <>
-          <ItemList title="Yuksek degerli atil parcalar" items={analytics.high_value_unused} empty="Yuksek degerli atil parca yok." />
-          <DetoxItemList
-            title="Dolap detoksu"
-            items={analytics.suggestions_to_remove}
-            empty="Simdilik aksiyon gerektiren parca yok."
-            isUpdating={isUpdating}
-            onMarkWorn={markWorn}
-            onUpdateItem={updateItem}
-            onDeleteItem={deleteItem}
-          />
+          <DistributionCard title="Kategori dagilimi" points={analytics.category_distribution} />
+          <DistributionCard title="Renk dagilimi" points={analytics.color_distribution} showSwatch />
+          <DistributionCard title="Sezon dagilimi" points={analytics.season_distribution} />
+          <StyleProfileCard profile={analytics.style_profile} />
         </>
-      ) : (
-        <PremiumGate
-          title="Gelismis analiz Premium"
-          body="Sat veya bagisla onerileri, verimsiz parcalari ve dolap temizleme yardimi Premium ile acilir."
-        />
+      )}
+
+      {/* ALIŞKANLIKLAR tab */}
+      {activeTab === "aliskanliklar" && (
+        <>
+          <WearCountList title="En çok giyilenler" items={analytics.most_worn} empty="Henüz giyilme verisi yok." />
+          <WearCountList title="Hiç giyilmeyenler" items={analytics.never_worn} empty="Harika, her şey kullanılmış görünüyor." />
+          <CostPerWear items={analytics.most_worn} />
+          <MonthlySpending data={analytics.monthly_spending_data} />
+          <SustainabilitySummaryCard score={analytics.sustainability_score} items={analytics.sustainability_focus_items} />
+          <WeeklyGoalsCard goals={analytics.weekly_goals} />
+        </>
+      )}
+
+      {/* DOLAP DENGESİ tab */}
+      {activeTab === "eksiksizlik" && (
+        <>
+          <DistributionCard title="Marka agirligi" points={analytics.brand_distribution} />
+          <DistributionCard title="Kumas dagilimi" points={analytics.fabric_distribution} />
+          <DistributionCard title="Kullanim alani" points={analytics.usage_context_distribution} />
+          <MissingPiecesCard
+            pieces={analytics.missing_pieces}
+            onAddToTracking={handleAddMissingPiece}
+            isAdding={isCreatingTracking}
+            activePieceKey={activeMissingPieceKey}
+          />
+          {checkGate("ANALYTICS_FULL") ? (
+            <>
+              <ItemList title="Yuksek degerli atil parcalar" items={analytics.high_value_unused} empty="Yuksek degerli atil parca yok." />
+              <DetoxItemList
+                title="Dolap detoksu"
+                items={analytics.suggestions_to_remove}
+                empty="Simdilik aksiyon gerektiren parca yok."
+                isUpdating={isUpdating}
+                onMarkWorn={markWorn}
+                onUpdateItem={updateItem}
+                onDeleteItem={deleteItem}
+              />
+            </>
+          ) : (
+            <PremiumGate
+              title="Gelismis analiz Premium"
+              body="Sat veya bagisla onerileri, verimsiz parcalari ve dolap temizleme yardimi Premium ile acilir."
+            />
+          )}
+        </>
       )}
         </>
       )}
@@ -959,6 +1004,21 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: SPACING.md,
+  },
+  tabBar: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 10,
+    flexDirection: "row",
+    padding: 3,
+  },
+  tab: {
+    alignItems: "center",
+    borderRadius: 8,
+    flex: 1,
+    paddingVertical: SPACING.sm,
+  },
+  tabActive: {
+    backgroundColor: COLORS.primary,
   },
   insightCard: {
     gap: SPACING.sm,

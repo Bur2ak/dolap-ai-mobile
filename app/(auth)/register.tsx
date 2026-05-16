@@ -112,7 +112,7 @@ export default function RegisterScreen() {
 
       <View style={styles.form}>
         <Pressable
-          style={[styles.socialButton, isBusy && styles.disabled]}
+          style={[styles.googleButton, isBusy && styles.disabled]}
           onPress={async () => {
             try {
               await signInWithGoogle();
@@ -124,11 +124,11 @@ export default function RegisterScreen() {
           }}
           disabled={isBusy}
         >
-          <Ionicons name="logo-google" size={20} color={COLORS.text} />
-          <Text variant="label">Google ile Devam Et</Text>
+          <Ionicons name="logo-google" size={22} color={COLORS.surface} />
+          <Text variant="label" color="inverse">Google ile Devam Et</Text>
         </Pressable>
 
-        <Divider spacing="sm" />
+        <Divider spacing="sm" label="veya email ile" />
 
         <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isBusy} />
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
@@ -249,16 +249,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 40,
   },
-  socialButton: {
+  googleButton: {
     alignItems: "center",
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
-    borderWidth: 1,
     flexDirection: "row",
     gap: SPACING.sm,
     justifyContent: "center",
-    minHeight: 52,
+    minHeight: 56,
   },
   disabled: {
     opacity: 0.52,

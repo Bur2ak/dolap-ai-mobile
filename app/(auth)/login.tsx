@@ -94,8 +94,9 @@ export default function LoginScreen() {
       </Text>
 
       <View style={styles.form}>
+        {/* Primary CTA: Google — one tap, no typing */}
         <Pressable
-          style={[styles.socialButton, isBusy && styles.disabled]}
+          style={[styles.googleButton, isBusy && styles.disabled]}
           onPress={async () => {
             try {
               await signInWithGoogle();
@@ -107,13 +108,22 @@ export default function LoginScreen() {
           }}
           disabled={isBusy}
         >
-          <Ionicons name="logo-google" size={20} color={COLORS.text} />
-          <Text variant="label">Google ile Giris Yap</Text>
+          <Ionicons name="logo-google" size={22} color={COLORS.surface} />
+          <Text variant="label" color="inverse">Google ile Devam Et</Text>
         </Pressable>
 
-        <Divider spacing="sm" />
+        <Divider spacing="sm" label="veya email ile" />
 
-        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isBusy} />
+        <Input
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoFocus={false}
+          error={getEmailInputError(email)}
+          editable={!isBusy}
+        />
         <PasswordInput label="Sifre" value={password} onChangeText={setPassword} autoCapitalize="none" textContentType="password" editable={!isBusy} />
         <Button title="Giris Yap" onPress={handleSubmit} loading={isSubmitting} disabled={isBusy} />
         <Button title="Sifremi unuttum" variant="ghost" onPress={openForgotPassword} disabled={isBusy} />
@@ -138,16 +148,14 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     marginTop: SPACING.xl,
   },
-  socialButton: {
+  googleButton: {
     alignItems: "center",
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
-    borderWidth: 1,
     flexDirection: "row",
     gap: SPACING.sm,
     justifyContent: "center",
-    minHeight: 52,
+    minHeight: 56,
   },
   disabled: {
     opacity: 0.52,

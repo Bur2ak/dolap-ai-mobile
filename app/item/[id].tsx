@@ -253,6 +253,7 @@ export default function ItemDetailScreen() {
   }
 
   return (
+    <View style={styles.rootContainer}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isActionBusy} />
@@ -493,8 +494,8 @@ export default function ItemDetailScreen() {
             </View>
           </Card>
 
+          {/* Secondary actions — kept in scroll area */}
           <View style={styles.actions}>
-            <Button title="Bugun Giydim" onPress={handleMarkWorn} loading={activeAction === "worn"} disabled={isActionBusy} />
             {item.is_lendable ? (
               <Button
                 title="Odunc Isteklerini Gor"
@@ -514,6 +515,20 @@ export default function ItemDetailScreen() {
         <EmptyState icon="shirt-outline" title="Kiyafet bulunamadi" body="Silinmis olabilir veya dolabina ait olmayabilir." />
       )}
     </ScrollView>
+
+    {/* Sticky bottom CTA — primary action always reachable without scrolling */}
+    {item && !isEditing && (
+      <View style={styles.stickyBottom}>
+        <Button
+          title="Bugun Giydim"
+          onPress={handleMarkWorn}
+          loading={activeAction === "worn"}
+          disabled={isActionBusy}
+          style={styles.stickyButton}
+        />
+      </View>
+    )}
+    </View>
   );
 }
 
@@ -625,9 +640,22 @@ function getScoreBadgeStyle(status: SustainabilityInsight["status"]) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  rootContainer: {
     backgroundColor: COLORS.background,
     flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  stickyBottom: {
+    backgroundColor: COLORS.background,
+    borderTopColor: COLORS.border,
+    borderTopWidth: 1,
+    padding: SPACING.md,
+    paddingBottom: SPACING.lg,
+  },
+  stickyButton: {
+    minHeight: 52,
   },
   content: {
     gap: SPACING.md,
