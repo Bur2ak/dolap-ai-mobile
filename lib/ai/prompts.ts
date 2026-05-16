@@ -1,5 +1,12 @@
 import type { EventPlanInput, OutfitRecommendationInput, WardrobeItem } from "@/types";
 
+export interface GroupOutfitInput {
+  event: string;
+  myWardrobe: WardrobeItem[];
+  friendWardrobe: WardrobeItem[];
+  friendName: string;
+}
+
 export function analyzeClothingPrompt() {
   return `Bu kiyafeti analiz et. Yalnizca JSON dondur, aciklama ekleme.
 
@@ -74,6 +81,40 @@ Yalnizca JSON dondur:
   "details": "2-3 cumle",
   "discount_advice": "string|null"
 }`,
+  };
+}
+
+export function groupOutfitPrompt(params: GroupOutfitInput) {
+  const myJson = JSON.stringify(
+    params.myWardrobe.slice(0, 40).map((item) => ({
+      id: item.id,
+      owner: "ben",
+      category: item.category,
+      subcategory: item.subcategory,
+      colors: item.colors,
+      season: item.season,
+      usage_context: item.usage_context,
+    })),
+  );
+
+  const friendJson = JSON.stringify(
+    params.friendWardrobe.slice(0, 40).map((item) => ({
+      id: item.id,
+      owner: params.friendName,
+      category: item.category,
+      subcategory: item.subcategory,
+      colors: item.colors,
+      season: item.season,
+      usage_context: item.usage_context,
+    })),
+  );
+
+  return {
+    system: `Sen Shipirio'sun. Iki kisinin dolabini birlikte koordine eden Turkce konusan bir grup stilistsin.\n\nBenim dolabim:\n${myJson}\n\n${params.friendName} dolabi:\n${friendJson}`,
+    user: `Etkinlik: ${params.event}
+
+Iki kisinin birbirini tamamlayan, uyumlu 2 farkli grup kombin onerisi yap. Yalnizca JSON array dondur:
+[{"my_items": ["id1","id2"], "friend_items": ["id3","id4"], "name": "Kombin adi", "reason": "Neden uyumlu", "color_story": "Renk uyumu aciklamasi"}]`,
   };
 }
 

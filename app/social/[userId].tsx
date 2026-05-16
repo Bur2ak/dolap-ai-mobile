@@ -471,6 +471,15 @@ function SharedWardrobeHeader({
               disabled={disabled}
             />
           ) : null}
+          <Button
+            title="Grup Kombin Yap"
+            variant="secondary"
+            onPress={() => {
+              captureEvent("friend_wardrobe_group_outfit_opened", { friend_id: data.profile.id });
+              router.push({ pathname: "/social/group-outfit", params: { friendId: data.profile.id, friendName: data.profile.full_name ?? data.profile.username ?? "Arkadas" } });
+            }}
+            disabled={visibleCount < 2 || disabled}
+          />
         </View>
       </Card>
 

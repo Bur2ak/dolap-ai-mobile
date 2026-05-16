@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -14,8 +14,10 @@ import { COLORS } from "@/constants/colors";
 import { SEASONS } from "@/constants/seasons";
 import { SPACING } from "@/constants/spacing";
 import { useWardrobeItem } from "@/hooks/useWardrobe";
+import { findSimilarWardrobeItems } from "@/lib/api/wardrobe";
 import { captureError, captureEvent } from "@/lib/observability";
 import { getUuidParam } from "@/lib/routeParams";
+import { useAuthStore } from "@/stores/authStore";
 import type { CareRecommendation, ClothingCategory, Season, SustainabilityInsight, WardrobeItem } from "@/types";
 import { getCareRecommendations } from "@/utils/care";
 import { getCostPerWearLabel, getCurrencyInputError, parseCurrencyInput } from "@/utils/formatters";
@@ -26,7 +28,10 @@ export default function ItemDetailScreen() {
   const { id: idParam } = useLocalSearchParams<{ id: string | string[] }>();
   const id = getUuidParam(idParam);
   const { item, error, isLoading, isRefetching, refetch, updateItem, markWorn, deleteItem, isUpdating } = useWardrobeItem(id);
+  const { session } = useAuthStore();
   const [isEditing, setIsEditing] = useState(false);
+  const [similarItems, setSimilarItems] = useState<WardrobeItem[]>([]);
+  const [isSimilarLoading, setIsSimilarLoading] = useState(false);
   const [category, setCategory] = useState<ClothingCategory>("ust");
   const [subcategory, setSubcategory] = useState("");
   const [colors, setColors] = useState("");
@@ -67,6 +72,15 @@ export default function ItemDetailScreen() {
       category: item?.category ?? "unknown",
     });
   }, [id, item]);
+
+  useEffect(() => {
+    if (!id || !session?.user.id) return;
+    setIsSimilarLoading(true);
+    findSimilarWardrobeItems(id, session.user.id)
+      .then((results) => setSimilarItems(results))
+      .catch(() => setSimilarItems([]))
+      .finally(() => setIsSimilarLoading(false));
+  }, [id, session?.user.id]);
 
   function toggleSeason(season: Season) {
     if (isActionBusy) {
@@ -417,6 +431,35 @@ export default function ItemDetailScreen() {
 
           <SustainabilityCard insight={sustainabilityInsight} />
 
+          {(isSimilarLoading || similarItems.length > 0) && (
+            <Card style={styles.meta}>
+              <Text variant="h3">Benzer Kıyafetler</Text>
+              <Text variant="body" color="secondary">
+                Dolabındaki en yakın parçalar
+              </Text>
+              {isSimilarLoading ? (
+                <Text variant="caption" color="muted">Yükleniyor...</Text>
+              ) : (
+                <View style={styles.similarGrid}>
+                  {similarItems.map((si) => (
+                    <Pressable
+                      key={si.id}
+                      style={styles.similarItem}
+                      onPress={() => {
+                        captureEvent("wardrobe_item_similar_opened", { source_id: id, target_id: si.id });
+                        router.push(`/item/${si.id}`);
+                      }}
+                    >
+                      <View style={[styles.similarSwatch, { backgroundColor: si.dominant_color_hex ?? COLORS.primarySoft }]} />
+                      <Text variant="caption" numberOfLines={1}>{si.subcategory ?? si.category}</Text>
+                      <Text variant="caption" color="muted" numberOfLines={1}>{si.brand ?? ""}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </Card>
+          )}
+
           <Card style={styles.meta}>
             <Text variant="h3">Paylasim</Text>
             <View style={styles.statusPills}>
@@ -728,5 +771,20 @@ const styles = StyleSheet.create({
   chipButton: {
     minHeight: 40,
     paddingHorizontal: SPACING.md,
+  },
+  similarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+  },
+  similarItem: {
+    alignItems: "center",
+    gap: SPACING.xs,
+    width: 72,
+  },
+  similarSwatch: {
+    borderRadius: 12,
+    height: 72,
+    width: 72,
   },
 });

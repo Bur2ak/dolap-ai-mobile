@@ -360,6 +360,42 @@ export async function deleteWardrobeItem(userId: string, itemId: string): Promis
   captureEvent("wardrobe_item_deleted", { category: item.category, had_image: Boolean(item.image_url) });
 }
 
+export async function findSimilarWardrobeItems(itemId: string, userId: string, limit = 6): Promise<WardrobeItem[]> {
+  assertItemId(itemId);
+  assertUserId(userId);
+
+  try {
+    const { data: item, error: itemError } = await supabase
+      .from("wardrobe_items")
+      .select("embedding")
+      .eq("id", itemId)
+      .eq("user_id", userId)
+      .single();
+
+    if (itemError || !item?.embedding) {
+      return [];
+    }
+
+    const { data, error } = await supabase.rpc("find_similar_wardrobe_items", {
+      query_embedding: item.embedding,
+      match_user_id: userId,
+      match_limit: limit + 1,
+    });
+
+    if (error) {
+      captureError(error, { area: "find_similar_wardrobe_items", item_id: itemId });
+      return [];
+    }
+
+    return (data as WardrobeItem[])
+      .filter((row) => row.id !== itemId)
+      .slice(0, limit);
+  } catch (error) {
+    captureError(error, { area: "find_similar_wardrobe_items", item_id: itemId });
+    return [];
+  }
+}
+
 async function cleanupUploadedImages(userId: string, urls: Array<string | null | undefined>) {
   const uploadedUrls = urls.filter((url): url is string => typeof url === "string" && url.includes("/storage/v1/object/public/"));
   if (uploadedUrls.length === 0) {
