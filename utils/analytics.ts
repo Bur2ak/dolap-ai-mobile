@@ -5,62 +5,112 @@ const validCategories = new Set<ClothingCategory>(["ust", "alt", "elbise", "etek
 const validSeasons = new Set(["ilkbahar", "yaz", "sonbahar", "kis"]);
 
 export function calculateWardrobeAnalytics(items: WardrobeItem[]): WardrobeAnalytics {
+  // Single normalisation pass — avoids double-normalisation with fetchWardrobeItems
   const safeItems = items.map(normalizeAnalyticsItem).filter((item): item is WardrobeItem => item !== null);
-  const totalValue = safeItems.reduce((sum, item) => sum + (item.purchase_price ?? 0), 0);
-  const wornItems = safeItems.filter((item) => item.wear_count > 0 && item.purchase_price);
-  const totalCostPerWear = wornItems.reduce((sum, item) => sum + (item.purchase_price ?? 0) / item.wear_count, 0);
-  const avgCostPerWear = wornItems.length > 0 ? totalCostPerWear / wornItems.length : 0;
+
+  // SINGLE PASS: accumulate all aggregates in one loop instead of 15+ separate iterations
   const currentMonth = new Date().toISOString().slice(0, 7);
   const inactiveSince = Date.now() - 90 * 24 * 60 * 60 * 1000;
-  const monthlySpending = safeItems
-    .filter((item) => item.created_at?.slice(0, 7) === currentMonth)
-    .reduce((sum, item) => sum + (item.purchase_price ?? 0), 0);
 
-  const neverWorn = safeItems.filter((item) => item.wear_count === 0);
-  const inactiveItems = safeItems.filter((item) => !item.last_worn || getSafeTimestamp(item.last_worn) < inactiveSince);
+  let totalValue = 0;
+  let wornValueSum = 0;
+  let wornValueCount = 0;
+  let monthlySpending = 0;
+  let inactiveCount = 0;
+  let wornCount = 0;
+  let sustainabilitySum = 0;
+
+  const neverWorn: WardrobeItem[] = [];
+  const sustainabilityFocusCandidates: Array<{ item: WardrobeItem; score: number }> = [];
+  const categoryMap = new Map<string, number>();
+  const colorMap = new Map<string, { count: number; hex: string | null }>();
+  const seasonMap = new Map<string, number>();
+  const brandMap = new Map<string, number>();
+  const fabricMap = new Map<string, number>();
+  const usageMap = new Map<string, number>();
+  const monthlyMap = new Map<string, number>();
+
+  for (const item of safeItems) {
+    const price = item.purchase_price ?? 0;
+    totalValue += price;
+
+    if (item.created_at?.slice(0, 7) === currentMonth) monthlySpending += price;
+    if (item.wear_count === 0) neverWorn.push(item);
+    if (!item.last_worn || getSafeTimestamp(item.last_worn) < inactiveSince) inactiveCount++;
+    if (item.wear_count > 0) {
+      wornCount++;
+      if (price > 0) { wornValueSum += price / item.wear_count; wornValueCount++; }
+    }
+
+    // Sustainability (per-item, computed once)
+    const { score, status } = getSustainabilityInsight(item);
+    sustainabilitySum += score;
+    if (status === "needs_use" || status === "at_risk") {
+      sustainabilityFocusCandidates.push({ item, score });
+    }
+
+    // Distributions
+    categoryMap.set(item.category, (categoryMap.get(item.category) ?? 0) + 1);
+    for (const color of item.colors) {
+      const existing = colorMap.get(color);
+      colorMap.set(color, { count: (existing?.count ?? 0) + 1, hex: existing?.hex ?? item.dominant_color_hex ?? null });
+    }
+    for (const s of item.season) seasonMap.set(s, (seasonMap.get(s) ?? 0) + 1);
+    if (item.brand) brandMap.set(item.brand, (brandMap.get(item.brand) ?? 0) + 1);
+    if (item.fabric) fabricMap.set(item.fabric, (fabricMap.get(item.fabric) ?? 0) + 1);
+    for (const u of item.usage_context) usageMap.set(u, (usageMap.get(u) ?? 0) + 1);
+    if (item.purchase_price && item.created_at) {
+      const month = item.created_at.slice(0, 7);
+      monthlyMap.set(month, (monthlyMap.get(month) ?? 0) + item.purchase_price);
+    }
+  }
+
+  const n = safeItems.length;
+  const avgCostPerWear = wornValueCount > 0 ? wornValueSum / wornValueCount : 0;
+  const utilizationScore = n > 0 ? Math.round((wornCount / n) * 100) : 0;
+  const sustainabilityScore = n > 0 ? Math.round(sustainabilitySum / n) : 0;
+
+  const neverWornByValue = [...neverWorn].sort((a, b) => (b.purchase_price ?? 0) - (a.purchase_price ?? 0));
   const mostWorn = [...safeItems].sort((a, b) => b.wear_count - a.wear_count).slice(0, 5);
-  const highValueUnused = [...neverWorn]
-    .filter((item) => item.purchase_price)
-    .sort((a, b) => Number(b.purchase_price ?? 0) - Number(a.purchase_price ?? 0))
-    .slice(0, 5);
-  const suggestionsToRemove = [...neverWorn]
-    .sort((a, b) => Number(b.purchase_price ?? 0) - Number(a.purchase_price ?? 0))
-    .slice(0, 5);
-  const utilizationScore = safeItems.length > 0 ? Math.round((safeItems.filter((item) => item.wear_count > 0).length / safeItems.length) * 100) : 0;
-  const sustainabilityInsights = safeItems.map((item) => ({ insight: getSustainabilityInsight(item), item }));
-  const sustainabilityScore =
-    sustainabilityInsights.length > 0
-      ? Math.round(sustainabilityInsights.reduce((sum, entry) => sum + entry.insight.score, 0) / sustainabilityInsights.length)
-      : 0;
-  const sustainabilityFocusItems = sustainabilityInsights
-    .filter((entry) => entry.insight.status === "needs_use" || entry.insight.status === "at_risk")
-    .sort((a, b) => a.insight.score - b.insight.score)
-    .map((entry) => entry.item)
-    .slice(0, 4);
+
+  const toSortedDist = (map: Map<string, number>): DistributionPoint[] =>
+    [...map.entries()].sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value }));
+
+  const colorDist: DistributionPoint[] = [...colorMap.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(([label, { count, hex }]) => ({ label, value: count, color: hex ?? undefined }));
+
+  const monthlyData: MonthlySpendingPoint[] = [...monthlyMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6)
+    .map(([month, amount]) => ({ month: month.slice(5), amount: roundMoney(amount) }));
 
   return {
-    total_items: safeItems.length,
+    total_items: n,
     total_value: roundMoney(totalValue),
     avg_cost_per_wear: roundMoney(avgCostPerWear),
     monthly_spending: roundMoney(monthlySpending),
-    monthly_spending_data: calculateMonthlySpendingData(safeItems),
+    monthly_spending_data: monthlyData,
     utilization_score: utilizationScore,
     sustainability_score: sustainabilityScore,
-    inactive_items_count: inactiveItems.length,
+    inactive_items_count: inactiveCount,
     most_worn: mostWorn,
     never_worn: neverWorn.slice(0, 5),
-    category_distribution: toDistribution(safeItems.map((item) => item.category)),
-    color_distribution: toColorDistribution(safeItems),
-    season_distribution: toDistribution(safeItems.flatMap((item) => item.season)),
-    brand_distribution: toDistribution(safeItems.map((item) => item.brand ?? "").filter(Boolean)).slice(0, 6),
-    fabric_distribution: toDistribution(safeItems.map((item) => item.fabric ?? "").filter(Boolean)).slice(0, 6),
-    usage_context_distribution: toDistribution(safeItems.flatMap((item) => item.usage_context)).slice(0, 8),
+    category_distribution: toSortedDist(categoryMap),
+    color_distribution: colorDist,
+    season_distribution: toSortedDist(seasonMap),
+    brand_distribution: toSortedDist(brandMap).slice(0, 6),
+    fabric_distribution: toSortedDist(fabricMap).slice(0, 6),
+    usage_context_distribution: toSortedDist(usageMap).slice(0, 8),
     style_profile: calculateStyleProfile(safeItems),
     missing_pieces: calculateMissingPieces(safeItems),
     weekly_goals: calculateWeeklyGoals(safeItems, utilizationScore, sustainabilityScore),
-    sustainability_focus_items: sustainabilityFocusItems,
-    high_value_unused: highValueUnused,
-    suggestions_to_remove: suggestionsToRemove,
+    sustainability_focus_items: sustainabilityFocusCandidates
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 4)
+      .map((e) => e.item),
+    high_value_unused: neverWornByValue.filter((i) => i.purchase_price).slice(0, 5),
+    suggestions_to_remove: neverWornByValue.slice(0, 5),
   };
 }
 
@@ -124,23 +174,6 @@ function getSafeTimestamp(value: string) {
 
 function roundMoney(value: number) {
   return Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
-}
-
-function calculateMonthlySpendingData(items: WardrobeItem[]): MonthlySpendingPoint[] {
-  const map = new Map<string, number>();
-  for (const item of items) {
-    if (!item.purchase_price || !item.created_at) continue;
-    const month = item.created_at.slice(0, 7);
-    map.set(month, (map.get(month) ?? 0) + item.purchase_price);
-  }
-  const sorted = [...map.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([month, amount]) => ({
-      month: month.slice(5),
-      amount: roundMoney(amount),
-    }));
-  return sorted;
 }
 
 function calculateWeeklyGoals(items: WardrobeItem[], utilizationScore: number, sustainabilityScore: number): WardrobeGoal[] {
@@ -247,33 +280,6 @@ function calculateWeeklyGoals(items: WardrobeItem[], utilizationScore: number, s
   return goals.sort((a, b) => priorityWeight(a.priority) - priorityWeight(b.priority)).slice(0, 4);
 }
 
-function toDistribution(values: string[]): DistributionPoint[] {
-  const counts = values.reduce<Record<string, number>>((acc, value) => {
-    acc[value] = (acc[value] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  return Object.entries(counts)
-    .map(([label, value]) => ({ label, value }))
-    .sort((a, b) => b.value - a.value);
-}
-
-function toColorDistribution(items: WardrobeItem[]): DistributionPoint[] {
-  const counts = new Map<string, DistributionPoint>();
-
-  for (const item of items) {
-    const label = item.colors[0] ?? "belirsiz";
-    const current = counts.get(label);
-    counts.set(label, {
-      label,
-      value: (current?.value ?? 0) + 1,
-      color: item.dominant_color_hex ?? current?.color,
-    });
-  }
-
-  return [...counts.values()].sort((a, b) => b.value - a.value).slice(0, 8);
-}
-
 function calculateStyleProfile(items: WardrobeItem[]): StyleProfile {
   if (items.length === 0) {
     return {
@@ -296,10 +302,13 @@ function calculateStyleProfile(items: WardrobeItem[]): StyleProfile {
 
   const best = scores[0];
   const confidence = Math.min(95, Math.round((best.score / Math.max(items.length, 1)) * 100));
-  const topColors = toColorDistribution(items)
-    .slice(0, 3)
-    .map((point) => point.label);
-  const topCategory = toDistribution(items.map((item) => item.category))[0]?.label;
+  const colorFreq = new Map<string, number>();
+  for (const item of items) for (const c of item.colors) colorFreq.set(c, (colorFreq.get(c) ?? 0) + 1);
+  const topColors = [...colorFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([l]) => l);
+
+  const catFreq = new Map<string, number>();
+  for (const item of items) catFreq.set(item.category, (catFreq.get(item.category) ?? 0) + 1);
+  const topCategory = [...catFreq.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
 
   return {
     label: best.score > 0 ? best.label : "Karismis",
@@ -415,11 +424,9 @@ function buildStyleSummary(label: string, confidence: number, colors: string[], 
 }
 
 function getNeutralPalette(items: WardrobeItem[]) {
-  const topColors = toColorDistribution(items)
-    .slice(0, 2)
-    .map((point) => point.label)
-    .filter((label) => label !== "belirsiz");
-
+  const freq = new Map<string, number>();
+  for (const item of items) for (const c of item.colors) freq.set(c, (freq.get(c) ?? 0) + 1);
+  const topColors = [...freq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([l]) => l).filter((l) => l !== "belirsiz");
   return [...new Set([...topColors, "siyah", "beyaz", "bej"])].slice(0, 3);
 }
 

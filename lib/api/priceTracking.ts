@@ -1,3 +1,5 @@
+const PRICE_COLS = "id,user_id,product_name,product_url,product_image_url,current_price,target_price,initial_price,price_history,store,is_active,last_checked,notified_at,created_at" as const;
+
 import { throwApiError } from "@/lib/api/errors";
 import { invokeFunctionWithRetry } from "@/lib/api/functions";
 import { isUuid } from "@/lib/routeParams";
@@ -26,7 +28,7 @@ export async function fetchPriceTrackings(userId: string): Promise<PriceTracking
   assertUserId(userId);
   const { data, error } = await supabase
     .from("price_tracking")
-    .select("*")
+    .select(PRICE_COLS)
     .eq("user_id", userId)
     .eq("is_active", true)
     .order("created_at", { ascending: false });
@@ -54,7 +56,7 @@ export async function createPriceTracking(userId: string, input: CreatePriceTrac
       store: normalizedInput.store ?? null,
       price_history: priceHistory,
     })
-    .select("*")
+    .select(PRICE_COLS)
     .single();
 
   if (error) {
@@ -121,7 +123,7 @@ export async function updatePriceTracking(userId: string, trackingId: string, in
     .update(updatePayload)
     .eq("user_id", userId)
     .eq("id", trackingId)
-    .select("*")
+    .select(PRICE_COLS)
     .single();
 
   if (error) {

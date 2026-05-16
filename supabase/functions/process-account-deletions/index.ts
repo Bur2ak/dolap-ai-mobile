@@ -63,24 +63,27 @@ serve(async (req) => {
     }
 
     const profiles = (data ?? []) as ProfileDeletionRow[];
+
+    // Process in parallel batches of 5 to avoid edge function timeout on large queues
+    const BATCH_SIZE = 5;
     const results = [];
+    for (let i = 0; i < profiles.length; i += BATCH_SIZE) {
+      const batch = profiles.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(async (profile) => {
+        const storagePaths = await listUserStoragePaths(supabase, profile.id);
 
-    for (const profile of profiles) {
-      const storagePaths = await listUserStoragePaths(supabase, profile.id);
+        if (dryRun) {
+          return { id: profile.id, deleted: false, dry_run: true, storage_files: storagePaths.length };
+        }
 
-      if (dryRun) {
-        results.push({ id: profile.id, deleted: false, dry_run: true, storage_files: storagePaths.length });
-        continue;
-      }
-
-      const storageDeleted = await deleteUserStoragePaths(supabase, storagePaths);
-      const { error: deleteError } = await supabase.auth.admin.deleteUser(profile.id);
-      if (deleteError) {
-        results.push({ id: profile.id, deleted: false, storage_deleted: storageDeleted, error: deleteError.message });
-        continue;
-      }
-
-      results.push({ id: profile.id, deleted: true, storage_deleted: storageDeleted });
+        const storageDeleted = await deleteUserStoragePaths(supabase, storagePaths);
+        const { error: deleteError } = await supabase.auth.admin.deleteUser(profile.id);
+        if (deleteError) {
+          return { id: profile.id, deleted: false, storage_deleted: storageDeleted, error: deleteError.message };
+        }
+        return { id: profile.id, deleted: true, storage_deleted: storageDeleted };
+      }));
+      results.push(...batchResults);
     }
 
     return json({

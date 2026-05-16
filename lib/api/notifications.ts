@@ -1,3 +1,5 @@
+const NOTIF_COLS = "id,user_id,type,title,body,data,is_read,sent_at" as const;
+
 import { throwApiError } from "@/lib/api/errors";
 import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
@@ -10,7 +12,7 @@ export async function fetchNotifications(userId: string): Promise<NotificationRe
   assertUserId(userId);
   const { data, error } = await supabase
     .from("notifications")
-    .select("*")
+    .select(NOTIF_COLS)
     .eq("user_id", userId)
     .order("sent_at", { ascending: false })
     .limit(50);

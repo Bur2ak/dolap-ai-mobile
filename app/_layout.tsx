@@ -29,7 +29,16 @@ export default function RootLayout() {
   const pathname = usePathname();
   const params = useGlobalSearchParams();
   const segments = useSegments();
-  const queryClient = useMemo(() => new QueryClient(), []);
+  const queryClient = useMemo(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 1000 * 60 * 2,   // 2 min — wardrobe rarely changes mid-session
+        gcTime: 1000 * 60 * 10,     // 10 min garbage collection
+        retry: 1,                    // 1 retry instead of default 3
+        refetchOnWindowFocus: false, // mobile has no "window focus" concept
+      },
+    },
+  }), []);
   const handledNotificationResponseIds = useRef(new Set<string>());
   const { session, isLoading, fetchProfile } = useAuthStore();
 

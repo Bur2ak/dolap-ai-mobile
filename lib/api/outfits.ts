@@ -1,5 +1,7 @@
 import { nanoid } from "nanoid";
 
+const OUTFIT_COLS = "id,user_id,name,event_type,weather_temp,weather_description,mood,ai_reasoning,worn_at,is_favorite,is_shareable,share_token,created_at" as const;
+
 import { throwApiError } from "@/lib/api/errors";
 import { invokeFunctionWithRetry } from "@/lib/api/functions";
 import { filterUsersByNotificationPreference, userAllowsNotification } from "@/lib/api/notifications";
@@ -69,7 +71,7 @@ export async function saveOutfit(userId: string, input: OutfitRecommendationInpu
       is_shareable: isShareable,
       share_token: isShareable ? nanoid(12) : null,
     })
-    .select("*")
+    .select(OUTFIT_COLS)
     .single();
 
   if (error) {
@@ -280,7 +282,7 @@ export async function makeOutfitShareable(userId: string, outfit: OutfitRecord):
     })
     .eq("id", outfit.id)
     .eq("user_id", userId)
-    .select("*")
+    .select(OUTFIT_COLS)
     .single();
 
   if (error) {
@@ -301,7 +303,7 @@ export async function askFriendsToVoteOnOutfit(userId: string, outfit: OutfitRec
 
   const { data: friendships, error: friendshipsError } = await supabase
     .from("friendships")
-    .select("*")
+    .select(OUTFIT_COLS)
     .eq("status", "accepted")
     .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
 
@@ -309,7 +311,7 @@ export async function askFriendsToVoteOnOutfit(userId: string, outfit: OutfitRec
     throwApiError(friendshipsError, "Arkadas listesi kontrol edilemedi.");
   }
 
-  const friendIds = ((friendships ?? []) as Friendship[])
+  const friendIds = ((friendships ?? []) as unknown as Friendship[])
     .map((friendship) => (friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id))
     .filter((friendId, index, allFriendIds) => isUuid(friendId) && friendId !== userId && allFriendIds.indexOf(friendId) === index);
 
@@ -347,7 +349,7 @@ export async function fetchUserOutfits(userId: string): Promise<SharedOutfit[]> 
   assertUserId(userId);
   const { data: outfits, error } = await supabase
     .from("outfits")
-    .select("*")
+    .select(OUTFIT_COLS)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(20);
@@ -363,7 +365,7 @@ export async function fetchUserOutfits(userId: string): Promise<SharedOutfit[]> 
 export async function fetchPublicOutfitFeed(): Promise<SharedOutfit[]> {
   const { data: outfits, error } = await supabase
     .from("outfits")
-    .select("*")
+    .select(OUTFIT_COLS)
     .eq("is_shareable", true)
     .not("share_token", "is", null)
     .order("created_at", { ascending: false })
@@ -435,7 +437,7 @@ export async function fetchSharedOutfitByToken(token: string): Promise<SharedOut
 
   const { data: outfit, error } = await supabase
     .from("outfits")
-    .select("*")
+    .select(OUTFIT_COLS)
     .eq("share_token", normalizedToken)
     .eq("is_shareable", true)
     .single();
@@ -536,7 +538,7 @@ export async function toggleOutfitFavorite(userId: string, outfit: OutfitRecord)
     .update({ is_favorite: !outfit.is_favorite })
     .eq("id", outfit.id)
     .eq("user_id", userId)
-    .select("*")
+    .select(OUTFIT_COLS)
     .single();
 
   if (error) {

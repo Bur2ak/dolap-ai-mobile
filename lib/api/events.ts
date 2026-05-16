@@ -1,3 +1,5 @@
+const EVENT_COLS = "id,user_id,outfit_id,title,event_type,event_date,location,notes,calendar_event_id,created_at" as const;
+
 import { invokeFunctionWithRetry } from "@/lib/api/functions";
 import { throwApiError } from "@/lib/api/errors";
 import { isUuid } from "@/lib/routeParams";
@@ -21,7 +23,7 @@ export async function recommendEventOutfits(input: EventPlanInput): Promise<Outf
 
 export async function fetchEventPlans(userId: string): Promise<EventRecord[]> {
   assertUserId(userId);
-  const { data, error } = await supabase.from("events").select("*").eq("user_id", userId).order("event_date", { ascending: true });
+  const { data, error } = await supabase.from("events").select(EVENT_COLS).eq("user_id", userId).order("event_date", { ascending: true });
 
   if (error) {
     throwApiError(error, "Etkinlikler yuklenemedi.");
@@ -48,7 +50,7 @@ export async function saveEventPlan(
       calendar_event_id: normalizedInput.calendar_event_id ?? null,
       outfit_id: normalizedInput.outfit_id ?? null,
     })
-    .select("*")
+    .select(EVENT_COLS)
     .single();
 
   if (error) {
@@ -72,7 +74,7 @@ export async function updateEventPlan(userId: string, eventId: string, input: Up
     .update(normalizedInput)
     .eq("user_id", userId)
     .eq("id", eventId)
-    .select("*")
+    .select(EVENT_COLS)
     .single();
 
   if (error) {

@@ -1,3 +1,5 @@
+const BUY_COLS = "id,user_id,product_image_url,product_name,price,decision,confidence,similar_items,combination_count,ai_reasoning,created_at" as const;
+
 import * as FileSystem from "expo-file-system/legacy";
 import { nanoid } from "nanoid";
 
@@ -52,7 +54,7 @@ export async function fetchBuyDecisionHistory(userId: string): Promise<BuyDecisi
   assertUserId(userId);
   const { data, error } = await supabase
     .from("buy_decisions")
-    .select("*")
+    .select(BUY_COLS)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(20);

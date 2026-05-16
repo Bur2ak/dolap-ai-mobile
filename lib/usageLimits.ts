@@ -1,6 +1,9 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createMMKV } from "react-native-mmkv";
 
 import { captureError } from "@/lib/observability";
+
+// MMKV is synchronous and ~10-100x faster than AsyncStorage on iOS (no bridge overhead)
+const usageMMKV = createMMKV({ id: "shipirio-usage" });
 import { isUuid } from "@/lib/routeParams";
 import { supabase } from "@/lib/supabase";
 import { formatDateOnly } from "@/utils/formatters";
@@ -28,7 +31,7 @@ export async function getDailyOutfitSuggestionCount(userId: string): Promise<num
     return remoteCount;
   }
 
-  const record = await getDailyUsageRecord(userId);
+  const record = getDailyUsageRecord(userId);
   return record.count;
 }
 
@@ -36,7 +39,7 @@ export async function incrementDailyOutfitSuggestionCount(userId: string): Promi
   assertUserId(userId);
   const remoteCount = await incrementRemoteUsageCount(userId, dailyOutfitMetric, getTodayKey());
   if (remoteCount !== null) {
-    await writeUsageRecord(getDailyOutfitSuggestionKey(userId), { date: getTodayKey(), count: remoteCount }, {
+    writeUsageRecord(getDailyOutfitSuggestionKey(userId), { date: getTodayKey(), count: remoteCount }, {
       area: "usage_counter_daily_cache_write",
       metric: dailyOutfitMetric,
       user_id: userId,
@@ -44,9 +47,9 @@ export async function incrementDailyOutfitSuggestionCount(userId: string): Promi
     return remoteCount;
   }
 
-  const record = await getDailyUsageRecord(userId);
+  const record = getDailyUsageRecord(userId);
   const nextCount = normalizeUsageCount(record.count + 1) ?? maxLocalUsageCount;
-  await writeUsageRecord(getDailyOutfitSuggestionKey(userId), { date: getTodayKey(), count: nextCount }, {
+  writeUsageRecord(getDailyOutfitSuggestionKey(userId), { date: getTodayKey(), count: nextCount }, {
     area: "usage_counter_daily_local_write",
     metric: dailyOutfitMetric,
     user_id: userId,
@@ -61,7 +64,7 @@ export async function getMonthlyBuyDecisionCount(userId: string): Promise<number
     return remoteCount;
   }
 
-  const record = await getMonthlyUsageRecord(userId);
+  const record = getMonthlyUsageRecord(userId);
   return record.count;
 }
 
@@ -69,7 +72,7 @@ export async function incrementMonthlyBuyDecisionCount(userId: string): Promise<
   assertUserId(userId);
   const remoteCount = await incrementRemoteUsageCount(userId, monthlyBuyDecisionMetric, getMonthKey());
   if (remoteCount !== null) {
-    await writeUsageRecord(getMonthlyBuyDecisionKey(userId), { month: getMonthKey(), count: remoteCount }, {
+    writeUsageRecord(getMonthlyBuyDecisionKey(userId), { month: getMonthKey(), count: remoteCount }, {
       area: "usage_counter_monthly_cache_write",
       metric: monthlyBuyDecisionMetric,
       user_id: userId,
@@ -77,9 +80,9 @@ export async function incrementMonthlyBuyDecisionCount(userId: string): Promise<
     return remoteCount;
   }
 
-  const record = await getMonthlyUsageRecord(userId);
+  const record = getMonthlyUsageRecord(userId);
   const nextCount = normalizeUsageCount(record.count + 1) ?? maxLocalUsageCount;
-  await writeUsageRecord(getMonthlyBuyDecisionKey(userId), { month: getMonthKey(), count: nextCount }, {
+  writeUsageRecord(getMonthlyBuyDecisionKey(userId), { month: getMonthKey(), count: nextCount }, {
     area: "usage_counter_monthly_local_write",
     metric: monthlyBuyDecisionMetric,
     user_id: userId,
@@ -137,55 +140,45 @@ async function incrementRemoteUsageCount(userId: string, metric: string, periodK
   }
 }
 
-async function getDailyUsageRecord(userId: string): Promise<DailyUsageRecord> {
+function getDailyUsageRecord(userId: string): DailyUsageRecord {
   const today = getTodayKey();
   const fallback = { date: today, count: 0 };
-  const rawValue = await AsyncStorage.getItem(getDailyOutfitSuggestionKey(userId));
-  if (!rawValue) {
-    return fallback;
-  }
+  const rawValue = usageMMKV.getString(getDailyOutfitSuggestionKey(userId));
+  if (!rawValue) return fallback;
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<DailyUsageRecord>;
     const count = normalizeUsageCount(parsed.count);
-    if (parsed.date !== today || count === null) {
-      return fallback;
-    }
-
+    if (parsed.date !== today || count === null) return fallback;
     return { date: today, count };
   } catch {
     return fallback;
   }
 }
 
-async function getMonthlyUsageRecord(userId: string): Promise<MonthlyUsageRecord> {
+function getMonthlyUsageRecord(userId: string): MonthlyUsageRecord {
   const month = getMonthKey();
   const fallback = { month, count: 0 };
-  const rawValue = await AsyncStorage.getItem(getMonthlyBuyDecisionKey(userId));
-  if (!rawValue) {
-    return fallback;
-  }
+  const rawValue = usageMMKV.getString(getMonthlyBuyDecisionKey(userId));
+  if (!rawValue) return fallback;
 
   try {
     const parsed = JSON.parse(rawValue) as Partial<MonthlyUsageRecord>;
     const count = normalizeUsageCount(parsed.count);
-    if (parsed.month !== month || count === null) {
-      return fallback;
-    }
-
+    if (parsed.month !== month || count === null) return fallback;
     return { month, count };
   } catch {
     return fallback;
   }
 }
 
-async function writeUsageRecord(
+function writeUsageRecord(
   key: string,
   value: DailyUsageRecord | MonthlyUsageRecord,
   context: Record<string, string | number | boolean | null | undefined>,
 ) {
   try {
-    await AsyncStorage.setItem(key, JSON.stringify(value));
+    usageMMKV.set(key, JSON.stringify(value));
   } catch (error) {
     captureError(error, context);
   }

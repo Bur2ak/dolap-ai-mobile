@@ -81,19 +81,17 @@ export function useSocial() {
       return;
     }
 
+    // Single channel for both requester and addressee changes — halves WebSocket connections
     const invalidateFriendships = () => {
       void queryClient.invalidateQueries({ queryKey: ["friendships", userId] });
     };
-    const requesterChannel = safeChannel(`friendships-requester-${userId}`)
+    const friendshipsChannel = safeChannel(`friendships-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "friendships", filter: `requester_id=eq.${userId}` }, invalidateFriendships)
-      .subscribe();
-    const addresseeChannel = safeChannel(`friendships-addressee-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "friendships", filter: `addressee_id=eq.${userId}` }, invalidateFriendships)
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(requesterChannel);
-      void supabase.removeChannel(addresseeChannel);
+      void supabase.removeChannel(friendshipsChannel);
     };
   }, [queryClient, userId]);
 
@@ -158,19 +156,17 @@ export function useFriendWardrobe(friendId?: string) {
       return;
     }
 
+    // Single channel for both owner and requester — halves WebSocket connections
     const invalidateLoanRequests = () => {
       void queryClient.invalidateQueries({ queryKey: ["loan-requests", userId] });
     };
-    const ownerChannel = safeChannel(`friend-wardrobe-loans-owner-${userId}`)
+    const loanChannel = safeChannel(`friend-wardrobe-loans-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "loan_requests", filter: `owner_id=eq.${userId}` }, invalidateLoanRequests)
-      .subscribe();
-    const requesterChannel = safeChannel(`friend-wardrobe-loans-requester-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "loan_requests", filter: `requester_id=eq.${userId}` }, invalidateLoanRequests)
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(ownerChannel);
-      void supabase.removeChannel(requesterChannel);
+      void supabase.removeChannel(loanChannel);
     };
   }, [queryClient, userId]);
 
@@ -230,16 +226,13 @@ export function useLoanRequests() {
     const invalidateLoanRequests = () => {
       void queryClient.invalidateQueries({ queryKey: ["loan-requests", userId] });
     };
-    const ownerChannel = safeChannel(`loan-requests-owner-${userId}`)
+    const loanRequestsChannel = safeChannel(`loan-requests-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "loan_requests", filter: `owner_id=eq.${userId}` }, invalidateLoanRequests)
-      .subscribe();
-    const requesterChannel = safeChannel(`loan-requests-requester-${userId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "loan_requests", filter: `requester_id=eq.${userId}` }, invalidateLoanRequests)
       .subscribe();
 
     return () => {
-      void supabase.removeChannel(ownerChannel);
-      void supabase.removeChannel(requesterChannel);
+      void supabase.removeChannel(loanRequestsChannel);
     };
   }, [queryClient, userId]);
 

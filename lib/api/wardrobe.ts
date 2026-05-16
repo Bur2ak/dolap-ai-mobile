@@ -13,16 +13,20 @@ const validCategories = new Set(["ust", "alt", "elbise", "etek", "dis_giyim", "a
 const validSeasons = new Set(["ilkbahar", "yaz", "sonbahar", "kis"]);
 const maxPurchasePrice = 10_000_000;
 
+// Explicit column list — excludes embedding (vector(512) = 2KB/row, never used client-side)
+const WARDROBE_COLS = "id,user_id,image_url,thumbnail_url,category,subcategory,colors,dominant_color_hex,season,brand,fabric,usage_context,purchase_price,wear_count,last_worn,is_shareable,is_lendable,is_active,created_at,updated_at" as const;
+
 export async function fetchWardrobeItems(userId: string): Promise<WardrobeItem[]> {
   assertUserId(userId);
 
   try {
     const { data, error } = await supabase
       .from("wardrobe_items")
-      .select("*")
+      .select(WARDROBE_COLS)
       .eq("user_id", userId)
       .eq("is_active", true)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(500);
 
     if (error) {
       throwApiError(error, "Dolap yuklenemedi.");
@@ -47,7 +51,7 @@ export async function fetchWardrobeItem(userId: string, itemId: string): Promise
 
   const { data, error } = await supabase
     .from("wardrobe_items")
-    .select("*")
+    .select(WARDROBE_COLS)
     .eq("user_id", userId)
     .eq("id", itemId)
     .eq("is_active", true)
@@ -87,6 +91,7 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
     throwApiError(uploadError, "Gorsel yuklenemedi. Lutfen tekrar deneyin.");
   }
 
+  // embedding stored in wardrobe_embeddings (separate table) — not in wardrobe_items
   const embedding = Array.isArray(normalizedInput.embedding) && normalizedInput.embedding.length === 512
     ? normalizedInput.embedding
     : null;
@@ -108,9 +113,8 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
       purchase_price: normalizedInput.purchase_price ?? null,
       is_shareable: socialFlags.is_shareable ?? false,
       is_lendable: socialFlags.is_lendable ?? false,
-      embedding,
     })
-    .select("*")
+    .select(WARDROBE_COLS)
     .single();
 
   if (error) {
@@ -122,6 +126,13 @@ export async function createWardrobeItem(userId: string, input: CreateWardrobeIt
   if (!item) {
     await cleanupUploadedImages(userId, [imageUrl, thumbnailUrl]);
     throw new Error("Kiyafet kaydi gecersiz dondu.");
+  }
+
+  // Store embedding in separate table (fire-and-forget — doesn't block the create flow)
+  if (embedding) {
+    void supabase.from("wardrobe_embeddings").upsert({ item_id: item.id, embedding }).then(({ error: embErr }) => {
+      if (embErr) captureError(embErr, { area: "wardrobe_embedding_save", item_id: item.id });
+    });
   }
 
   captureEvent("wardrobe_item_created", {
@@ -147,7 +158,7 @@ export async function updateWardrobeItem(userId: string, itemId: string, input: 
     .update({ ...normalizedInput, ...updates, updated_at: new Date().toISOString() })
     .eq("user_id", userId)
     .eq("id", itemId)
-    .select("*")
+    .select(WARDROBE_COLS)
     .single();
 
   if (error) {
