@@ -14,7 +14,7 @@ const validSeasons = new Set(["ilkbahar", "yaz", "sonbahar", "kis"]);
 const maxPurchasePrice = 10_000_000;
 
 // Explicit column list — excludes embedding (vector(512) = 2KB/row, never used client-side)
-const WARDROBE_COLS = "id,user_id,image_url,thumbnail_url,category,subcategory,colors,dominant_color_hex,season,brand,fabric,usage_context,purchase_price,wear_count,last_worn,is_shareable,is_lendable,is_active,created_at,updated_at" as const;
+const WARDROBE_COLS = "id,user_id,image_url,thumbnail_url,category,subcategory,colors,dominant_color_hex,season,brand,fabric,usage_context,purchase_price,wear_count,last_worn,fit_note,last_rating,is_shareable,is_lendable,is_active,created_at,updated_at" as const;
 
 export async function fetchWardrobeItems(userId: string): Promise<WardrobeItem[]> {
   assertUserId(userId);
@@ -296,6 +296,8 @@ function normalizeWardrobeItemRecord(value: unknown): WardrobeItem | null {
     purchase_price: Number.isFinite(purchasePrice) && purchasePrice >= 0 && purchasePrice <= maxPurchasePrice ? Math.round(purchasePrice * 100) / 100 : null,
     wear_count: Number.isFinite(wearCount) ? Math.max(0, Math.min(10_000, Math.trunc(wearCount))) : 0,
     last_worn: normalizeNullableDate(record.last_worn),
+    fit_note: typeof record.fit_note === "string" ? normalizeNullableText(record.fit_note, 200) : null,
+    last_rating: typeof record.last_rating === "number" && record.last_rating >= 1 && record.last_rating <= 5 ? Math.trunc(record.last_rating) : null,
     is_shareable: record.is_shareable === true,
     is_lendable: record.is_lendable === true,
     is_active: record.is_active !== false,

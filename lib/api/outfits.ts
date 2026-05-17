@@ -247,6 +247,8 @@ function normalizeWardrobeItemRecord(value: unknown): WardrobeItem | null {
     purchase_price: normalizeNullableNumber(record.purchase_price, 0, 10_000_000),
     wear_count: normalizeCount(record.wear_count),
     last_worn: normalizeNullableDate(record.last_worn),
+    fit_note: typeof record.fit_note === "string" ? normalizeNullableText(record.fit_note, 200) : null,
+    last_rating: typeof record.last_rating === "number" && record.last_rating >= 1 && record.last_rating <= 5 ? Math.trunc(record.last_rating) : null,
     is_shareable: record.is_shareable === true,
     is_lendable: record.is_lendable === true,
     is_active: record.is_active !== false,

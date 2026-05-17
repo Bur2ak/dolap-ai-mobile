@@ -10,7 +10,7 @@ import { SPACING } from "@/constants/spacing";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWeather } from "@/hooks/useWeather";
-import { cancelOutfitReminders, getPushNotificationReadiness, scheduleOutfitReminder, type PushNotificationReadiness } from "@/lib/notifications";
+import { cancelOutfitReminders, cancelSeasonTransitionReminders, getPushNotificationReadiness, scheduleOutfitReminder, scheduleSeasonTransitionReminders, type PushNotificationReadiness } from "@/lib/notifications";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { NotificationPreferences } from "@/types";
 import { buildSmartOutfitNotification } from "@/utils/smartNotifications";
@@ -68,6 +68,8 @@ export default function NotificationSettingsScreen() {
   const { items } = useWardrobe();
   const { weather, isLoading: isWeatherLoading, refetch } = useWeather();
   const [isSchedulingReminder, setIsSchedulingReminder] = useState(false);
+  const [isSchedulingSeason, setIsSchedulingSeason] = useState(false);
+  const [seasonEnabled, setSeasonEnabled] = useState(false);
   const [pushReadiness, setPushReadiness] = useState<PushNotificationReadiness | null>(null);
   const [isCheckingPush, setIsCheckingPush] = useState(false);
   const [updatingPreference, setUpdatingPreference] = useState<keyof NotificationPreferences | null>(null);
@@ -75,7 +77,7 @@ export default function NotificationSettingsScreen() {
   const [isSharingSummary, setIsSharingSummary] = useState(false);
   const smartPlan = buildSmartOutfitNotification(weather, items);
   const enabledPreferenceCount = rows.filter((row) => preferences[row.key]).length;
-  const isBusy = isRegistering || isUpdating || isSchedulingReminder || isCheckingPush || isSharingSummary || Boolean(updatingPreference) || Boolean(activePreset);
+  const isBusy = isRegistering || isUpdating || isSchedulingReminder || isSchedulingSeason || isCheckingPush || isSharingSummary || Boolean(updatingPreference) || Boolean(activePreset);
 
   useEffect(() => {
     void refreshPushReadiness();
@@ -114,7 +116,6 @@ export default function NotificationSettingsScreen() {
 
   async function handleEnablePush() {
     if (isBusy) {
-      captureEvent("push_enable_blocked", { reason: "busy" });
       return;
     }
 
@@ -131,7 +132,6 @@ export default function NotificationSettingsScreen() {
 
   async function togglePreference(key: keyof NotificationPreferences) {
     if (isBusy) {
-      captureEvent("notification_preference_toggle_blocked", { preference: key, reason: "busy" });
       return;
     }
 
@@ -150,7 +150,6 @@ export default function NotificationSettingsScreen() {
 
   async function handleApplyPreset(preset: NotificationPreset) {
     if (isBusy) {
-      captureEvent("notification_preset_blocked", { preset, reason: "busy" });
       return;
     }
 
@@ -173,7 +172,6 @@ export default function NotificationSettingsScreen() {
 
   async function handleScheduleSmartReminder() {
     if (isBusy) {
-      captureEvent("smart_outfit_reminder_schedule_blocked", { reason: "busy" });
       return;
     }
 
@@ -197,7 +195,6 @@ export default function NotificationSettingsScreen() {
 
   async function handleCancelSmartReminder() {
     if (isBusy) {
-      captureEvent("smart_outfit_reminder_cancel_blocked", { reason: "busy" });
       return;
     }
 
@@ -215,9 +212,31 @@ export default function NotificationSettingsScreen() {
     }
   }
 
+  async function handleToggleSeasonNotifications() {
+    if (isBusy) return;
+    setIsSchedulingSeason(true);
+    try {
+      if (seasonEnabled) {
+        await cancelSeasonTransitionReminders();
+        setSeasonEnabled(false);
+        captureEvent("season_transition_reminders_cancelled");
+        Alert.alert("Bildirimler kapatildi", "Sezonluk gecis bildirimleri iptal edildi.");
+      } else {
+        await scheduleSeasonTransitionReminders();
+        setSeasonEnabled(true);
+        captureEvent("season_transition_reminders_scheduled");
+        Alert.alert("Bildirimler kuruldu", "Her sezon basinda kombin hazirligini hatirlatacagiz.");
+      }
+    } catch (error) {
+      captureError(error, { area: "season_transition_reminder_toggle" });
+      Alert.alert("Hata", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally {
+      setIsSchedulingSeason(false);
+    }
+  }
+
   async function handleShareNotificationSummary() {
     if (isBusy) {
-      captureEvent("notification_summary_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -331,6 +350,23 @@ export default function NotificationSettingsScreen() {
         {preferences.outfit_reminder ? (
           <Button title="Hatirlaticiyi Kapat" variant="ghost" onPress={handleCancelSmartReminder} loading={isSchedulingReminder} disabled={isBusy} />
         ) : null}
+      </Card>
+
+      <Card style={styles.intro}>
+        <Text variant="caption" color="muted">
+          SEZONLUK GECIS
+        </Text>
+        <Text variant="h3">Sezon baslangic bildirimleri</Text>
+        <Text variant="body" color="secondary">
+          Ilkbahar, yaz, sonbahar ve kis basinda dolabini hazirlamak icin hatirlatici al.
+        </Text>
+        <Button
+          title={seasonEnabled ? "Bildirimleri Kapat" : "Sezonluk Bildirimleri Kur"}
+          variant={seasonEnabled ? "ghost" : "secondary"}
+          onPress={() => void handleToggleSeasonNotifications()}
+          loading={isSchedulingSeason}
+          disabled={isBusy}
+        />
       </Card>
 
       {rows.map((row) => {

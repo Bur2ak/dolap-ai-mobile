@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, TouchableOpacity, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -40,7 +40,10 @@ export default function ItemDetailScreen() {
   const [usageContext, setUsageContext] = useState("");
   const [price, setPrice] = useState("");
   const [seasons, setSeasons] = useState<Season[]>([]);
-  const [activeAction, setActiveAction] = useState<"save" | "worn" | "shareable" | "lendable" | "share" | "delete" | null>(null);
+  const [fitNote, setFitNote] = useState("");
+  const [showRatingPrompt, setShowRatingPrompt] = useState(false);
+  const [pendingRating, setPendingRating] = useState(0);
+  const [activeAction, setActiveAction] = useState<"save" | "worn" | "shareable" | "lendable" | "share" | "delete" | "rating" | null>(null);
   const isBusy = isUpdating;
   const isActionBusy = Boolean(activeAction) || isBusy;
 
@@ -56,6 +59,7 @@ export default function ItemDetailScreen() {
     setColors(item.colors.join(", "));
     setBrand(item.brand ?? "");
     setFabric(item.fabric ?? "");
+    setFitNote(item.fit_note ?? "");
     setUsageContext(item.usage_context.join(", "));
     setPrice(item.purchase_price ? String(item.purchase_price) : "");
     setSeasons(item.season);
@@ -84,7 +88,6 @@ export default function ItemDetailScreen() {
 
   function toggleSeason(season: Season) {
     if (isActionBusy) {
-      captureEvent("wardrobe_item_detail_season_blocked", { reason: "busy", season });
       return;
     }
 
@@ -93,7 +96,6 @@ export default function ItemDetailScreen() {
 
   async function handleSaveEdits() {
     if (!item || isActionBusy) {
-      captureEvent("wardrobe_item_detail_save_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -106,7 +108,6 @@ export default function ItemDetailScreen() {
       usageContextText: usageContext,
     });
     if (metadataError) {
-      captureEvent("wardrobe_item_detail_save_blocked", { reason: "metadata", item_id: item.id });
       Alert.alert(metadataError.title, metadataError.message);
       return;
     }
@@ -120,6 +121,7 @@ export default function ItemDetailScreen() {
         category,
         colors: parseColorList(colors),
         fabric: fabric.trim() || null,
+        fit_note: fitNote.trim() || null,
         purchase_price: purchasePrice,
         season: seasons,
         subcategory: subcategory.trim(),
@@ -141,7 +143,6 @@ export default function ItemDetailScreen() {
 
   async function handleMarkWorn() {
     if (!item || isActionBusy) {
-      captureEvent("wardrobe_item_detail_mark_worn_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -149,6 +150,8 @@ export default function ItemDetailScreen() {
     try {
       await markWorn(item);
       captureEvent("wardrobe_item_detail_mark_worn", { item_id: item.id, category: item.category });
+      setShowRatingPrompt(true);
+      setPendingRating(0);
     } catch (error) {
       captureError(error, { area: "wardrobe_item_detail_mark_worn_action" });
       Alert.alert("Guncellenemedi", error instanceof Error ? error.message : "Tekrar dene.");
@@ -157,9 +160,26 @@ export default function ItemDetailScreen() {
     }
   }
 
+  async function handleSaveRating() {
+    if (!item || pendingRating === 0) {
+      setShowRatingPrompt(false);
+      return;
+    }
+
+    setActiveAction("rating");
+    try {
+      await updateItem({ last_rating: pendingRating });
+      captureEvent("wardrobe_item_wear_rated", { item_id: item.id, rating: pendingRating });
+    } catch (error) {
+      captureError(error, { area: "wardrobe_item_rating_save" });
+    } finally {
+      setActiveAction(null);
+      setShowRatingPrompt(false);
+    }
+  }
+
   async function handleShareableToggle() {
     if (!item || isActionBusy) {
-      captureEvent("wardrobe_item_shareable_toggle_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -177,7 +197,6 @@ export default function ItemDetailScreen() {
 
   async function handleLendableToggle() {
     if (!item || isActionBusy) {
-      captureEvent("wardrobe_item_lendable_toggle_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -195,7 +214,6 @@ export default function ItemDetailScreen() {
 
   function handleDelete() {
     if (!item || isActionBusy) {
-      captureEvent("wardrobe_item_detail_delete_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -207,7 +225,6 @@ export default function ItemDetailScreen() {
         style: "destructive",
         onPress: async () => {
           if (isActionBusy) {
-            captureEvent("wardrobe_item_detail_delete_blocked", { item_id: item.id, reason: "busy_after_confirm" });
             return;
           }
 
@@ -229,7 +246,6 @@ export default function ItemDetailScreen() {
 
   async function handleShareItemSummary() {
     if (!item || isActionBusy) {
-      captureEvent("wardrobe_item_summary_share_blocked", { item_id: item?.id ?? "missing", reason: isActionBusy ? "busy" : "missing_item" });
       return;
     }
 
@@ -272,7 +288,6 @@ export default function ItemDetailScreen() {
           loading={isRefetching}
           onAction={() => {
             if (isActionBusy) {
-              captureEvent("wardrobe_item_detail_refetch_blocked", { item_id: id ?? "invalid", reason: "busy" });
               return;
             }
 
@@ -302,7 +317,6 @@ export default function ItemDetailScreen() {
               variant="secondary"
               onPress={() => {
                 if (isActionBusy) {
-                  captureEvent("wardrobe_item_detail_edit_blocked", { item_id: item.id, reason: "busy" });
                   return;
                 }
 
@@ -331,7 +345,6 @@ export default function ItemDetailScreen() {
                       variant={active ? "primary" : "secondary"}
                       onPress={() => {
                         if (isActionBusy) {
-                          captureEvent("wardrobe_item_detail_category_blocked", { category: itemCategory.value, item_id: item.id, reason: "busy" });
                           return;
                         }
 
@@ -366,6 +379,7 @@ export default function ItemDetailScreen() {
               <Input label="Renkler" value={colors} onChangeText={setColors} error={getColorListInputError(colors)} editable={!isActionBusy} />
               <Input label="Marka" value={brand} onChangeText={setBrand} editable={!isActionBusy} />
               <Input label="Kumas" value={fabric} onChangeText={setFabric} placeholder="Orn. pamuk, denim, keten" editable={!isActionBusy} />
+              <Input label="Beden / fit notu" value={fitNote} onChangeText={setFitNote} placeholder="Orn. biraz büyük, kısa kollu, bol kesim" editable={!isActionBusy} />
               <Input
                 label="Kullanim alani"
                 value={usageContext}
@@ -426,6 +440,16 @@ export default function ItemDetailScreen() {
             <Text variant="body" color="secondary">
               Fiyat: {item.purchase_price ? `${item.purchase_price} TL` : "Yok"}
             </Text>
+            {item.fit_note && (
+              <Text variant="body" color="secondary">
+                Beden / fit: {item.fit_note}
+              </Text>
+            )}
+            {item.last_rating && (
+              <Text variant="body" color="secondary">
+                Son giyim puanı: {"★".repeat(item.last_rating)}{"☆".repeat(5 - item.last_rating)}
+              </Text>
+            )}
           </Card>
 
           <CareCard recommendations={careRecommendations} />
@@ -519,13 +543,30 @@ export default function ItemDetailScreen() {
     {/* Sticky bottom CTA — primary action always reachable without scrolling */}
     {item && !isEditing && (
       <View style={styles.stickyBottom}>
-        <Button
-          title="Bugun Giydim"
-          onPress={handleMarkWorn}
-          loading={activeAction === "worn"}
-          disabled={isActionBusy}
-          style={styles.stickyButton}
-        />
+        {showRatingPrompt ? (
+          <View style={styles.ratingPrompt}>
+            <Text variant="label">Bu giyimi puanla</Text>
+            <View style={styles.ratingStars}>
+              {[1, 2, 3, 4, 5].map((r) => (
+                <TouchableOpacity key={r} onPress={() => setPendingRating(r === pendingRating ? 0 : r)}>
+                  <Ionicons name={r <= pendingRating ? "star" : "star-outline"} size={28} color={COLORS.accent} />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.ratingActions}>
+              <Button title="Atla" variant="ghost" onPress={() => setShowRatingPrompt(false)} style={styles.ratingBtn} />
+              <Button title="Kaydet" onPress={() => void handleSaveRating()} loading={activeAction === "rating"} disabled={pendingRating === 0} style={styles.ratingBtn} />
+            </View>
+          </View>
+        ) : (
+          <Button
+            title="Bugun Giydim"
+            onPress={handleMarkWorn}
+            loading={activeAction === "worn"}
+            disabled={isActionBusy}
+            style={styles.stickyButton}
+          />
+        )}
       </View>
     )}
     </View>
@@ -795,6 +836,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: SPACING.sm,
+  },
+  ratingPrompt: {
+    gap: SPACING.sm,
+  },
+  ratingStars: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    justifyContent: "center",
+  },
+  ratingActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  ratingBtn: {
+    flex: 1,
   },
   chipButton: {
     minHeight: 40,

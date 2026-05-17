@@ -65,6 +65,8 @@ export interface WardrobeItem {
   purchase_price: number | null;
   wear_count: number;
   last_worn: string | null;
+  fit_note: string | null;
+  last_rating: number | null;
   is_shareable: boolean;
   is_lendable: boolean;
   is_active: boolean;
@@ -120,6 +122,8 @@ export type UpdateWardrobeItemInput = Partial<Omit<CreateWardrobeItemInput, "ima
   thumbnail_url?: string | null;
   wear_count?: number;
   last_worn?: string | null;
+  fit_note?: string | null;
+  last_rating?: number | null;
   is_active?: boolean;
 };
 

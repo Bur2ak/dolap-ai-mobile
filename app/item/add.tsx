@@ -50,7 +50,7 @@ export default function AddItemScreen() {
   const { imageUri: imageUriParam } = useLocalSearchParams<{ imageUri?: string | string[] }>();
   const preselectedUri = getStringParam(imageUriParam);
 
-  const { pickFromLibrary, takePhoto, isPicking } = useImagePicker();
+  const { pickFromLibrary, pickMultipleFromLibrary, takePhoto, isPicking } = useImagePicker();
   const { createItem, isCreating, canCreate, items } = useWardrobe();
   const { isLimitReached } = useSubscription();
 
@@ -66,10 +66,13 @@ export default function AddItemScreen() {
   const [isShareable, setIsShareable] = useState(false);
   const [isLendable, setIsLendable] = useState(false);
   const [showOptional, setShowOptional] = useState(false);
+  const [bulkQueue, setBulkQueue] = useState<string[]>([]);
+  const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0, errors: 0 });
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [isRemovingBg, setIsRemovingBg] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const processedPreselected = useRef(false);
-  const isBusy = isPicking || isRemovingBg || isAnalyzing || isCreating;
+  const isBusy = isPicking || isRemovingBg || isAnalyzing || isCreating || isBulkProcessing;
 
   const selectedCategoryLabel = useMemo(
     () => CATEGORIES.find((c) => c.value === analysis.category)?.label ?? "Üst",
@@ -203,6 +206,60 @@ export default function AddItemScreen() {
     }
   }
 
+  async function handleBulkAdd() {
+    if (isBusy) return;
+    if (!guardCanStartAdding()) return;
+    const uris = await pickMultipleFromLibrary(10);
+    if (uris.length === 0) return;
+
+    setIsBulkProcessing(true);
+    setBulkProgress({ done: 0, total: uris.length, errors: 0 });
+    let errors = 0;
+
+    for (let i = 0; i < uris.length; i++) {
+      try {
+        const optimized = await optimizeImage(uris[i]);
+        let processed = optimized;
+        try {
+          processed = await removeImageBackground(optimized);
+        } catch {
+          // continue with original if bg removal fails
+        }
+        const [result, thumb] = await Promise.all([
+          analyzeClothingImage(processed),
+          createThumbnail(processed),
+        ]);
+        await createItem({
+          image_url: processed,
+          thumbnail_url: thumb,
+          category: result.category,
+          subcategory: result.subcategory.trim(),
+          colors: result.colors,
+          dominant_color_hex: result.dominant_color_hex,
+          season: result.season,
+          fabric: result.fabric ?? null,
+          usage_context: result.usage_context ?? [],
+          is_shareable: false,
+          is_lendable: false,
+          embedding: result.embedding ?? null,
+        });
+        captureEvent("wardrobe_bulk_add_item_saved", { index: i, category: result.category });
+      } catch (error) {
+        errors++;
+        captureError(error, { area: "wardrobe_bulk_add_item", index: i });
+      }
+      setBulkProgress({ done: i + 1, total: uris.length, errors });
+    }
+
+    setIsBulkProcessing(false);
+    const saved = uris.length - errors;
+    Alert.alert(
+      "Toplu ekleme tamamlandı",
+      `${saved} kıyafet eklendi${errors > 0 ? `, ${errors} başarısız` : ""}.`,
+      [{ text: "Tamam", onPress: () => router.replace("/(tabs)") }],
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -235,6 +292,18 @@ export default function AddItemScreen() {
               loading={isPicking} disabled={isBusy}
             />
           </View>
+          <Button
+            title="Toplu Ekle (birden fazla)"
+            variant="ghost"
+            onPress={() => void handleBulkAdd()}
+            loading={isBulkProcessing}
+            disabled={isBusy}
+          />
+          {isBulkProcessing && (
+            <Text variant="caption" color="secondary" style={styles.center}>
+              İşleniyor: {bulkProgress.done}/{bulkProgress.total} · {bulkProgress.errors > 0 ? `${bulkProgress.errors} hata` : ""}
+            </Text>
+          )}
         </Card>
       )}
 

@@ -158,6 +158,46 @@ export async function scheduleOutfitReminder(plan?: SmartNotificationPlan): Prom
   });
 }
 
+export async function scheduleSeasonTransitionReminders(): Promise<void> {
+  if (Platform.OS === "web") return;
+
+  await cancelSeasonTransitionReminders();
+
+  const seasons: Array<{ month: number; label: string; body: string }> = [
+    { month: 3, label: "İlkbahar geldi!", body: "Dolabını ilkbahar kombinlerine hazırla. Hafif katmanlar ve pastel renkler öne çıkıyor." },
+    { month: 6, label: "Yaz başladı!", body: "Serin ve hafif kıyafetlerin zamanı. Dolabını gözden geçir, yaz için hazırla." },
+    { month: 9, label: "Sonbahar kapıda!", body: "Sonbahar geçiş kombinleri için dolabını düzenle. Katan ve tonu giysileri öne çıkar." },
+    { month: 12, label: "Kış geldi!", body: "Dolabını kış için hazırla. Katmanlı kombinler ve sıcak tutucular bu sezonun favorisi." },
+  ];
+
+  await Promise.all(
+    seasons.map((season) =>
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: season.label,
+          body: season.body,
+          data: { screen: "/(tabs)/outfit", type: "season_transition" },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.YEARLY,
+          month: season.month,
+          day: 1,
+          hour: 9,
+          minute: 0,
+        },
+      }),
+    ),
+  );
+}
+
+export async function cancelSeasonTransitionReminders(): Promise<void> {
+  if (Platform.OS === "web") return;
+
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const seasonReminders = scheduled.filter((n) => n.content.data?.type === "season_transition");
+  await Promise.all(seasonReminders.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)));
+}
+
 export async function cancelOutfitReminders(): Promise<void> {
   if (Platform.OS === "web") {
     return;

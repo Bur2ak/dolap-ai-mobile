@@ -53,5 +53,27 @@ export function useImagePicker() {
     }
   }
 
-  return { isPicking, pickFromLibrary, takePhoto };
+  async function pickMultipleFromLibrary(maxCount = 10): Promise<string[]> {
+    setIsPicking(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        throw new Error("Fotograf izni gerekli.");
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsMultipleSelection: true,
+        mediaTypes: ["images"],
+        quality: 0.9,
+        selectionLimit: maxCount,
+      });
+
+      if (result.canceled) return [];
+      return result.assets.map((a) => a.uri);
+    } finally {
+      setIsPicking(false);
+    }
+  }
+
+  return { isPicking, pickFromLibrary, pickMultipleFromLibrary, takePhoto };
 }

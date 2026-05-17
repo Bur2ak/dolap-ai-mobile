@@ -71,7 +71,6 @@ export default function AnalyticsScreen() {
 
   function handleRefetch() {
     if (isAnalyticsBusy) {
-      captureEvent("analytics_refetch_blocked", { reason: "busy", has_blocking_error: hasBlockingError });
       return;
     }
 
@@ -81,12 +80,10 @@ export default function AnalyticsScreen() {
 
   async function handleShareAnalyticsSummary() {
     if (isAnalyticsBusy) {
-      captureEvent("analytics_summary_share_blocked", { reason: "busy" });
       return;
     }
 
     if (analytics.total_items === 0) {
-      captureEvent("analytics_summary_share_blocked", { reason: "empty_wardrobe" });
       Alert.alert("Ozet hazir degil", "Paylasilabilir analiz ozeti icin once dolaba birkac parca ekleyelim.");
       return;
     }
@@ -114,18 +111,15 @@ export default function AnalyticsScreen() {
   async function handleAddMissingPiece(piece: MissingWardrobePiece) {
     const pieceKey = getMissingPieceKey(piece);
     if (activeMissingPieceKey || isCreatingTracking) {
-      captureEvent("analytics_missing_piece_track_blocked", { reason: "busy", category: piece.category, priority: piece.priority });
       return;
     }
 
     if (!canUsePriceTracking) {
-      captureEvent("analytics_missing_piece_track_blocked", { reason: "auth", category: piece.category, priority: piece.priority });
       Alert.alert("Giris gerekli", "Eksik parcayi alisveris listesine eklemek icin once giris yapmalisin.");
       return;
     }
 
     if (isLimitReached("PRICE_TRACKING_ITEMS", trackings.length)) {
-      captureEvent("analytics_missing_piece_track_blocked", { reason: "limit", category: piece.category, priority: piece.priority });
       Alert.alert(
         "Takip limiti doldu",
         `Free planda ${formatLimit(limits.PRICE_TRACKING_ITEMS)} fiyat takibi ekleyebilirsin.`,
@@ -141,7 +135,6 @@ export default function AnalyticsScreen() {
     const alreadyExists = trackings.some((tracking) => tracking.product_name.toLocaleLowerCase("tr-TR") === productName.toLocaleLowerCase("tr-TR"));
 
     if (alreadyExists) {
-      captureEvent("analytics_missing_piece_track_blocked", { reason: "duplicate", category: piece.category, priority: piece.priority });
       Alert.alert("Zaten listede", "Bu eksik parca fiyat takip listende gorunuyor.");
       return;
     }
@@ -610,7 +603,6 @@ function DetoxItemList({
 
   async function handleMarkWorn(item: WardrobeItem) {
     if (activeAction || isUpdating) {
-      captureEvent("analytics_detox_action_blocked", { action: "worn", item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -629,7 +621,6 @@ function DetoxItemList({
 
   async function handleLendable(item: WardrobeItem) {
     if (activeAction || isUpdating) {
-      captureEvent("analytics_detox_action_blocked", { action: "lendable", item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -646,9 +637,29 @@ function DetoxItemList({
     }
   }
 
+  async function handleDolapListing(item: WardrobeItem) {
+    if (activeAction || isUpdating) return;
+    const advice = buildSecondHandListingAdvice(item);
+    captureEvent("analytics_detox_dolap_opened", { item_id: item.id });
+    const priceText = advice.price_low && advice.price_high
+      ? `Fiyat aralığı: ${formatCurrency(advice.price_low)} - ${formatCurrency(advice.price_high)}`
+      : "Fiyat için alış tutarı ekle";
+
+    Alert.alert(
+      "Dolap'ta Listele",
+      `Başlık: ${advice.title}\n\nAçıklama: ${advice.description}\n\n${priceText}\n\nDolap uygulaması açılacak.`,
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Dolap'ı Aç",
+          onPress: () => void openMarketSearch("https://dolap.com/urun-ekle"),
+        },
+      ],
+    );
+  }
+
   function handleListingDraft(item: WardrobeItem) {
     if (activeAction || isUpdating) {
-      captureEvent("analytics_detox_action_blocked", { action: "listing", item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -669,7 +680,6 @@ function DetoxItemList({
 
   function handleDelete(item: WardrobeItem) {
     if (activeAction || isUpdating) {
-      captureEvent("analytics_detox_action_blocked", { action: "delete", item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -711,7 +721,6 @@ function DetoxItemList({
                 style={styles.itemRow}
                 onPress={() => {
                   if (activeAction || isUpdating) {
-                    captureEvent("analytics_detox_item_open_blocked", { item_id: item.id, reason: "busy" });
                     return;
                   }
 
@@ -749,6 +758,7 @@ function DetoxItemList({
                   style={styles.detoxButton}
                 />
                 <Button title="Satis" variant="ghost" onPress={() => handleListingDraft(item)} disabled={Boolean(activeAction) || isUpdating} style={styles.detoxButton} />
+                <Button title="Dolap" variant="ghost" onPress={() => void handleDolapListing(item)} disabled={Boolean(activeAction) || isUpdating} style={styles.detoxButton} />
                 <Button
                   title="Sil"
                   variant="ghost"
@@ -782,7 +792,6 @@ function DetoxItemList({
                       style={styles.saleChip}
                       onPress={() => {
                         if (activeAction || isUpdating) {
-                          captureEvent("analytics_detox_market_search_blocked", { item_id: item.id, reason: "busy", target: target.label });
                           return;
                         }
 
