@@ -280,8 +280,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: SPACING.lg,
-    paddingTop: 56,
-    paddingBottom: SPACING.md,
+    paddingTop: 60,
+    paddingBottom: SPACING.sm,
   },
   logoRow: { alignItems: "center", flexDirection: "row", gap: 6 },
   logoText: { fontFamily: FONTS.sansBold, letterSpacing: 0.3 },
@@ -323,19 +323,19 @@ const styles = StyleSheet.create({
   },
   filterChip: { paddingHorizontal: 10 },
 
-  // Hero card
+  // Hero card — sabit yükseklik, tasarımla birebir
   heroCard: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
     borderRadius: 20,
     borderWidth: 1,
     flexDirection: "row",
+    height: 210,
     marginHorizontal: SPACING.lg,
     overflow: "hidden",
-    minHeight: 200,
   },
-  heroPhotoWrap: { position: "relative", width: "42%" },
-  heroPhoto: { height: "100%", width: "100%" },
+  heroPhotoWrap: { height: 210, position: "relative", width: "44%" },
+  heroPhoto: { height: 210, width: "100%" },
   heroPhotoPlaceholder: {
     alignItems: "center",
     backgroundColor: COLORS.surfaceMuted,
@@ -355,8 +355,9 @@ const styles = StyleSheet.create({
   heroText: {
     flex: 1,
     gap: SPACING.xs,
-    justifyContent: "center",
+    justifyContent: "flex-end",
     padding: SPACING.md,
+    paddingBottom: SPACING.md,
   },
   heroLabel: {
     color: COLORS.accentText,
