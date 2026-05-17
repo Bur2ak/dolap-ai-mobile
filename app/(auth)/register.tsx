@@ -34,32 +34,27 @@ export default function RegisterScreen() {
 
   async function handleSubmit() {
     if (isSubmitting) {
-      captureEvent("auth_register_blocked", { reason: "busy" });
       return;
     }
 
     const normalizedEmail = normalizeEmail(email);
 
     if (!fullName.trim()) {
-      captureEvent("auth_register_blocked", { reason: "missing_name" });
       Alert.alert("Ad Soyad gerekli", "Hesabini olusturmak icin adini yaz.");
       return;
     }
 
     if (!isValidEmail(normalizedEmail)) {
-      captureEvent("auth_register_blocked", { reason: "invalid_email" });
       Alert.alert("Email gecersiz", "Gecerli bir email adresi gir.");
       return;
     }
 
     if (password.length < 8) {
-      captureEvent("auth_register_blocked", { reason: "short_password" });
       Alert.alert("Sifre kisa", "Sifre en az 8 karakter olmali.");
       return;
     }
 
     if (!acceptedLegal) {
-      captureEvent("auth_register_blocked", { reason: "legal_not_accepted" });
       Alert.alert("Onay gerekli", "Devam etmek icin KVKK aydinlatma metni, gizlilik politikasi ve kullanim sartlarini onaylamalisin.");
       return;
     }
@@ -82,7 +77,6 @@ export default function RegisterScreen() {
 
   function openLegalLink(target: "kvkk" | "privacy" | "terms") {
     if (isSubmitting) {
-      captureEvent("auth_register_legal_link_blocked", { reason: "busy", target });
       return;
     }
 
@@ -92,7 +86,6 @@ export default function RegisterScreen() {
 
   function openLogin() {
     if (isSubmitting) {
-      captureEvent("auth_register_navigation_blocked", { reason: "busy", target: "login" });
       return;
     }
 
@@ -146,7 +139,6 @@ export default function RegisterScreen() {
           onPress={() =>
             setAcceptedLegal((value) => {
               if (isSubmitting) {
-                captureEvent("auth_register_legal_toggle_blocked", { reason: "busy" });
                 return value;
               }
 

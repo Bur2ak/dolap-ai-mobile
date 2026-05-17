@@ -77,7 +77,6 @@ export default function BuyDecisionScreen() {
 
   async function handleImageSelected(uri: string | null) {
     if (isActionBusy) {
-      captureEvent("buy_decision_image_selection_blocked", { reason: "busy" });
       return;
     }
 
@@ -98,7 +97,6 @@ export default function BuyDecisionScreen() {
 
   function resetDraft() {
     if (isActionBusy) {
-      captureEvent("buy_decision_draft_reset_blocked", { reason: "busy" });
       return;
     }
 
@@ -110,25 +108,21 @@ export default function BuyDecisionScreen() {
 
   async function handleAnalyze() {
     if (isActionBusy) {
-      captureEvent("buy_decision_analyze_blocked", { reason: "busy" });
       return;
     }
 
     if (!imageUri) {
-      captureEvent("buy_decision_analyze_blocked", { reason: "missing_image" });
       Alert.alert("Fotograf gerekli", "Karar motoru icin once fotograf secmelisin.");
       return;
     }
 
     if (!userId) {
-      captureEvent("buy_decision_analyze_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Karar motorunu kullanmak icin once giris yapmalisin.");
       return;
     }
 
     const priceError = getCurrencyInputError(price);
     if (priceError) {
-      captureEvent("buy_decision_analyze_blocked", { reason: "price" });
       Alert.alert("Fiyat gecersiz", priceError);
       return;
     }
@@ -138,7 +132,6 @@ export default function BuyDecisionScreen() {
         const currentUsage = await getMonthlyBuyDecisionCount(userId);
         setMonthlyUsage(currentUsage);
         if (isLimitReached("BUY_DECISIONS_PER_MONTH", currentUsage)) {
-          captureEvent("buy_decision_analyze_blocked", { reason: "monthly_limit", usage: currentUsage });
           Alert.alert(
             "Aylik limit doldu",
             `Free planda ayda ${formatLimit(limits.BUY_DECISIONS_PER_MONTH)} karar analizi kullanabilirsin.`,
@@ -180,24 +173,20 @@ export default function BuyDecisionScreen() {
 
   async function handleSave() {
     if (isActionBusy) {
-      captureEvent("buy_decision_save_blocked", { reason: "busy" });
       return;
     }
 
     if (!result) {
-      captureEvent("buy_decision_save_blocked", { reason: "missing_result" });
       return;
     }
 
     if (!canSave) {
-      captureEvent("buy_decision_save_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Karari kaydetmek icin once giris yapmalisin.");
       return;
     }
 
     const priceError = getCurrencyInputError(price);
     if (priceError) {
-      captureEvent("buy_decision_save_blocked", { reason: "price" });
       Alert.alert("Fiyat gecersiz", priceError);
       return;
     }
@@ -214,12 +203,10 @@ export default function BuyDecisionScreen() {
 
   async function handleShareResult() {
     if (isActionBusy) {
-      captureEvent("buy_decision_result_share_blocked", { reason: "busy" });
       return;
     }
 
     if (!result) {
-      captureEvent("buy_decision_result_share_blocked", { reason: "missing_result" });
       return;
     }
 
@@ -421,7 +408,6 @@ export default function BuyDecisionScreen() {
           loading={isRefetchingHistory}
           onAction={() => {
             if (isActionBusy) {
-              captureEvent("buy_decision_history_refetch_blocked", { reason: "busy" });
               return;
             }
 
@@ -464,7 +450,6 @@ function DecisionHistoryCard({
 
   function handleDelete() {
     if (isBusy) {
-      captureEvent("buy_decision_delete_blocked", { decision_id: decision.id, reason: "busy" });
       return;
     }
 

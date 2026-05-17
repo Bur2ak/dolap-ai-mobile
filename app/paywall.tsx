@@ -96,7 +96,6 @@ export default function PaywallScreen() {
 
   function activatePreview() {
     if (isBusy) {
-      captureEvent("premium_preview_blocked", { reason: "busy" });
       return;
     }
 
@@ -107,7 +106,6 @@ export default function PaywallScreen() {
 
   function handlePurchasePrompt(revenueCatPackage: PurchasesPackage) {
     if (isBusy) {
-      captureEvent("purchase_blocked", { reason: "busy", package_id: revenueCatPackage.identifier });
       return;
     }
 
@@ -128,7 +126,6 @@ export default function PaywallScreen() {
 
   async function handlePurchase(revenueCatPackage: PurchasesPackage) {
     if (isBusy) {
-      captureEvent("purchase_blocked", { reason: "busy", package_id: revenueCatPackage.identifier, source: "confirm" });
       return;
     }
 
@@ -160,7 +157,6 @@ export default function PaywallScreen() {
 
   async function handleRestore() {
     if (isBusy) {
-      captureEvent("purchase_restore_blocked", { reason: "busy" });
       return;
     }
 
@@ -186,7 +182,6 @@ export default function PaywallScreen() {
 
   function handleRetryPackages() {
     if (isBusy) {
-      captureEvent("paywall_packages_retry_blocked", { reason: "busy" });
       return;
     }
 
@@ -320,7 +315,6 @@ export default function PaywallScreen() {
           variant="ghost"
           onPress={() => {
             if (isBusy) {
-              captureEvent("paywall_legal_link_blocked", { reason: "busy", target: "privacy" });
               return;
             }
 
@@ -334,7 +328,6 @@ export default function PaywallScreen() {
           variant="ghost"
           onPress={() => {
             if (isBusy) {
-              captureEvent("paywall_legal_link_blocked", { reason: "busy", target: "terms" });
               return;
             }
 

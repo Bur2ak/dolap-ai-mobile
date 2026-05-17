@@ -102,7 +102,6 @@ export default function SupportScreen() {
 
   async function openUrl(url: string, label: string) {
     if (isBusy) {
-      captureEvent("support_link_open_blocked", { label, reason: "busy" });
       return;
     }
 
@@ -126,7 +125,6 @@ export default function SupportScreen() {
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
     if (isBusy) {
-      captureEvent("support_route_open_blocked", { label, reason: "busy" });
       return;
     }
 
@@ -141,7 +139,6 @@ export default function SupportScreen() {
 
   async function handleShareSupportContext() {
     if (isBusy) {
-      captureEvent("support_context_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -204,7 +201,6 @@ export default function SupportScreen() {
           variant="secondary"
           onPress={() => {
             if (isBusy) {
-              captureEvent("support_diagnostics_route_blocked", { reason: "busy" });
               return;
             }
 

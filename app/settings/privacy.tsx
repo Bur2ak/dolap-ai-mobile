@@ -83,12 +83,10 @@ export default function PrivacySettingsScreen() {
 
   async function toggle(key: keyof PrivacySettings) {
     if (isBusy) {
-      captureEvent("privacy_setting_toggle_blocked", { reason: "busy", setting: key });
       return;
     }
 
     if (!profile) {
-      captureEvent("privacy_setting_toggle_blocked", { reason: "missing_profile", setting: key });
       Alert.alert("Giris gerekli", "Gizlilik ayarlarini degistirmek icin tekrar giris yapmalisin.");
       return;
     }
@@ -112,7 +110,6 @@ export default function PrivacySettingsScreen() {
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
     if (isBusy) {
-      captureEvent("privacy_route_open_blocked", { label, reason: "busy" });
       return;
     }
 
@@ -122,7 +119,6 @@ export default function PrivacySettingsScreen() {
 
   async function handleSharePrivacySummary() {
     if (isBusy) {
-      captureEvent("privacy_summary_share_blocked", { reason: "busy" });
       return;
     }
 

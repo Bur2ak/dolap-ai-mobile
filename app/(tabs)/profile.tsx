@@ -96,7 +96,6 @@ export default function ProfileScreen() {
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
     if (isProfileBusy) {
-      captureEvent("profile_route_blocked", { label, reason: isSigningOut ? "signing_out" : "sharing_readiness" });
       return;
     }
 
@@ -106,7 +105,6 @@ export default function ProfileScreen() {
 
   function handleSignOut() {
     if (isProfileBusy) {
-      captureEvent("profile_sign_out_blocked", { reason: isSigningOut ? "busy" : "sharing_readiness" });
       return;
     }
 
@@ -125,7 +123,6 @@ export default function ProfileScreen() {
 
   async function handleShareProfileReadiness() {
     if (isProfileBusy) {
-      captureEvent("profile_readiness_share_blocked", { reason: isSigningOut ? "signing_out" : "busy" });
       return;
     }
 
@@ -302,9 +299,12 @@ export default function ProfileScreen() {
 
       <Card style={styles.menuGroup}>
         <Text variant="caption" color="muted" style={styles.menuGroupLabel}>ARAÇLAR</Text>
+        <MenuRow label="Style Asistanı ✨" icon="chatbubble-ellipses-outline" onPress={() => openRoute("/style-chat", "style_chat")} disabled={routeDisabled} />
         <MenuRow label="Fiyat Takibi" icon="trending-down-outline" onPress={() => openRoute("/price-tracking", "price_tracking")} disabled={routeDisabled} />
         <MenuRow label="Almalı Mıyım?" icon="bag-check-outline" onPress={() => openRoute("/buy-decision", "buy_decision")} disabled={routeDisabled} />
         <MenuRow label="Etkinlik Planlayıcı" icon="calendar-outline" onPress={() => openRoute("/event", "event")} disabled={routeDisabled} />
+        <MenuRow label="Giyim Günlüğü" icon="book-outline" onPress={() => openRoute("/outfit-diary", "outfit_diary")} disabled={routeDisabled} />
+        <MenuRow label="Marka Takibi" icon="heart-outline" onPress={() => openRoute("/brand-wishlist", "brand_wishlist")} disabled={routeDisabled} />
       </Card>
 
       <Card style={styles.menuGroup}>

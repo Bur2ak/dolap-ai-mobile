@@ -46,7 +46,6 @@ export default function PublicSharedOutfitScreen() {
 
   async function handleVote(value: OutfitVoteValue) {
     if (isBusy) {
-      captureEvent("public_outfit_vote_blocked", { reason: "busy", token, vote: value });
       return;
     }
 

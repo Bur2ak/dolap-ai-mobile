@@ -85,18 +85,15 @@ export default function OutfitScreen() {
 
   async function handleRecommend() {
     if (isActionBusy) {
-      captureEvent("outfit_recommend_blocked", { reason: "busy" });
       return;
     }
 
     if (!userId) {
-      captureEvent("outfit_recommend_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Kombin onermek icin once giris yapmalisin.");
       return;
     }
 
     if (items.length < 2) {
-      captureEvent("outfit_recommend_blocked", { reason: "not_enough_items", wardrobe_count: items.length });
       Alert.alert("Dolap bos", "Kombin onermek icin once en az iki kiyafet eklemelisin.");
       return;
     }
@@ -106,7 +103,6 @@ export default function OutfitScreen() {
         const currentUsage = await getDailyOutfitSuggestionCount(userId);
         setDailyUsage(currentUsage);
         if (isLimitReached("DAILY_OUTFIT_SUGGESTIONS", currentUsage)) {
-          captureEvent("outfit_recommend_blocked", { reason: "daily_limit", usage: currentUsage });
           Alert.alert(
             "Gunluk limit doldu",
             `Free planda gunluk ${formatLimit(limits.DAILY_OUTFIT_SUGGESTIONS)} kombin onerisi kullanabilirsin.`,
@@ -136,12 +132,10 @@ export default function OutfitScreen() {
 
   async function handleAskFriend(suggestion: OutfitSuggestion) {
     if (isActionBusy) {
-      captureEvent("outfit_share_blocked", { reason: "busy", item_count: suggestion.items.length });
       return;
     }
 
     if (!userId) {
-      captureEvent("outfit_share_blocked", { reason: "auth", item_count: suggestion.items.length });
       Alert.alert("Giris gerekli", "Kombini paylasmak icin once giris yapmalisin.");
       return;
     }
@@ -173,12 +167,10 @@ export default function OutfitScreen() {
 
   async function handleSaveOutfit(suggestion: OutfitSuggestion) {
     if (isActionBusy) {
-      captureEvent("outfit_save_blocked", { reason: "busy", item_count: suggestion.items.length });
       return;
     }
 
     if (!userId) {
-      captureEvent("outfit_save_blocked", { reason: "auth", item_count: suggestion.items.length });
       Alert.alert("Giris gerekli", "Kombini kaydetmek icin once giris yapmalisin.");
       return;
     }
@@ -201,12 +193,10 @@ export default function OutfitScreen() {
 
   async function handleShareSavedOutfitsSummary() {
     if (isActionBusy) {
-      captureEvent("outfit_saved_summary_share_blocked", { reason: "busy", saved_count: savedOutfits.length });
       return;
     }
 
     if (savedOutfits.length === 0) {
-      captureEvent("outfit_saved_summary_share_blocked", { reason: "empty" });
       Alert.alert("Ozet hazir degil", "Paylasilabilir kombin ozeti icin once bir kombin kaydet.");
       return;
     }
@@ -232,7 +222,6 @@ export default function OutfitScreen() {
 
   function handleUseCapsule() {
     if (isActionBusy) {
-      captureEvent("outfit_capsule_apply_blocked", { reason: "busy" });
       return;
     }
 
@@ -310,7 +299,6 @@ export default function OutfitScreen() {
               variant="secondary"
               onPress={() => {
                 if (isActionBusy) {
-                  captureEvent("outfit_focus_item_blocked", { source: "repeat_candidate", reason: "busy" });
                   return;
                 }
 
@@ -375,7 +363,6 @@ export default function OutfitScreen() {
                   style={styles.capsuleItem}
                   onPress={() => {
                     if (isActionBusy) {
-                      captureEvent("outfit_focus_item_blocked", { source: "capsule_core", reason: "busy" });
                       return;
                     }
 
@@ -407,7 +394,6 @@ export default function OutfitScreen() {
                   disabled={isActionBusy}
                   onPress={() => {
                     if (isActionBusy) {
-                      captureEvent("outfit_capsule_idea_blocked", { reason: "busy", item_count: idea.item_ids.length });
                       return;
                     }
 
@@ -447,7 +433,6 @@ export default function OutfitScreen() {
               style={styles.accessoryRow}
               onPress={() => {
                 if (isActionBusy) {
-                  captureEvent("outfit_accessory_focus_blocked", { reason: "busy", priority: recommendation.priority });
                   return;
                 }
 
@@ -487,7 +472,6 @@ export default function OutfitScreen() {
             style={[styles.chip, selectedEvent === event.value && styles.activeChip]}
             onPress={() => {
               if (isActionBusy) {
-                captureEvent("outfit_preference_blocked", { field: "event", reason: "busy", value: event.value });
                 return;
               }
 
@@ -511,7 +495,6 @@ export default function OutfitScreen() {
             style={[styles.chip, selectedMood === mood && styles.activeChip]}
             onPress={() => {
               if (isActionBusy) {
-                captureEvent("outfit_preference_blocked", { field: "mood", reason: "busy", value: mood });
                 return;
               }
 
@@ -616,7 +599,6 @@ export default function OutfitScreen() {
             loading={isRefetchingSavedOutfits}
             onAction={() => {
               if (isActionBusy) {
-                captureEvent("outfit_saved_refetch_blocked", { reason: "busy" });
                 return;
               }
 
@@ -630,7 +612,6 @@ export default function OutfitScreen() {
               key={saved.outfit.id}
               onPress={() => {
                 if (isActionBusy) {
-                  captureEvent("outfit_saved_open_blocked", { outfit_id: saved.outfit.id, reason: "busy" });
                   return;
                 }
 

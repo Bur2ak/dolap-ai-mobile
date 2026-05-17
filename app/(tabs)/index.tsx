@@ -86,7 +86,6 @@ export default function WardrobeScreen() {
 
   function clearFilters(source: "summary" | "empty") {
     if (isBusy) {
-      captureEvent("wardrobe_filters_clear_blocked", { reason: "busy", source });
       return;
     }
 
@@ -98,7 +97,6 @@ export default function WardrobeScreen() {
 
   function openAddItem() {
     if (isBusy) {
-      captureEvent("wardrobe_add_item_blocked", { reason: "busy" });
       return;
     }
     captureEvent("wardrobe_add_item_sheet_opened");
@@ -123,12 +121,10 @@ export default function WardrobeScreen() {
 
   async function handleShareWardrobeSummary() {
     if (isBusy) {
-      captureEvent("wardrobe_summary_share_blocked", { reason: "busy" });
       return;
     }
 
     if (items.length === 0) {
-      captureEvent("wardrobe_summary_share_blocked", { reason: "empty_wardrobe" });
       Alert.alert("Ozet hazir degil", "Dolap ozeti paylasmak icin once bir kiyafet ekleyelim.");
       return;
     }
@@ -186,7 +182,6 @@ export default function WardrobeScreen() {
         value={category}
         onChange={(val) => {
           if (isBusy) {
-            captureEvent("wardrobe_filter_blocked", { filter: "category", reason: "busy", value: val });
             return;
           }
           setCategory(val);
@@ -199,7 +194,6 @@ export default function WardrobeScreen() {
         value={season}
         onChange={(val) => {
           if (isBusy) {
-            captureEvent("wardrobe_filter_blocked", { filter: "season", reason: "busy", value: val });
             return;
           }
           setSeason(val);
@@ -222,7 +216,6 @@ export default function WardrobeScreen() {
                 style={[styles.sortChip, active && styles.activeSortChip]}
                 onPress={() => {
                   if (isBusy) {
-                    captureEvent("wardrobe_sort_blocked", { reason: "busy", sort_mode: mode.value });
                     return;
                   }
 

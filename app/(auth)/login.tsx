@@ -32,20 +32,17 @@ export default function LoginScreen() {
 
   async function handleSubmit() {
     if (isSubmitting) {
-      captureEvent("auth_login_blocked", { reason: "busy" });
       return;
     }
 
     const normalizedEmail = normalizeEmail(email);
 
     if (!isValidEmail(normalizedEmail)) {
-      captureEvent("auth_login_blocked", { reason: "invalid_email" });
       Alert.alert("Email gecersiz", "Gecerli bir email adresi gir.");
       return;
     }
 
     if (!password) {
-      captureEvent("auth_login_blocked", { reason: "missing_password" });
       Alert.alert("Sifre gerekli", "Giris yapmak icin sifreni yaz.");
       return;
     }
@@ -65,7 +62,6 @@ export default function LoginScreen() {
 
   function openForgotPassword() {
     if (isSubmitting) {
-      captureEvent("auth_login_navigation_blocked", { reason: "busy", target: "forgot_password" });
       return;
     }
 
@@ -75,7 +71,6 @@ export default function LoginScreen() {
 
   function openRegister() {
     if (isSubmitting) {
-      captureEvent("auth_login_navigation_blocked", { reason: "busy", target: "register" });
       return;
     }
 

@@ -23,24 +23,20 @@ export default function ResetPasswordScreen() {
 
   async function handleSubmit() {
     if (isSubmitting) {
-      captureEvent("auth_password_reset_complete_blocked", { reason: "busy" });
       return;
     }
 
     if (!session) {
-      captureEvent("auth_password_reset_complete_blocked", { reason: "missing_session" });
       Alert.alert("Link gerekli", "Sifre yenilemek icin emailindeki guncel sifirlama linkini acmalisin.");
       return;
     }
 
     if (password.length < 8) {
-      captureEvent("auth_password_reset_complete_blocked", { reason: "short_password" });
       Alert.alert("Sifre kisa", "Yeni sifre en az 8 karakter olmali.");
       return;
     }
 
     if (password !== confirmPassword) {
-      captureEvent("auth_password_reset_complete_blocked", { reason: "password_mismatch" });
       Alert.alert("Sifreler eslesmiyor", "Iki alana da ayni sifreyi yaz.");
       return;
     }
@@ -61,7 +57,6 @@ export default function ResetPasswordScreen() {
 
   function requestNewLink() {
     if (isSubmitting) {
-      captureEvent("auth_password_reset_navigation_blocked", { reason: "busy", target: "forgot_password" });
       return;
     }
 

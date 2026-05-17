@@ -38,7 +38,6 @@ export default function StyleFeedScreen() {
 
   async function handleShareFeedSummary() {
     if (isBusy) {
-      captureEvent("style_feed_summary_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -95,7 +94,6 @@ export default function StyleFeedScreen() {
               style={[styles.modeButton, active && styles.modeButtonActive, isBusy && styles.modeButtonDisabled]}
               onPress={() => {
                 if (isBusy) {
-                  captureEvent("style_feed_mode_change_blocked", { mode: item.value, reason: "busy" });
                   return;
                 }
 

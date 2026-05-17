@@ -92,7 +92,6 @@ export default function SubscriptionSettingsScreen() {
 
   async function handleRefreshSubscription() {
     if (isBusy) {
-      captureEvent("subscription_refresh_blocked", { reason: "busy" });
       return;
     }
 
@@ -120,7 +119,6 @@ export default function SubscriptionSettingsScreen() {
 
   function handleOpenPaywall() {
     if (isBusy) {
-      captureEvent("subscription_paywall_open_blocked", { reason: "busy" });
       return;
     }
 
@@ -130,7 +128,6 @@ export default function SubscriptionSettingsScreen() {
 
   async function handleShareSubscriptionSummary() {
     if (isBusy) {
-      captureEvent("subscription_summary_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -278,7 +275,6 @@ export default function SubscriptionSettingsScreen() {
             variant="secondary"
             onPress={() => {
               if (isBusy) {
-                captureEvent("premium_preview_deactivate_blocked", { reason: "busy" });
                 return;
               }
 

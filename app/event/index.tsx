@@ -82,25 +82,21 @@ export default function EventPlannerScreen() {
 
   async function handleRecommend() {
     if (isBusy) {
-      captureEvent("event_recommend_blocked", { reason: "busy" });
       return;
     }
 
     if (!checkGate("EVENT_PLANNING")) {
-      captureEvent("event_recommend_blocked", { reason: "gate" });
       router.push("/paywall");
       return;
     }
 
     if (items.length < 2) {
-      captureEvent("event_recommend_blocked", { reason: "not_enough_items", wardrobe_count: items.length });
       Alert.alert("Dolap bos", "Etkinlik kombini icin once en az iki kiyafet eklemelisin.");
       return;
     }
 
     const validationError = getEventFormValidationError(title, eventDate);
     if (validationError) {
-      captureEvent("event_recommend_blocked", { reason: validationError.reason });
       Alert.alert(validationError.title, validationError.message);
       return;
     }
@@ -125,25 +121,21 @@ export default function EventPlannerScreen() {
 
   async function handleSave() {
     if (isBusy) {
-      captureEvent("event_save_blocked", { reason: "busy" });
       return;
     }
 
     if (!checkGate("EVENT_PLANNING")) {
-      captureEvent("event_save_blocked", { reason: "gate" });
       router.push("/paywall");
       return;
     }
 
     if (!canSave) {
-      captureEvent("event_save_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Etkinligi kaydetmek icin once giris yapmalisin.");
       return;
     }
 
     const validationError = getEventFormValidationError(title, eventDate);
     if (validationError) {
-      captureEvent("event_save_blocked", { reason: validationError.reason });
       Alert.alert(validationError.title, validationError.message);
       return;
     }
@@ -166,25 +158,21 @@ export default function EventPlannerScreen() {
 
   async function handleSaveToCalendar() {
     if (isBusy) {
-      captureEvent("event_calendar_save_blocked", { reason: "busy" });
       return;
     }
 
     if (!checkGate("EVENT_PLANNING")) {
-      captureEvent("event_calendar_save_blocked", { reason: "gate" });
       router.push("/paywall");
       return;
     }
 
     if (!canSave) {
-      captureEvent("event_calendar_save_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Etkinligi takvime eklemek icin once giris yapmalisin.");
       return;
     }
 
     const validationError = getEventFormValidationError(title, eventDate);
     if (validationError) {
-      captureEvent("event_calendar_save_blocked", { reason: validationError.reason });
       Alert.alert(validationError.title, validationError.message);
       return;
     }
@@ -216,25 +204,21 @@ export default function EventPlannerScreen() {
 
   async function handlePlanSuggestion(suggestion: OutfitSuggestion) {
     if (isBusy) {
-      captureEvent("event_suggestion_plan_blocked", { reason: "busy", item_count: suggestion.items.length });
       return;
     }
 
     if (!checkGate("EVENT_PLANNING")) {
-      captureEvent("event_suggestion_plan_blocked", { reason: "gate", item_count: suggestion.items.length });
       router.push("/paywall");
       return;
     }
 
     if (!canSave) {
-      captureEvent("event_suggestion_plan_blocked", { reason: "auth", item_count: suggestion.items.length });
       Alert.alert("Giris gerekli", "Kombini planlamak icin once giris yapmalisin.");
       return;
     }
 
     const validationError = getEventFormValidationError(title, eventDate);
     if (validationError) {
-      captureEvent("event_suggestion_plan_blocked", { reason: validationError.reason, item_count: suggestion.items.length });
       Alert.alert(validationError.title, validationError.message);
       return;
     }
@@ -252,7 +236,6 @@ export default function EventPlannerScreen() {
 
   async function handleSharePackingPlan(plan: TravelPackingPlan) {
     if (isBusy) {
-      captureEvent("event_travel_packing_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -277,7 +260,6 @@ export default function EventPlannerScreen() {
 
   async function handleShareSuggestion(suggestion: OutfitSuggestion, suggestionItems: WardrobeItem[]) {
     if (isBusy) {
-      captureEvent("event_suggestion_share_blocked", { reason: "busy", item_count: suggestion.items.length });
       return;
     }
 
@@ -322,7 +304,6 @@ export default function EventPlannerScreen() {
         days={styleCalendar}
         onPlanDay={(day) => {
           if (isBusy) {
-            captureEvent("style_calendar_day_blocked", { date: day.date, reason: "busy", status: day.status });
             return;
           }
 
@@ -368,7 +349,6 @@ export default function EventPlannerScreen() {
               style={[styles.chip, active && styles.activeChip]}
               onPress={() => {
                 if (isBusy) {
-                  captureEvent("event_type_blocked", { event_type: event.value, reason: "busy" });
                   return;
                 }
 
@@ -598,13 +578,11 @@ function EventPlanCard({
 
   async function handleSave() {
     if (isCardBusy) {
-      captureEvent("event_plan_edit_blocked", { event_id: event.id, reason: "busy" });
       return;
     }
 
     const validationError = getEventFormValidationError(title, eventDate);
     if (validationError) {
-      captureEvent("event_plan_edit_blocked", { event_id: event.id, reason: validationError.reason });
       Alert.alert(validationError.title, validationError.message);
       return;
     }
@@ -633,7 +611,6 @@ function EventPlanCard({
 
   async function handleAddToCalendar() {
     if (isCardBusy) {
-      captureEvent("event_calendar_existing_blocked", { event_id: event.id, reason: "busy" });
       return;
     }
 
@@ -670,7 +647,6 @@ function EventPlanCard({
 
   async function handleScheduleReminder() {
     if (isCardBusy) {
-      captureEvent("event_reminder_blocked", { event_id: event.id, reason: "busy" });
       return;
     }
 
@@ -692,7 +668,6 @@ function EventPlanCard({
 
   async function handleShareEvent() {
     if (isCardBusy) {
-      captureEvent("event_plan_share_blocked", { event_id: event.id, reason: "busy" });
       return;
     }
 
@@ -717,7 +692,6 @@ function EventPlanCard({
 
   function handleDelete() {
     if (isCardBusy) {
-      captureEvent("event_plan_delete_blocked", { event_id: event.id, reason: "busy" });
       return;
     }
 
@@ -758,7 +732,6 @@ function EventPlanCard({
             style={styles.iconButton}
             onPress={() => {
               if (isCardBusy) {
-                captureEvent("event_plan_edit_toggle_blocked", { event_id: event.id, reason: "busy" });
                 return;
               }
 
@@ -789,7 +762,6 @@ function EventPlanCard({
                   style={[styles.chip, active && styles.activeChip, isCardBusy && styles.disabledAction]}
                   onPress={() => {
                     if (isCardBusy) {
-                      captureEvent("event_plan_type_blocked", { event_id: event.id, event_type: option.value, reason: "busy" });
                       return;
                     }
 

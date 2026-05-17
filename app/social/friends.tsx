@@ -61,7 +61,6 @@ export default function FriendsScreen() {
     }
 
     if (isBusy) {
-      captureEvent("friend_invite_search_blocked", { reason: "busy" });
       return;
     }
 
@@ -76,13 +75,11 @@ export default function FriendsScreen() {
 
   async function handleSearch() {
     if (isBusy) {
-      captureEvent("friend_search_blocked", { reason: "busy" });
       return;
     }
 
     const normalizedQuery = query.trim();
     if (normalizedQuery.length < 2) {
-      captureEvent("friend_search_blocked", { reason: "short_query", search_length: normalizedQuery.length });
       Alert.alert("Arama kisa", "En az 2 karakter yazarak tekrar dene.");
       return;
     }
@@ -102,7 +99,6 @@ export default function FriendsScreen() {
 
   async function handleSend(addresseeId: string) {
     if (isBusy) {
-      captureEvent("friend_request_send_blocked", { addressee_id: addresseeId, reason: "busy" });
       return;
     }
 
@@ -121,7 +117,6 @@ export default function FriendsScreen() {
 
   async function handleStatus(friendshipId: string, status: "accepted" | "blocked") {
     if (isBusy) {
-      captureEvent("friendship_status_blocked", { friendship_id: friendshipId, reason: "busy", status });
       return;
     }
 
@@ -143,7 +138,6 @@ export default function FriendsScreen() {
   function handleBlock(friendship: Friendship) {
     const otherUserId = friendship.requester_id === userId ? friendship.addressee_id : friendship.requester_id;
     if (isBusy) {
-      captureEvent("friendship_block_blocked", { friendship_id: friendship.id, reason: "busy" });
       return;
     }
 
@@ -163,7 +157,6 @@ export default function FriendsScreen() {
   function handleDelete(friendship: Friendship) {
     const accepted = friendship.status === "accepted";
     if (isBusy) {
-      captureEvent("friendship_delete_blocked", { friendship_id: friendship.id, reason: "busy" });
       return;
     }
 
@@ -191,7 +184,6 @@ export default function FriendsScreen() {
 
   async function handleShareSocialSummary() {
     if (isBusy) {
-      captureEvent("friends_summary_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -253,7 +245,6 @@ export default function FriendsScreen() {
                 variant="secondary"
                 onPress={() => {
                   if (isBusy) {
-                    captureEvent("friends_invite_route_blocked", { reason: "busy", source: "summary" });
                     return;
                   }
 
@@ -283,7 +274,6 @@ export default function FriendsScreen() {
               variant="secondary"
               onPress={() => {
                 if (isBusy) {
-                  captureEvent("friends_invite_route_blocked", { reason: "busy" });
                   return;
                 }
 
@@ -332,7 +322,6 @@ export default function FriendsScreen() {
                           variant="secondary"
                           onPress={() => {
                             if (isBusy) {
-                              captureEvent("friend_wardrobe_open_blocked", { friend_id: user.id, reason: "busy", source: "search" });
                               return;
                             }
 
@@ -366,7 +355,6 @@ export default function FriendsScreen() {
                 actionLabel="Aramayi Temizle"
                 onAction={() => {
                   if (isBusy) {
-                    captureEvent("friend_search_clear_blocked", { reason: "busy" });
                     return;
                   }
 
@@ -391,7 +379,6 @@ export default function FriendsScreen() {
                 loading={isRefetching}
                 onAction={() => {
                   if (isBusy) {
-                    captureEvent("friends_refetch_blocked", { reason: "busy" });
                     return;
                   }
 
@@ -470,7 +457,6 @@ function FriendshipRow({
             variant="secondary"
             onPress={() => {
               if (loading) {
-                captureEvent("friend_wardrobe_open_blocked", { friend_id: otherUserId, reason: "busy", source: "list" });
                 return;
               }
 

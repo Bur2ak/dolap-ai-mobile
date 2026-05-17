@@ -52,12 +52,10 @@ export default function AccountSettingsScreen() {
 
   async function handleSave() {
     if (isBusy) {
-      captureEvent("account_profile_save_blocked", { reason: "busy" });
       return;
     }
 
     if (!profile) {
-      captureEvent("account_profile_save_blocked", { reason: "missing_profile" });
       Alert.alert("Giris gerekli", "Profil bilgilerini guncellemek icin tekrar giris yapmalisin.");
       return;
     }
@@ -66,19 +64,16 @@ export default function AccountSettingsScreen() {
     const trimmedBio = bio.trim();
 
     if (!fullName.trim()) {
-      captureEvent("account_profile_save_blocked", { reason: "missing_name" });
       Alert.alert("Ad Soyad gerekli", "Profilinde gorunecek adini yaz.");
       return;
     }
 
     if (normalizedUsername && !isValidUsername(normalizedUsername)) {
-      captureEvent("account_profile_save_blocked", { reason: "invalid_username" });
       Alert.alert("Kullanici adi gecersiz", "Kullanici adi 3-24 karakter olmali; sadece harf, rakam ve alt cizgi kullan.");
       return;
     }
 
     if (trimmedBio.length > maxBioLength) {
-      captureEvent("account_profile_save_blocked", { reason: "bio_too_long" });
       Alert.alert("Bio uzun", `Bio en fazla ${maxBioLength} karakter olabilir.`);
       return;
     }
@@ -106,24 +101,20 @@ export default function AccountSettingsScreen() {
 
   async function handleChangePassword() {
     if (isBusy) {
-      captureEvent("account_password_change_blocked", { reason: "busy" });
       return;
     }
 
     if (!session) {
-      captureEvent("account_password_change_blocked", { reason: "missing_session" });
       Alert.alert("Giris gerekli", "Sifreni degistirmek icin tekrar giris yapmalisin.");
       return;
     }
 
     if (password.length < 8) {
-      captureEvent("account_password_change_blocked", { reason: "short_password" });
       Alert.alert("Sifre kisa", "Yeni sifre en az 8 karakter olmali.");
       return;
     }
 
     if (password !== confirmPassword) {
-      captureEvent("account_password_change_blocked", { reason: "password_mismatch" });
       Alert.alert("Sifreler eslesmiyor", "Iki alana da ayni sifreyi yaz.");
       return;
     }
@@ -145,12 +136,10 @@ export default function AccountSettingsScreen() {
 
   function handleAcceptLegalConsent() {
     if (isBusy) {
-      captureEvent("account_legal_consent_blocked", { reason: "busy" });
       return;
     }
 
     if (!profile) {
-      captureEvent("account_legal_consent_blocked", { reason: "missing_profile" });
       Alert.alert("Giris gerekli", "Yasal onaylarini tamamlamak icin tekrar giris yapmalisin.");
       return;
     }
@@ -176,7 +165,6 @@ export default function AccountSettingsScreen() {
 
   async function updateLegalConsent() {
     if (!profile) {
-      captureEvent("account_legal_consent_blocked", { reason: "missing_profile" });
       Alert.alert("Giris gerekli", "Yasal onaylarini tamamlamak icin tekrar giris yapmalisin.");
       return;
     }
@@ -204,12 +192,10 @@ export default function AccountSettingsScreen() {
 
   function handleRequestDeletion() {
     if (isBusy) {
-      captureEvent("account_deletion_request_blocked", { reason: "busy" });
       return;
     }
 
     if (!profile) {
-      captureEvent("account_deletion_request_blocked", { reason: "missing_profile" });
       Alert.alert("Giris gerekli", "Hesap silme talebi icin tekrar giris yapmalisin.");
       return;
     }
@@ -233,12 +219,10 @@ export default function AccountSettingsScreen() {
 
   function handleCancelDeletion() {
     if (isBusy) {
-      captureEvent("account_deletion_cancel_blocked", { reason: "busy" });
       return;
     }
 
     if (!profile) {
-      captureEvent("account_deletion_cancel_blocked", { reason: "missing_profile" });
       Alert.alert("Giris gerekli", "Hesap silme talebini yonetmek icin tekrar giris yapmalisin.");
       return;
     }
@@ -286,7 +270,6 @@ export default function AccountSettingsScreen() {
 
   async function openDeletionInfo() {
     if (isBusy) {
-      captureEvent("account_deletion_info_blocked", { reason: "busy" });
       return;
     }
 
@@ -304,7 +287,6 @@ export default function AccountSettingsScreen() {
 
   async function handleShareAccountSummary() {
     if (isBusy) {
-      captureEvent("account_summary_share_blocked", { reason: "busy" });
       return;
     }
 

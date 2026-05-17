@@ -51,7 +51,6 @@ export default function InviteScreen() {
 
   function handleRefetchRewards() {
     if (isBusy) {
-      captureEvent("invite_rewards_refetch_blocked", { reason: "busy" });
       return;
     }
 
@@ -61,12 +60,10 @@ export default function InviteScreen() {
 
   async function handleShare() {
     if (isBusy) {
-      captureEvent("invite_share_blocked", { reason: "busy" });
       return;
     }
 
     if (!profile) {
-      captureEvent("invite_share_blocked", { reason: "missing_profile" });
       Alert.alert("Giris gerekli", "Davet linkini paylasmak icin tekrar giris yapmalisin.");
       return;
     }

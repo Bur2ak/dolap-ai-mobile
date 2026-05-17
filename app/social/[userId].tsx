@@ -78,7 +78,6 @@ export default function FriendWardrobeScreen() {
 
   function handleClearFilters() {
     if (isBusy) {
-      captureEvent("friend_wardrobe_filters_clear_blocked", { friend_id: friendId, reason: "busy" });
       return;
     }
 
@@ -89,7 +88,6 @@ export default function FriendWardrobeScreen() {
 
   function handleCategoryChange(value: SharedCategoryFilter) {
     if (isBusy) {
-      captureEvent("friend_wardrobe_filter_blocked", { friend_id: friendId, reason: "busy", value });
       return;
     }
 
@@ -99,7 +97,6 @@ export default function FriendWardrobeScreen() {
 
   function handleToggleFavorite(item: WardrobeItem) {
     if (isBusy) {
-      captureEvent("friend_wardrobe_favorite_blocked", { friend_id: friendId, item_id: item.id, reason: "busy" });
       return;
     }
 
@@ -120,12 +117,10 @@ export default function FriendWardrobeScreen() {
 
   function handleGenerateOutfitIdea() {
     if (isBusy) {
-      captureEvent("friend_wardrobe_outfit_idea_blocked", { friend_id: friendId, reason: "busy" });
       return;
     }
 
     if (visibleItems.length < 2) {
-      captureEvent("friend_wardrobe_outfit_idea_blocked", { friend_id: friendId, reason: "not_enough_items" });
       return;
     }
 
@@ -140,7 +135,6 @@ export default function FriendWardrobeScreen() {
 
   function handleRefetch() {
     if (isBusy) {
-      captureEvent("friend_wardrobe_refetch_blocked", { friend_id: friendId, reason: "busy" });
       return;
     }
 
@@ -150,31 +144,26 @@ export default function FriendWardrobeScreen() {
 
   async function handleBorrow(item: WardrobeItem) {
     if (isBusy) {
-      captureEvent("friend_wardrobe_borrow_blocked", { item_id: item.id, reason: "busy" });
       return;
     }
 
     if (!currentUserId) {
-      captureEvent("friend_wardrobe_borrow_blocked", { item_id: item.id, reason: "missing_user" });
       Alert.alert("Giris gerekli", "Odunc istegi gondermek icin tekrar giris yapmalisin.");
       return;
     }
 
     if (!friendId) {
-      captureEvent("friend_wardrobe_borrow_blocked", { item_id: item.id, reason: "missing_friend" });
       Alert.alert("Arkadas linki gecersiz", "Bu dolap linki eksik veya bozuk gorunuyor.");
       return;
     }
 
     if (!item.is_lendable) {
-      captureEvent("friend_wardrobe_borrow_blocked", { item_id: item.id, reason: "not_lendable" });
       Alert.alert("Odunc alinamaz", "Bu parca odunc verilebilir olarak isaretlenmemis.");
       return;
     }
 
     const activeLoan = activeLoanByItemId.get(item.id);
     if (activeLoan) {
-      captureEvent("friend_wardrobe_borrow_blocked", { item_id: item.id, loan_request_id: activeLoan.id, reason: "active_request_exists" });
       Alert.alert("Istek zaten var", activeLoan.status === "approved" ? "Bu parca icin onayli odunc kaydi var." : "Bu parca icin bekleyen odunc istegin var.");
       return;
     }
@@ -189,7 +178,6 @@ export default function FriendWardrobeScreen() {
 
   async function handleShareIdea(data: FriendWardrobe, idea: FriendOutfitIdea) {
     if (isBusy || isSharingOutfitIdea) {
-      captureEvent("friend_wardrobe_outfit_share_blocked", { friend_id: data.profile.id, reason: "busy" });
       return;
     }
 
@@ -252,7 +240,6 @@ export default function FriendWardrobeScreen() {
               onGenerateOutfit={handleGenerateOutfitIdea}
               onUseStyleCue={(text) => {
                 if (isBusy) {
-                  captureEvent("friend_wardrobe_style_cue_blocked", { friend_id: friendId, reason: "busy" });
                   return;
                 }
 
@@ -282,7 +269,6 @@ export default function FriendWardrobeScreen() {
               onFavorite={() => handleToggleFavorite(item)}
               onSimilarSearch={() => {
                 if (isBusy) {
-                  captureEvent("friend_wardrobe_similar_search_blocked", { friend_id: friendId, item_id: item.id, reason: "busy" });
                   return;
                 }
 
@@ -312,7 +298,6 @@ async function handleBorrowRequest(
   input: { dueDate: string; note: string },
 ) {
   if (!isValidBorrowDueDate(input.dueDate)) {
-    captureEvent("friend_wardrobe_borrow_blocked", { item_id: item.id, reason: "invalid_due_date" });
     Alert.alert("Tarih gecersiz", "Iade tarihi YYYY-MM-DD formatinda ve bugunden erken olmamali.");
     return;
   }
@@ -695,7 +680,6 @@ function SharedWardrobeItem({
       style={styles.itemPressable}
       onPress={() => {
         if (disabled) {
-          captureEvent("friend_wardrobe_item_open_blocked", { item_id: item.id, category: item.category, reason: "busy" });
           return;
         }
 

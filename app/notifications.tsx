@@ -74,12 +74,10 @@ export default function NotificationsScreen() {
 
   async function handleMarkAllRead() {
     if (isBusy) {
-      captureEvent("notifications_mark_all_read_blocked", { reason: "busy", unread_count: unreadCount });
       return;
     }
 
     if (unreadCount === 0) {
-      captureEvent("notifications_mark_all_read_blocked", { reason: "empty" });
       return;
     }
 
@@ -97,12 +95,10 @@ export default function NotificationsScreen() {
 
   function handleDeleteRead() {
     if (isBusy) {
-      captureEvent("notifications_delete_read_blocked", { reason: "busy", read_count: readCount });
       return;
     }
 
     if (readCount === 0) {
-      captureEvent("notifications_delete_read_blocked", { reason: "empty" });
       return;
     }
 
@@ -130,7 +126,6 @@ export default function NotificationsScreen() {
 
   async function handleShareDigest() {
     if (isBusy) {
-      captureEvent("notifications_digest_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -152,7 +147,6 @@ export default function NotificationsScreen() {
 
   function handleDeleteOne(notificationId: string) {
     if (isBusy) {
-      captureEvent("notification_delete_blocked", { notification_id: notificationId, reason: "busy" });
       return;
     }
 
@@ -180,7 +174,6 @@ export default function NotificationsScreen() {
 
   async function handlePress(notification: NotificationRecord) {
     if (isBusy) {
-      captureEvent("notification_open_blocked", { notification_id: notification.id, reason: "busy", type: notification.type });
       return;
     }
 
@@ -235,7 +228,6 @@ export default function NotificationsScreen() {
               style={[styles.filterChip, active && styles.filterChipActive]}
               onPress={() => {
                 if (isBusy) {
-                  captureEvent("notifications_filter_blocked", { filter: item.value, reason: "busy" });
                   return;
                 }
 
@@ -265,7 +257,6 @@ export default function NotificationsScreen() {
           loading={isRefetching}
           onAction={() => {
             if (isBusy) {
-              captureEvent("notifications_refetch_blocked", { reason: "busy" });
               return;
             }
 
@@ -332,7 +323,6 @@ export default function NotificationsScreen() {
             notifications.length > 0
               ? () => {
                   if (isBusy) {
-                    captureEvent("notifications_filter_reset_blocked", { reason: "busy" });
                     return;
                   }
 

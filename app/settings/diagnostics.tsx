@@ -122,7 +122,6 @@ export default function DiagnosticsScreen() {
 
   async function refreshPushReadiness() {
     if (isBusy) {
-      captureEvent("diagnostics_push_readiness_refresh_blocked", { reason: "busy" });
       return;
     }
 
@@ -144,7 +143,6 @@ export default function DiagnosticsScreen() {
 
   async function handleShareReport() {
     if (isBusy) {
-      captureEvent("diagnostics_share_report_blocked", { reason: "busy" });
       return;
     }
 

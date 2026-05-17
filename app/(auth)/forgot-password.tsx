@@ -23,14 +23,12 @@ export default function ForgotPasswordScreen() {
 
   async function handleSubmit() {
     if (isSubmitting) {
-      captureEvent("auth_password_reset_request_blocked", { reason: "busy" });
       return;
     }
 
     const normalizedEmail = normalizeEmail(email);
 
     if (!isValidEmail(normalizedEmail)) {
-      captureEvent("auth_password_reset_request_blocked", { reason: "invalid_email" });
       Alert.alert("Email gecersiz", "Sifre sifirlama linki icin gecerli bir email adresi gir.");
       return;
     }
@@ -51,7 +49,6 @@ export default function ForgotPasswordScreen() {
 
   function openLogin() {
     if (isSubmitting) {
-      captureEvent("auth_password_reset_navigation_blocked", { reason: "busy", target: "login" });
       return;
     }
 

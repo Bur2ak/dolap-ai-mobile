@@ -61,24 +61,20 @@ export default function PriceTrackingScreen() {
 
   async function handleCreate() {
     if (isActionBusy) {
-      captureEvent("price_tracking_create_blocked", { reason: "busy" });
       return;
     }
 
     if (!canUse) {
-      captureEvent("price_tracking_create_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Fiyat takibi icin once giris yapmalisin.");
       return;
     }
 
     if (isLimitReached("PRICE_TRACKING_ITEMS", trackings.length)) {
-      captureEvent("price_tracking_create_blocked", { reason: "limit", tracking_count: trackings.length });
       router.push("/paywall");
       return;
     }
 
     if (!productName.trim()) {
-      captureEvent("price_tracking_create_blocked", { reason: "missing_name" });
       Alert.alert("Urun adi gerekli", "Takip edecegin urune bir ad ver.");
       return;
     }
@@ -86,14 +82,12 @@ export default function PriceTrackingScreen() {
     const normalizedProductName = productName.trim().toLocaleLowerCase("tr-TR");
     const alreadyExists = trackings.some((tracking) => tracking.product_name.toLocaleLowerCase("tr-TR") === normalizedProductName);
     if (alreadyExists) {
-      captureEvent("price_tracking_create_blocked", { reason: "duplicate_name" });
       Alert.alert("Zaten listede", "Bu urun fiyat takip listende zaten var.");
       return;
     }
 
     const inputError = getPriceTrackingInputError(productUrl, currentPrice, targetPrice);
     if (inputError) {
-      captureEvent("price_tracking_create_blocked", { reason: "input" });
       Alert.alert(inputError.title, inputError.message);
       return;
     }
@@ -123,18 +117,15 @@ export default function PriceTrackingScreen() {
   async function handleAddSmartSuggestion(piece: MissingWardrobePiece) {
     const pieceKey = getSmartPieceKey(piece);
     if (isActionBusy) {
-      captureEvent("price_tracking_smart_suggestion_blocked", { category: piece.category, priority: piece.priority, reason: "busy" });
       return;
     }
 
     if (!canUse) {
-      captureEvent("price_tracking_smart_suggestion_blocked", { reason: "auth", category: piece.category, priority: piece.priority });
       Alert.alert("Giris gerekli", "Alisveris onerilerini takibe eklemek icin once giris yapmalisin.");
       return;
     }
 
     if (isLimitReached("PRICE_TRACKING_ITEMS", trackings.length)) {
-      captureEvent("price_tracking_smart_suggestion_blocked", { reason: "limit", category: piece.category, priority: piece.priority });
       router.push("/paywall");
       return;
     }
@@ -143,7 +134,6 @@ export default function PriceTrackingScreen() {
     const alreadyExists = trackings.some((tracking) => tracking.product_name.toLocaleLowerCase("tr-TR") === productName.toLocaleLowerCase("tr-TR"));
 
     if (alreadyExists) {
-      captureEvent("price_tracking_smart_suggestion_blocked", { reason: "duplicate", category: piece.category, priority: piece.priority });
       Alert.alert("Zaten listede", "Bu eksik parca fiyat takip listende zaten var.");
       return;
     }
@@ -169,7 +159,6 @@ export default function PriceTrackingScreen() {
 
   async function handleDelete(id: string) {
     if (isActionBusy) {
-      captureEvent("price_tracking_delete_blocked", { reason: "busy", tracking_id: id });
       return;
     }
 
@@ -196,12 +185,10 @@ export default function PriceTrackingScreen() {
 
   async function handleCheckPrices() {
     if (isActionBusy) {
-      captureEvent("price_tracking_check_blocked", { reason: "busy" });
       return;
     }
 
     if (!canUse) {
-      captureEvent("price_tracking_check_blocked", { reason: "auth" });
       Alert.alert("Giris gerekli", "Fiyatlari kontrol etmek icin once giris yapmalisin.");
       return;
     }
@@ -222,7 +209,6 @@ export default function PriceTrackingScreen() {
 
   async function handleShareTrackingSummary() {
     if (isActionBusy) {
-      captureEvent("price_tracking_summary_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -309,7 +295,6 @@ export default function PriceTrackingScreen() {
             loading={isRefetching}
             onAction={() => {
               if (isActionBusy) {
-                captureEvent("price_tracking_refetch_blocked", { reason: "busy" });
                 return;
               }
 
@@ -470,12 +455,10 @@ function TrackingCard({
 
   async function handleSave() {
     if (isBusy) {
-      captureEvent("price_tracking_update_blocked", { reason: "busy", tracking_id: tracking.id });
       return;
     }
 
     if (!name.trim()) {
-      captureEvent("price_tracking_update_blocked", { reason: "missing_name", tracking_id: tracking.id });
       Alert.alert("Urun adi gerekli", "Takip kaydi icin urun adi bos olamaz.");
       return;
     }
@@ -483,14 +466,12 @@ function TrackingCard({
     const normalizedName = name.trim().toLocaleLowerCase("tr-TR");
     const alreadyExists = trackings.some((item) => item.id !== tracking.id && item.product_name.toLocaleLowerCase("tr-TR") === normalizedName);
     if (alreadyExists) {
-      captureEvent("price_tracking_update_blocked", { reason: "duplicate_name", tracking_id: tracking.id });
       Alert.alert("Zaten listede", "Bu urun fiyat takip listende zaten var.");
       return;
     }
 
     const inputError = getPriceTrackingInputError(url, currentPrice, targetPrice);
     if (inputError) {
-      captureEvent("price_tracking_update_blocked", { reason: "input", tracking_id: tracking.id });
       Alert.alert(inputError.title, inputError.message);
       return;
     }
@@ -531,7 +512,6 @@ function TrackingCard({
             style={styles.iconButton}
             onPress={() => {
               if (isBusy) {
-                captureEvent("price_tracking_edit_blocked", { reason: "busy", tracking_id: tracking.id });
                 return;
               }
 
@@ -625,7 +605,6 @@ function TrackingCard({
               variant="ghost"
               onPress={() => {
                 if (isBusy) {
-                  captureEvent("price_tracking_product_url_blocked", { reason: "busy", tracking_id: tracking.id });
                   return;
                 }
 
@@ -646,7 +625,6 @@ function TrackingCard({
                     style={styles.searchChip}
                     onPress={() => {
                       if (isBusy) {
-                        captureEvent("price_tracking_alternative_search_blocked", { reason: "busy", tracking_id: tracking.id });
                         return;
                       }
 
@@ -670,7 +648,6 @@ function TrackingCard({
                       style={styles.placementRow}
                       onPress={() => {
                         if (isBusy) {
-                          captureEvent("price_tracking_shopping_placement_blocked", { reason: "busy", tracking_id: tracking.id });
                           return;
                         }
 
@@ -859,14 +836,12 @@ function getPriceTrackingInputError(productUrl: string, currentPrice: string, ta
 async function openProductUrl(tracking: PriceTracking) {
   const url = normalizeOptionalHttpUrl(tracking.product_url ?? "");
   if (!url) {
-    captureEvent("price_tracking_product_url_blocked", { reason: "missing_url", tracking_id: tracking.id });
     return;
   }
 
   try {
     const canOpen = await Linking.canOpenURL(url);
     if (!canOpen) {
-      captureEvent("price_tracking_product_url_blocked", { reason: "unsupported_url", tracking_id: tracking.id });
       Alert.alert("Link acilamadi", "Urun linki bu cihazda desteklenmiyor.");
       return;
     }

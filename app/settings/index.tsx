@@ -115,7 +115,6 @@ export default function SettingsScreen() {
 
   async function handleShareReviewChecklist() {
     if (isSharingReviewChecklist) {
-      captureEvent("settings_review_checklist_share_blocked", { reason: "busy" });
       return;
     }
 
@@ -170,7 +169,6 @@ export default function SettingsScreen() {
               variant="secondary"
               onPress={() => {
                 if (isSharingReviewChecklist) {
-                  captureEvent("settings_review_shortcut_blocked", { route: item.route, label: item.label, reason: "sharing" });
                   return;
                 }
 
@@ -201,7 +199,6 @@ export default function SettingsScreen() {
               variant="ghost"
               onPress={() => {
                 if (isSharingReviewChecklist) {
-                  captureEvent("settings_route_blocked", { route: item.route, title: item.title, reason: "sharing" });
                   return;
                 }
 
