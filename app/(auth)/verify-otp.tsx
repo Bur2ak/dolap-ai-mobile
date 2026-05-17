@@ -100,10 +100,18 @@ export default function VerifyOtpScreen() {
 
   return (
     <View style={styles.container}>
-      <Text variant="h1">Emailini dogrula</Text>
-      <Text variant="body" color="secondary" style={styles.subtitle}>
-        <Text variant="body">{email}</Text> adresine 6 haneli kod gonderdik.
-      </Text>
+      <View style={styles.header}>
+        <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isVerifying} />
+        <Text variant="h2">Dogrulama</Text>
+        <View style={styles.spacer} />
+      </View>
+
+      <View style={styles.hero}>
+        <Text variant="h1">Emailini dogrula</Text>
+        <Text variant="body" color="secondary">
+          <Text variant="body">{email}</Text> adresine 6 haneli kod gonderdik.
+        </Text>
+      </View>
 
       <View style={styles.codeRow}>
         {code.map((digit, index) => (
@@ -127,6 +135,7 @@ export default function VerifyOtpScreen() {
         onPress={() => void handleVerify()}
         loading={isVerifying}
         disabled={isVerifying || code.some((d) => !d)}
+        style={styles.primaryButton}
       />
 
       <Button
@@ -135,13 +144,6 @@ export default function VerifyOtpScreen() {
         onPress={() => void handleResend()}
         loading={isResending}
         disabled={isVerifying || isResending}
-      />
-
-      <Button
-        title="Geri don"
-        variant="ghost"
-        onPress={() => router.back()}
-        disabled={isVerifying}
       />
     </View>
   );
@@ -152,11 +154,20 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     flex: 1,
     gap: SPACING.lg,
-    justifyContent: "center",
     padding: SPACING.lg,
+    paddingTop: 56,
+    paddingBottom: 100,
   },
-  subtitle: {
-    marginTop: -SPACING.sm,
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  spacer: {
+    width: 72,
+  },
+  hero: {
+    gap: SPACING.sm,
   },
   codeRow: {
     flexDirection: "row",
@@ -179,5 +190,9 @@ const styles = StyleSheet.create({
   codeInputFilled: {
     borderColor: COLORS.primary,
     borderWidth: 2,
+  },
+  primaryButton: {
+    minHeight: 52,
+    borderRadius: 14,
   },
 });

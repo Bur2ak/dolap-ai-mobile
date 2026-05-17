@@ -36,7 +36,7 @@ export default function BuyDecisionResultScreen() {
     return (
       <View style={styles.container}>
         <Button title="Geri" variant="ghost" onPress={() => router.back()} />
-        <Text variant="body" color="secondary" style={{ padding: SPACING.lg }}>Sonuc yuklenemedi.</Text>
+        <Text variant="body" color="secondary" style={styles.errorText}>Sonuc yuklenemedi.</Text>
       </View>
     );
   }
@@ -137,20 +137,74 @@ export default function BuyDecisionResultScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: COLORS.background, flex: 1 },
-  content: { gap: SPACING.md, padding: SPACING.lg, paddingBottom: 80, paddingTop: 56 },
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  spacer: { width: 72 },
-  preview: { alignSelf: "center", aspectRatio: 4 / 5, backgroundColor: COLORS.surfaceMuted, borderRadius: 12, width: "72%" },
-  decisionBadge: { alignItems: "center", borderRadius: 12, gap: SPACING.xs, paddingVertical: SPACING.lg },
-  decisionText: { textAlign: "center" },
-  decisionAL: { backgroundColor: COLORS.success },
-  decisionBEKLEME: { backgroundColor: COLORS.warning },
-  decisionALMA: { backgroundColor: COLORS.danger },
-  card: { gap: SPACING.sm },
-  similarGrid: { flexDirection: "row", gap: SPACING.sm },
-  similarItem: { flex: 1, gap: SPACING.xs, minWidth: 0 },
-  similarImage: { aspectRatio: 4 / 5, backgroundColor: COLORS.surfaceMuted, borderRadius: 8, width: "100%" },
-  centerText: { textAlign: "center" },
-  actions: { gap: SPACING.sm },
+  container: {
+    backgroundColor: COLORS.background,
+    flex: 1,
+  },
+  content: {
+    gap: SPACING.md,
+    padding: SPACING.lg,
+    paddingBottom: 100,
+    paddingTop: 56,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  spacer: {
+    width: 72,
+  },
+  errorText: {
+    padding: SPACING.lg,
+  },
+  preview: {
+    alignSelf: "center",
+    aspectRatio: 4 / 5,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 12,
+    width: "72%",
+  },
+  decisionBadge: {
+    alignItems: "center",
+    borderRadius: 12,
+    gap: SPACING.xs,
+    paddingVertical: SPACING.lg,
+  },
+  decisionText: {
+    textAlign: "center",
+  },
+  decisionAL: {
+    backgroundColor: COLORS.success,
+  },
+  decisionBEKLEME: {
+    backgroundColor: COLORS.warning,
+  },
+  decisionALMA: {
+    backgroundColor: COLORS.danger,
+  },
+  card: {
+    gap: SPACING.sm,
+  },
+  similarGrid: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
+  similarItem: {
+    flex: 1,
+    gap: SPACING.xs,
+    minWidth: 0,
+  },
+  similarImage: {
+    aspectRatio: 4 / 5,
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 8,
+    width: "100%",
+  },
+  centerText: {
+    textAlign: "center",
+  },
+  actions: {
+    gap: SPACING.sm,
+  },
 });

@@ -58,14 +58,22 @@ export default function ForgotPasswordScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text variant="h1">Sifreni sifirla</Text>
-      <Text variant="body" color="secondary">
-        Email adresini yaz, sana sifre yenileme linki gonderelim.
-      </Text>
+      <View style={styles.header}>
+        <Button title="Geri" variant="ghost" onPress={openLogin} disabled={isSubmitting} />
+        <Text variant="h2">Sifre Sifirla</Text>
+        <View style={styles.spacer} />
+      </View>
+
+      <View style={styles.hero}>
+        <Text variant="h1">Sifreni sifirla</Text>
+        <Text variant="body" color="secondary">
+          Email adresini yaz, sana sifre yenileme linki gonderelim.
+        </Text>
+      </View>
 
       <View style={styles.form}>
         <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
-        <Button title="Link Gonder" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
+        <Button title="Link Gonder" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} style={styles.primaryButton} />
         <Button title="Giris ekranina don" variant="ghost" onPress={openLogin} disabled={isSubmitting} />
       </View>
     </ScrollView>
@@ -79,12 +87,29 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    gap: SPACING.sm,
-    justifyContent: "center",
+    gap: SPACING.md,
     padding: SPACING.lg,
+    paddingTop: 56,
+    paddingBottom: 100,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  spacer: {
+    width: 72,
+  },
+  hero: {
+    gap: SPACING.sm,
+    marginTop: SPACING.xl,
   },
   form: {
     gap: SPACING.md,
-    marginTop: SPACING.xl,
+    marginTop: SPACING.md,
+  },
+  primaryButton: {
+    minHeight: 52,
+    borderRadius: 14,
   },
 });

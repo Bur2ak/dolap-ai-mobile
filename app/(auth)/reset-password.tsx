@@ -66,10 +66,18 @@ export default function ResetPasswordScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text variant="h1">Yeni sifre belirle</Text>
-      <Text variant="body" color="secondary">
-        Emailindeki sifirlama linkinden geldiysen hesabina yeni bir sifre tanimlayabilirsin.
-      </Text>
+      <View style={styles.header}>
+        <Button title="Geri" variant="ghost" onPress={requestNewLink} disabled={isSubmitting} />
+        <Text variant="h2">Yeni Sifre</Text>
+        <View style={styles.spacer} />
+      </View>
+
+      <View style={styles.hero}>
+        <Text variant="h1">Yeni sifre belirle</Text>
+        <Text variant="body" color="secondary">
+          Emailindeki sifirlama linkinden geldiysen hesabina yeni bir sifre tanimlayabilirsin.
+        </Text>
+      </View>
 
       {!session ? (
         <View style={styles.notice}>
@@ -98,7 +106,7 @@ export default function ResetPasswordScreen() {
             error={getConfirmPasswordInputError(password, confirmPassword)}
             editable={!isSubmitting}
           />
-          <Button title="Sifreyi Yenile" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
+          <Button title="Sifreyi Yenile" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} style={styles.primaryButton} />
         </View>
       )}
     </ScrollView>
@@ -112,16 +120,33 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    gap: SPACING.sm,
-    justifyContent: "center",
+    gap: SPACING.md,
     padding: SPACING.lg,
+    paddingTop: 56,
+    paddingBottom: 100,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  spacer: {
+    width: 72,
+  },
+  hero: {
+    gap: SPACING.sm,
+    marginTop: SPACING.xl,
   },
   form: {
     gap: SPACING.md,
-    marginTop: SPACING.xl,
+    marginTop: SPACING.md,
   },
   notice: {
     gap: SPACING.md,
-    marginTop: SPACING.xl,
+    marginTop: SPACING.md,
+  },
+  primaryButton: {
+    minHeight: 52,
+    borderRadius: 14,
   },
 });

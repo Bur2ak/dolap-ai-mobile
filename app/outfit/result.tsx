@@ -119,10 +119,29 @@ export default function OutfitResultScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { backgroundColor: COLORS.background, flex: 1 },
-  content: { gap: SPACING.md, padding: SPACING.lg, paddingBottom: 80, paddingTop: 56 },
-  header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  spacer: { width: 72 },
-  meta: { alignItems: "center" },
-  actions: { flexDirection: "row", gap: SPACING.sm },
+  container: {
+    backgroundColor: COLORS.background,
+    flex: 1,
+  },
+  content: {
+    gap: SPACING.md,
+    padding: SPACING.lg,
+    paddingBottom: 100,
+    paddingTop: 56,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  spacer: {
+    width: 72,
+  },
+  meta: {
+    alignItems: "center",
+  },
+  actions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+  },
 });
