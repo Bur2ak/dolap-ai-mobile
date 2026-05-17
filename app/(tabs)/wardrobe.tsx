@@ -5,10 +5,9 @@ import { FlashList } from "@shopify/flash-list";
 import { Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 
 import { AddItemSheet } from "@/components/wardrobe/AddItemSheet";
-import { WardrobeItemCard } from "@/components/wardrobe/WardrobeItemCard";
+import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Text } from "@/components/ui/Text";
-import { CATEGORIES } from "@/constants/categories";
 import { COLORS } from "@/constants/colors";
 import { FONTS, FONT_SIZE } from "@/constants/typography";
 import { SPACING } from "@/constants/spacing";
@@ -60,6 +59,8 @@ export default function WardrobeScreen() {
     .sort((a, b) => b.wear_count - a.wear_count)
     .slice(0, 5);
 
+  const totalWearCount = mostWornThisWeek.reduce((s, i) => s + i.wear_count, 0);
+
   useEffect(() => {
     captureEvent("wardrobe_tab_viewed", { item_count: items.length });
   }, [items.length]);
@@ -74,6 +75,14 @@ export default function WardrobeScreen() {
     if (uri) router.push({ pathname: "/item/add", params: { imageUri: uri } });
   }
 
+  function cycleSortMode() {
+    const next = sortMode === "newest" ? "most_worn" : sortMode === "most_worn" ? "least_worn" : "newest";
+    setSortMode(next);
+    captureEvent("wardrobe_sort_changed", { sort_mode: next });
+  }
+
+  const sortLabel = sortMode === "newest" ? "Yeni" : sortMode === "most_worn" ? "Çok Giyilen" : "Az Giyilen";
+
   return (
     <View style={styles.container}>
       <AddItemSheet
@@ -83,48 +92,58 @@ export default function WardrobeScreen() {
         onLibrary={() => void handleLibraryAdd()}
       />
 
-      {/* Header */}
+      {/* ── Header ── */}
       <View style={styles.header}>
         <View>
           <Text variant="h1">Gardırobum</Text>
-          <Text variant="body" color="secondary">
-            {items.length} parça, kombinlerin seni bekliyor
-          </Text>
+          <Text variant="body" color="secondary">Parçalarını düzenle, kombinlerini kolayca oluştur.</Text>
         </View>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setSheetVisible(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={22} color={COLORS.textInverse} />
+        <TouchableOpacity style={styles.addBtn} onPress={() => setSheetVisible(true)} activeOpacity={0.8}>
+          <Ionicons name="add" size={24} color={COLORS.textInverse} />
         </TouchableOpacity>
       </View>
 
-      {/* Search */}
-      <View style={styles.searchBar}>
-        <Ionicons name="search-outline" size={16} color={COLORS.textMuted} />
-        <TextInput
-          style={styles.searchInput}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Parça ara..."
-          placeholderTextColor={COLORS.textMuted}
-          autoCapitalize="none"
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch("")}>
-            <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
-          </TouchableOpacity>
-        )}
+      {/* ── Search + Filtrele + Sırala ── */}
+      <View style={styles.searchRow}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={15} color={COLORS.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Parça ara..."
+            placeholderTextColor={COLORS.textMuted}
+            autoCapitalize="none"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch("")}>
+              <Ionicons name="close-circle" size={15} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity style={styles.filterBtn} onPress={() => {}} activeOpacity={0.7}>
+          <Ionicons name="options-outline" size={14} color={COLORS.textSecondary} />
+          <Text variant="label" color="secondary">Filtrele</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.filterBtn} onPress={cycleSortMode} activeOpacity={0.7}>
+          <Ionicons name="swap-vertical-outline" size={14} color={COLORS.textSecondary} />
+          <Text variant="label" color="secondary">{sortLabel}</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Category filters + sort */}
-      <View style={styles.filtersRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryChips}>
-          {CATEGORY_FILTERS.map((cat) => (
+      {/* ── Kategori chips ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoryRow}
+        style={styles.categoryScroll}
+      >
+        {CATEGORY_FILTERS.map((cat) => {
+          const active = category === cat.value;
+          return (
             <TouchableOpacity
               key={cat.value}
-              style={[styles.catChip, category === cat.value && styles.catChipActive]}
+              style={[styles.catChip, active && styles.catChipActive]}
               onPress={() => {
                 setCategory(cat.value as ClothingCategory | "all");
                 captureEvent("wardrobe_category_filter", { value: cat.value });
@@ -133,38 +152,28 @@ export default function WardrobeScreen() {
             >
               <Text
                 variant="label"
-                color={category === cat.value ? "inverse" : "secondary"}
+                style={active ? styles.catChipTextActive : styles.catChipText}
               >
                 {cat.label}
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+          );
+        })}
+      </ScrollView>
 
-        <TouchableOpacity
-          style={styles.sortButton}
-          onPress={() => {
-            const next = sortMode === "newest" ? "most_worn" : sortMode === "most_worn" ? "least_worn" : "newest";
-            setSortMode(next);
-          }}
-        >
-          <Ionicons name="funnel-outline" size={16} color={COLORS.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Item count */}
-      {normalizedQuery || category !== "all" ? (
+      {/* ── Filter summary ── */}
+      {(normalizedQuery || category !== "all") && (
         <View style={styles.filterSummaryRow}>
           <Text variant="caption" color="muted">
-            {sortedItems.length}/{items.length} parça gösteriliyor
+            {sortedItems.length}/{items.length} parça
           </Text>
           <TouchableOpacity onPress={() => { setSearch(""); setCategory("all"); }}>
-            <Text variant="caption" color="primary">Temizle</Text>
+            <Text variant="caption" style={styles.clearText}>Temizle</Text>
           </TouchableOpacity>
         </View>
-      ) : null}
+      )}
 
-      {/* Grid */}
+      {/* ── Grid ── */}
       {isLoading ? (
         <WardrobeSkeleton />
       ) : error && items.length === 0 ? (
@@ -181,51 +190,121 @@ export default function WardrobeScreen() {
         <FlashList<WardrobeItem>
           data={sortedItems}
           keyExtractor={(item) => item.id}
-          numColumns={3}
+          numColumns={4}
           contentContainerStyle={styles.grid}
           renderItem={({ item }) => (
             <View style={styles.gridItem}>
-              <WardrobeItemCard item={item} />
+              <GridCard item={item} />
             </View>
           )}
           ListFooterComponent={
-            mostWornThisWeek.length > 0 ? (
-              <View style={styles.bottomSection}>
-                <Text variant="h3" style={styles.bottomSectionTitle}>
-                  Bu hafta en çok kullanılanlar
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topItemsRow}>
-                  {mostWornThisWeek.map((item) => (
-                    <Pressable
-                      key={item.id}
-                      style={styles.topItem}
-                      onPress={() => router.push(`/item/${item.id}`)}
-                    >
-                      <View style={[styles.topItemSwatch, { backgroundColor: item.dominant_color_hex ?? COLORS.surfaceMuted }]} />
-                      <Text variant="caption" color="secondary" numberOfLines={1}>{item.subcategory ?? item.category}</Text>
-                      <Text variant="caption" color="muted">{item.wear_count} kez</Text>
-                    </Pressable>
+            <View style={styles.footerSections}>
+              {/* Bu hafta en çok kullandıkların */}
+              {mostWornThisWeek.length > 0 && (
+                <View style={styles.weeklyCard}>
+                  <View style={styles.weeklyLeft}>
+                    <View style={styles.weeklyIconWrap}>
+                      <Ionicons name="sparkles-outline" size={20} color={COLORS.accentText} />
+                    </View>
+                    <View style={styles.weeklyCopy}>
+                      <Text variant="h3">Bu hafta en çok kullandıkların</Text>
+                      <Text variant="body" color="secondary">
+                        {mostWornThisWeek.length} parçayı{"\n"}{totalWearCount} kombininde kullandın.
+                      </Text>
+                    </View>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weeklyItems}>
+                    {mostWornThisWeek.map((item) => (
+                      <Pressable key={item.id} onPress={() => router.push(`/item/${item.id}`)}>
+                        {item.thumbnail_url || item.image_url ? (
+                          <CachedImage
+                            accessibilityLabel={item.subcategory ?? item.category}
+                            fallbackColor={item.dominant_color_hex}
+                            sourceUri={item.thumbnail_url ?? item.image_url}
+                            style={styles.weeklyThumb}
+                          />
+                        ) : (
+                          <View style={[styles.weeklyThumb, { backgroundColor: item.dominant_color_hex ?? COLORS.surfaceMuted }]} />
+                        )}
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Bunlarla kombin oluştur */}
+              <TouchableOpacity
+                style={styles.kombinCard}
+                onPress={() => router.push("/(tabs)/outfit")}
+                activeOpacity={0.85}
+              >
+                <View style={styles.kombinIcon}>
+                  <Ionicons name="shirt-outline" size={22} color={COLORS.textInverse} />
+                </View>
+                <View style={styles.kombinCopy}>
+                  <Text variant="h3" style={styles.kombinTitle}>Bunlarla kombin oluştur</Text>
+                  <Text variant="body" style={styles.kombinSubtitle}>Seçtiğin parçalara özel önerileri gör.</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.kombinPhotos}>
+                  {items.slice(0, 3).map((item) => (
+                    item.thumbnail_url || item.image_url ? (
+                      <CachedImage
+                        key={item.id}
+                        accessibilityLabel=""
+                        fallbackColor={item.dominant_color_hex}
+                        sourceUri={item.thumbnail_url ?? item.image_url}
+                        style={styles.kombinThumb}
+                      />
+                    ) : (
+                      <View key={item.id} style={[styles.kombinThumb, { backgroundColor: item.dominant_color_hex ?? COLORS.surface }]} />
+                    )
                   ))}
                 </ScrollView>
-              </View>
-            ) : null
+                <View style={styles.kombinArrow}>
+                  <Ionicons name="arrow-forward" size={16} color={COLORS.textInverse} />
+                </View>
+              </TouchableOpacity>
+            </View>
           }
         />
       ) : (
         <EmptyState
-          icon={items.length > 0 ? "search-outline" : "shirt-outline"}
-          title={items.length > 0 ? "Aramana uyan parça yok" : "İlk parçanı ekle"}
-          body={
-            items.length > 0
-              ? "Filtreleri temizleyerek tekrar bakabilirsin."
-              : "Kamera veya galeriden fotoğraf ekle, AI analizi başlasın."
-          }
-          actionLabel={items.length > 0 ? "Temizle" : "Parça Ekle"}
-          onAction={items.length > 0 ? () => { setSearch(""); setCategory("all"); } : () => setSheetVisible(true)}
+          icon="shirt-outline"
+          title="İlk parçanı ekle"
+          body="Kamera veya galeriden fotoğraf ekle, AI analizi başlasın."
+          actionLabel="Parça Ekle"
+          onAction={() => setSheetVisible(true)}
           style={styles.emptyState}
         />
       )}
     </View>
+  );
+}
+
+function GridCard({ item }: { item: WardrobeItem }) {
+  return (
+    <Pressable style={styles.gridCard} onPress={() => {
+      captureEvent("wardrobe_item_opened", { item_id: item.id });
+      router.push(`/item/${item.id}`);
+    }}>
+      <View style={styles.gridPhotoWrap}>
+        {item.thumbnail_url || item.image_url ? (
+          <CachedImage
+            accessibilityLabel={item.subcategory ?? item.category}
+            fallbackColor={item.dominant_color_hex}
+            sourceUri={item.thumbnail_url ?? item.image_url}
+            style={styles.gridPhoto}
+          />
+        ) : (
+          <View style={[styles.gridPhoto, styles.gridPhotoPlaceholder]}>
+            <View style={[styles.gridColorSwatch, { backgroundColor: item.dominant_color_hex ?? COLORS.surfaceMuted }]} />
+          </View>
+        )}
+      </View>
+      <Text variant="caption" color="secondary" numberOfLines={1} style={styles.gridName}>
+        {item.subcategory ?? item.category}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -234,7 +313,7 @@ function WardrobeSkeleton() {
     <View style={styles.skeletonGrid}>
       {[0, 1, 2].map((row) => (
         <View key={row} style={styles.skeletonRow}>
-          {[0, 1, 2].map((col) => (
+          {[0, 1, 2, 3].map((col) => (
             <View key={col} style={styles.skeletonItem}>
               <View style={styles.skeletonImg} />
               <View style={styles.skeletonLine} />
@@ -246,20 +325,19 @@ function WardrobeSkeleton() {
   );
 }
 
-const ITEM_GAP = 8;
-
 const styles = StyleSheet.create({
   container: { backgroundColor: COLORS.background, flex: 1 },
 
+  // Header
   header: {
     alignItems: "flex-end",
     flexDirection: "row",
     justifyContent: "space-between",
     paddingBottom: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    paddingTop: 56,
+    paddingTop: 60,
   },
-  addButton: {
+  addBtn: {
     alignItems: "center",
     backgroundColor: COLORS.primary,
     borderRadius: 999,
@@ -268,19 +346,25 @@ const styles = StyleSheet.create({
     width: 44,
   },
 
-  // Search
+  // Search row
+  searchRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.sm,
+  },
   searchBar: {
     alignItems: "center",
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
-    borderRadius: 14,
+    borderRadius: 999,
     borderWidth: 1,
+    flex: 1,
     flexDirection: "row",
     gap: SPACING.sm,
-    marginHorizontal: SPACING.lg,
-    marginBottom: SPACING.sm,
     paddingHorizontal: SPACING.md,
-    paddingVertical: 10,
+    paddingVertical: 9,
   },
   searchInput: {
     color: COLORS.text,
@@ -288,10 +372,21 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.sansRegular,
     fontSize: FONT_SIZE.body,
   },
+  filterBtn: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 9,
+  },
 
   // Category chips
-  filtersRow: { alignItems: "center", flexDirection: "row", gap: SPACING.sm, marginBottom: SPACING.sm },
-  categoryChips: { gap: SPACING.sm, paddingHorizontal: SPACING.lg },
+  categoryScroll: { flexGrow: 0, marginBottom: SPACING.sm },
+  categoryRow: { gap: SPACING.sm, paddingHorizontal: SPACING.lg },
   catChip: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
@@ -300,18 +395,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: 7,
   },
-  catChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  sortButton: {
-    alignItems: "center",
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 36,
-    justifyContent: "center",
-    marginRight: SPACING.lg,
-    width: 36,
+  catChipActive: {
+    backgroundColor: COLORS.accentSoft,
+    borderColor: COLORS.accent,
   },
+  catChipText: { color: COLORS.textSecondary, fontFamily: FONTS.sansMedium, fontSize: FONT_SIZE.label },
+  catChipTextActive: { color: COLORS.accentText, fontFamily: FONTS.sansBold, fontSize: FONT_SIZE.label },
 
   filterSummaryRow: {
     alignItems: "center",
@@ -320,34 +409,119 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.sm,
   },
+  clearText: { color: COLORS.primary, fontFamily: FONTS.sansMedium },
 
-  // Grid
-  grid: { paddingHorizontal: SPACING.lg, paddingBottom: 100 },
-  gridItem: { flex: 1, margin: ITEM_GAP / 2 },
+  // Grid — 4 sütun
+  grid: { paddingHorizontal: SPACING.sm, paddingBottom: 20 },
+  gridItem: { flex: 1, margin: 4 },
+  gridCard: { alignItems: "center", gap: 4 },
+  gridPhotoWrap: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    overflow: "hidden",
+    width: "100%",
+  },
+  gridPhoto: {
+    aspectRatio: 3 / 4,
+    width: "100%",
+  },
+  gridPhotoPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gridColorSwatch: {
+    aspectRatio: 3 / 4,
+    width: "100%",
+  },
+  gridName: {
+    fontFamily: FONTS.sansRegular,
+    fontSize: 10,
+    textAlign: "center",
+    width: "100%",
+  },
 
   emptyState: { marginTop: SPACING.xl },
 
-  // Bottom section
-  bottomSection: { marginTop: SPACING.xl, gap: SPACING.md },
-  bottomSectionTitle: { paddingHorizontal: 0 },
-  topItemsRow: { gap: SPACING.md },
-  topItem: { alignItems: "center", gap: SPACING.xs, width: 64 },
-  topItemSwatch: { borderRadius: 10, height: 64, width: 64 },
+  // Footer sections
+  footerSections: { gap: SPACING.md, padding: SPACING.md, paddingBottom: 100 },
+
+  // Bu hafta en çok kullandıkların
+  weeklyCard: {
+    backgroundColor: COLORS.accentSoft,
+    borderRadius: 16,
+    gap: SPACING.sm,
+    overflow: "hidden",
+    padding: SPACING.md,
+  },
+  weeklyLeft: { alignItems: "flex-start", flexDirection: "row", gap: SPACING.sm },
+  weeklyIconWrap: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderRadius: 999,
+    height: 36,
+    justifyContent: "center",
+    width: 36,
+  },
+  weeklyCopy: { flex: 1, gap: 2 },
+  weeklyItems: { gap: SPACING.sm },
+  weeklyThumb: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    height: 52,
+    width: 40,
+  },
+
+  // Bunlarla kombin oluştur
+  kombinCard: {
+    alignItems: "center",
+    backgroundColor: COLORS.cta,
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    overflow: "hidden",
+    padding: SPACING.md,
+  },
+  kombinIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 999,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  kombinCopy: { flex: 1, gap: 2 },
+  kombinTitle: { color: COLORS.textInverse, fontFamily: FONTS.sansBold },
+  kombinSubtitle: { color: "rgba(255,255,255,0.75)", fontFamily: FONTS.sansRegular, fontSize: FONT_SIZE.caption },
+  kombinPhotos: { gap: 4 },
+  kombinThumb: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 8,
+    height: 52,
+    width: 36,
+  },
+  kombinArrow: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 999,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
 
   // Skeleton
-  skeletonGrid: { gap: ITEM_GAP, padding: SPACING.lg },
-  skeletonRow: { flexDirection: "row", gap: ITEM_GAP },
-  skeletonItem: { flex: 1, gap: SPACING.xs },
+  skeletonGrid: { gap: 8, padding: SPACING.sm },
+  skeletonRow: { flexDirection: "row", gap: 8 },
+  skeletonItem: { flex: 1, gap: 4 },
   skeletonImg: {
     aspectRatio: 3 / 4,
     backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 14,
+    borderRadius: 12,
     width: "100%",
   },
   skeletonLine: {
     backgroundColor: COLORS.surfaceMuted,
     borderRadius: 999,
-    height: 10,
+    height: 8,
     width: "60%",
   },
 });
