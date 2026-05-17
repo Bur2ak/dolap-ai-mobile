@@ -1,6 +1,7 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, Share, StyleSheet, View } from "react-native";
+import { ActionSheetIOS, Alert, Image, Platform, ScrollView, Share, StyleSheet, TouchableOpacity, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 
 import { Button } from "@/components/ui/Button";
@@ -8,6 +9,8 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Text } from "@/components/ui/Text";
+import { useImagePicker } from "@/hooks/useImagePicker";
+import { uploadAvatarImage } from "@/lib/storage/avatar";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { createPublicAppLink } from "@/lib/links";
@@ -21,6 +24,8 @@ const maxBioLength = 160;
 
 export default function AccountSettingsScreen() {
   const { profile, session, updatePassword, updateProfile } = useAuthStore();
+  const { pickFromLibrary, takePhoto } = useImagePicker();
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
@@ -32,7 +37,7 @@ export default function AccountSettingsScreen() {
   const [isUpdatingDeletion, setIsUpdatingDeletion] = useState(false);
   const [isOpeningDeletionInfo, setIsOpeningDeletionInfo] = useState(false);
   const [isSharingAccountSummary, setIsSharingAccountSummary] = useState(false);
-  const isBusy = isSaving || isSavingPassword || isSavingLegalConsent || isUpdatingDeletion || isOpeningDeletionInfo || isSharingAccountSummary;
+  const isBusy = isSaving || isSavingPassword || isSavingLegalConsent || isUpdatingDeletion || isOpeningDeletionInfo || isSharingAccountSummary || isUploadingAvatar;
   const deletionInfoUrl = createPublicAppLink("/delete-account.html");
   const legalConsentComplete = Boolean(profile?.kvkk_consent_at && profile.terms_accepted_at);
 
@@ -285,6 +290,40 @@ export default function AccountSettingsScreen() {
     }
   }
 
+  function handleAvatarPress() {
+    if (isBusy) return;
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ["Vazgeç", "Fotoğraf Çek", "Galeriden Seç"], cancelButtonIndex: 0 },
+        async (i) => { if (i === 1) await pickAndUploadAvatar("camera"); if (i === 2) await pickAndUploadAvatar("library"); },
+      );
+    } else {
+      Alert.alert("Profil Fotoğrafı", "", [
+        { text: "Vazgeç", style: "cancel" },
+        { text: "Fotoğraf Çek", onPress: () => void pickAndUploadAvatar("camera") },
+        { text: "Galeriden Seç", onPress: () => void pickAndUploadAvatar("library") },
+      ]);
+    }
+  }
+
+  async function pickAndUploadAvatar(source: "camera" | "library") {
+    if (!profile?.id) return;
+    try {
+      const uri = source === "camera" ? await takePhoto() : await pickFromLibrary();
+      if (!uri) return;
+      setIsUploadingAvatar(true);
+      const url = await uploadAvatarImage(profile.id, uri);
+      await updateProfile({ avatar_url: url });
+      captureEvent("account_avatar_updated", { source });
+      Alert.alert("Güncellendi", "Profil fotoğrafın değiştirildi.");
+    } catch (err) {
+      captureError(err, { area: "account_avatar_upload" });
+      Alert.alert("Yüklenemedi", err instanceof Error ? err.message : "Tekrar dene.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  }
+
   async function handleShareAccountSummary() {
     if (isBusy) {
       return;
@@ -314,6 +353,28 @@ export default function AccountSettingsScreen() {
         <Button title="Geri" variant="ghost" onPress={() => router.back()} disabled={isBusy} />
         <Text variant="h2">Hesap</Text>
         <View style={styles.headerSpacer} />
+      </View>
+
+      {/* Profile photo */}
+      <View style={styles.avatarSection}>
+        <TouchableOpacity style={styles.avatarWrap} onPress={handleAvatarPress} disabled={isBusy} activeOpacity={0.8}>
+          {profile?.avatar_url ? (
+            <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text variant="h2" color="inverse">
+                {(profile?.full_name?.[0] ?? "S").toUpperCase()}
+              </Text>
+            </View>
+          )}
+          <View style={styles.cameraOverlay}>
+            <Ionicons name={isUploadingAvatar ? "sync-outline" : "camera"} size={14} color={COLORS.textInverse} />
+          </View>
+        </TouchableOpacity>
+        <View style={styles.avatarCopy}>
+          <Text variant="h3">{profile?.full_name ?? "Profil"}</Text>
+          <Text variant="body" color="secondary">Fotoğrafını değiştirmek için dokun</Text>
+        </View>
       </View>
 
       <Card style={styles.form}>
@@ -432,15 +493,43 @@ export default function AccountSettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: COLORS.background,
-    flex: 1,
-  },
-  content: {
+  container: { backgroundColor: COLORS.background, flex: 1 },
+  content: { gap: SPACING.md, padding: SPACING.lg, paddingTop: 56, paddingBottom: 60 },
+
+  avatarSection: {
+    alignItems: "center",
+    flexDirection: "row",
     gap: SPACING.md,
-    padding: SPACING.lg,
-    paddingTop: 56,
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: SPACING.md,
   },
+  avatarWrap: { position: "relative" },
+  avatarPlaceholder: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 72,
+    justifyContent: "center",
+    width: 72,
+  },
+  avatarImg: { borderRadius: 999, height: 72, width: 72 },
+  cameraOverlay: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.surface,
+    borderRadius: 999,
+    borderWidth: 2,
+    bottom: 0,
+    height: 24,
+    justifyContent: "center",
+    left: 0,
+    position: "absolute",
+    width: 24,
+  },
+  avatarCopy: { flex: 1, gap: 3 },
   header: {
     alignItems: "center",
     flexDirection: "row",

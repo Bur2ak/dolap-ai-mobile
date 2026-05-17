@@ -209,14 +209,15 @@ const styles = StyleSheet.create({
   },
 
   // Sub tabs
-  tabsRow: { gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md },
+  tabsRow: { gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, flexGrow: 0, alignItems: "flex-start" },
   feedTab: {
+    alignSelf: "flex-start",
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: SPACING.md,
-    paddingVertical: 7,
+    paddingVertical: 8,
   },
   feedTabActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
 

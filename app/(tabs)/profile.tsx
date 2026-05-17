@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, Share, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActionSheetIOS, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -9,23 +9,27 @@ import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
 import { useNotificationInbox } from "@/hooks/useNotificationInbox";
+import { useImagePicker } from "@/hooks/useImagePicker";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useOutfitDiary } from "@/hooks/useOutfitDiary";
 import { captureError, captureEvent } from "@/lib/observability";
+import { uploadAvatarImage } from "@/lib/storage/avatar";
 import { useAuthStore } from "@/stores/authStore";
 import { formatDate } from "@/utils/formatters";
 
 const STYLE_TAGS = ["Minimal", "Zarif", "Dengeli", "Modern", "Doğal"];
 
 export default function ProfileScreen() {
-  const { profile, signOut } = useAuthStore();
+  const { profile, signOut, updateProfile } = useAuthStore();
   const { premium } = useSubscription();
   const { unreadCount } = useNotificationInbox();
   const { items } = useWardrobe();
   const { entries } = useOutfitDiary();
+  const { pickFromLibrary, takePhoto } = useImagePicker();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const isProfileBusy = isSigningOut;
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const isProfileBusy = isSigningOut || isUploadingAvatar;
 
   const profileIncomplete = Boolean(profile && (!profile.username || !profile.onboarding_completed));
   const legalConsentIncomplete = Boolean(profile && (!profile.kvkk_consent_at || !profile.terms_accepted_at));
@@ -52,6 +56,42 @@ export default function ProfileScreen() {
       wardrobe_count: items.length,
     });
   }, [items.length, premium, profileIncomplete]);
+
+  function handleAvatarPress() {
+    if (isProfileBusy) return;
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ["Vazgeç", "Fotoğraf Çek", "Galeriden Seç"], cancelButtonIndex: 0 },
+        async (index) => {
+          if (index === 1) await pickAndUploadAvatar("camera");
+          if (index === 2) await pickAndUploadAvatar("library");
+        },
+      );
+    } else {
+      Alert.alert("Profil Fotoğrafı", "Fotoğraf kaynağını seç", [
+        { text: "Vazgeç", style: "cancel" },
+        { text: "Fotoğraf Çek", onPress: () => void pickAndUploadAvatar("camera") },
+        { text: "Galeriden Seç", onPress: () => void pickAndUploadAvatar("library") },
+      ]);
+    }
+  }
+
+  async function pickAndUploadAvatar(source: "camera" | "library") {
+    if (!profile?.id) return;
+    try {
+      const uri = source === "camera" ? await takePhoto() : await pickFromLibrary();
+      if (!uri) return;
+      setIsUploadingAvatar(true);
+      const publicUrl = await uploadAvatarImage(profile.id, uri);
+      await updateProfile({ avatar_url: publicUrl });
+      captureEvent("profile_avatar_updated", { source });
+    } catch (err) {
+      captureError(err, { area: "profile_avatar_upload" });
+      Alert.alert("Yüklenemedi", err instanceof Error ? err.message : "Tekrar dene.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  }
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
     if (isProfileBusy) return;
@@ -89,17 +129,24 @@ export default function ProfileScreen() {
     >
       {/* === Hero profil kartı === */}
       <View style={styles.heroCard}>
-        {/* Avatar */}
-        <View style={styles.avatarWrap}>
-          <View style={styles.avatar}>
-            <Text variant="h2" color="inverse">{initials}</Text>
+        {/* Avatar — tappable for photo upload */}
+        <TouchableOpacity style={styles.avatarWrap} onPress={handleAvatarPress} disabled={isProfileBusy} activeOpacity={0.8}>
+          {profile?.avatar_url ? (
+            <Image source={{ uri: profile.avatar_url }} style={styles.avatarImg} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text variant="h2" color="inverse">{initials}</Text>
+            </View>
+          )}
+          <View style={styles.cameraOverlay}>
+            <Ionicons name={isUploadingAvatar ? "sync-outline" : "camera"} size={14} color={COLORS.textInverse} />
           </View>
           {premium && (
             <View style={styles.premiumBadge}>
               <Ionicons name="star" size={10} color={COLORS.textInverse} />
             </View>
           )}
-        </View>
+        </TouchableOpacity>
 
         <Text variant="h1" style={styles.displayName}>{displayName}</Text>
         <Text variant="body" color="secondary">
@@ -284,6 +331,26 @@ const styles = StyleSheet.create({
     height: 80,
     justifyContent: "center",
     width: 80,
+  },
+  avatarImg: {
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    borderWidth: 2,
+    height: 80,
+    width: 80,
+  },
+  cameraOverlay: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.surface,
+    borderRadius: 999,
+    borderWidth: 2,
+    bottom: 0,
+    height: 26,
+    justifyContent: "center",
+    left: 0,
+    position: "absolute",
+    width: 26,
   },
   premiumBadge: {
     alignItems: "center",

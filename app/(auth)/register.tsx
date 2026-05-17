@@ -1,14 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 
-import { Button } from "@/components/ui/Button";
 import { Divider } from "@/components/ui/Divider";
 import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
+import { FONTS } from "@/constants/typography";
 import { SPACING } from "@/constants/spacing";
 import { useGoogleAuth } from "@/hooks/useGoogleAuth";
 import { captureError, captureEvent } from "@/lib/observability";
@@ -28,229 +28,127 @@ export default function RegisterScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isBusy = isSubmitting || isGoogleLoading;
 
-  useEffect(() => {
-    captureEvent("auth_register_screen_viewed", { has_return_to: Boolean(returnTo) });
-  }, [returnTo]);
+  useEffect(() => { captureEvent("auth_register_screen_viewed", { has_return_to: Boolean(returnTo) }); }, [returnTo]);
 
   async function handleSubmit() {
-    if (isSubmitting) {
-      return;
-    }
-
+    if (isSubmitting) return;
+    if (!fullName.trim()) { Alert.alert("Ad Soyad gerekli", "Hesabını oluşturmak için adını yaz."); return; }
     const normalizedEmail = normalizeEmail(email);
-
-    if (!fullName.trim()) {
-      Alert.alert("Ad Soyad gerekli", "Hesabini olusturmak icin adini yaz.");
-      return;
-    }
-
-    if (!isValidEmail(normalizedEmail)) {
-      Alert.alert("Email gecersiz", "Gecerli bir email adresi gir.");
-      return;
-    }
-
-    if (password.length < 8) {
-      Alert.alert("Sifre kisa", "Sifre en az 8 karakter olmali.");
-      return;
-    }
-
-    if (!acceptedLegal) {
-      Alert.alert("Onay gerekli", "Devam etmek icin KVKK aydinlatma metni, gizlilik politikasi ve kullanim sartlarini onaylamalisin.");
-      return;
-    }
-
+    if (!isValidEmail(normalizedEmail)) { Alert.alert("Email geçersiz", "Geçerli bir email adresi gir."); return; }
+    if (password.length < 8) { Alert.alert("Şifre kısa", "Şifre en az 8 karakter olmalı."); return; }
+    if (!acceptedLegal) { Alert.alert("Onay gerekli", "KVKK, gizlilik politikası ve kullanım şartlarını onaylamalısın."); return; }
     try {
       setIsSubmitting(true);
       await signUp(normalizedEmail, password, fullName.trim());
-      captureEvent("auth_register_completed", { accepted_legal: acceptedLegal, has_return_to: Boolean(returnTo) });
-      router.replace({
-        pathname: "/(auth)/verify-otp",
-        params: { email: normalizedEmail, ...(returnTo ? { returnTo } : {}) },
-      });
+      captureEvent("auth_register_completed", { accepted_legal: acceptedLegal });
+      router.replace({ pathname: "/(auth)/verify-otp", params: { email: normalizedEmail, ...(returnTo ? { returnTo } : {}) } });
     } catch (error) {
       captureError(error, { area: "auth_register" });
-      Alert.alert("Kayit basarisiz", error instanceof Error ? error.message : "Tekrar dene.");
+      Alert.alert("Kayıt başarısız", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  function openLegalLink(target: "kvkk" | "privacy" | "terms") {
-    if (isSubmitting) {
-      return;
-    }
-
-    captureEvent("auth_register_legal_link_opened", { target });
-    router.push(`/legal/${target}`);
-  }
-
-  function openLogin() {
-    if (isSubmitting) {
-      return;
-    }
-
-    captureEvent("auth_register_navigation_opened", { has_return_to: Boolean(returnTo), target: "login" });
-    router.push({
-      pathname: "/(auth)/login",
-      params: returnTo ? { returnTo } : undefined,
-    });
-  }
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text variant="h1">Dolabini kur</Text>
-      <Text variant="body" color="secondary">
-        Ilk kiyafetini eklemeden once hesabini hazirlayalim.
-      </Text>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-      <View style={styles.form}>
-        <Pressable
-          style={[styles.googleButton, isBusy && styles.disabled]}
+        {/* Logo */}
+        <View style={styles.logoSection}>
+          <View style={styles.logoIcon}>
+            <Ionicons name="shirt-outline" size={28} color={COLORS.textInverse} />
+          </View>
+          <Text variant="h2" style={styles.logoText}>Shipirio</Text>
+        </View>
+
+        <View style={styles.headingSection}>
+          <Text variant="h1">Dolabını kur</Text>
+          <Text variant="body" color="secondary">İlk kıyafetini eklemeden önce hesabını hazırlayalım.</Text>
+        </View>
+
+        {/* Google */}
+        <TouchableOpacity
+          style={[styles.googleBtn, isBusy && styles.disabled]}
           onPress={async () => {
             try {
               await signInWithGoogle();
-              router.replace(returnTo as Href ?? "/(tabs)");
+              router.replace((returnTo as Href) ?? "/(tabs)");
             } catch (error) {
               captureError(error, { area: "register_google" });
-              Alert.alert("Google ile kayit basarisiz", error instanceof Error ? error.message : "Tekrar dene.");
+              Alert.alert("Google ile kayıt başarısız", error instanceof Error ? error.message : "Tekrar dene.");
             }
           }}
           disabled={isBusy}
+          activeOpacity={0.85}
         >
-          <Ionicons name="logo-google" size={22} color={COLORS.surface} />
+          <Ionicons name="logo-google" size={20} color={COLORS.textInverse} />
           <Text variant="label" color="inverse">Google ile Devam Et</Text>
-        </Pressable>
+        </TouchableOpacity>
 
         <Divider spacing="sm" label="veya email ile" />
 
-        <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isBusy} />
-        <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isSubmitting} />
-        <PasswordInput
-          label="Sifre"
-          value={password}
-          onChangeText={setPassword}
-          autoCapitalize="none"
-          textContentType="newPassword"
-          error={getPasswordInputError(password)}
-          editable={!isSubmitting}
-        />
-        <Pressable
-          style={styles.consentRow}
-          onPress={() =>
-            setAcceptedLegal((value) => {
-              if (isSubmitting) {
-                return value;
-              }
+        <View style={styles.form}>
+          <Input label="Ad Soyad" value={fullName} onChangeText={setFullName} editable={!isBusy} />
+          <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" error={getEmailInputError(email)} editable={!isBusy} />
+          <PasswordInput label="Şifre" value={password} onChangeText={setPassword} autoCapitalize="none" textContentType="newPassword" error={getPasswordInputError(password)} editable={!isBusy} />
 
-              captureEvent("auth_register_legal_toggled", { accepted: !value });
-              return !value;
-            })
-          }
-          disabled={isSubmitting}
-        >
-          <View style={[styles.checkbox, acceptedLegal && styles.checkboxActive]}>
-            {acceptedLegal ? <Ionicons name="checkmark" size={16} color={COLORS.background} /> : null}
+          {/* Legal consent */}
+          <Pressable
+            style={styles.consentRow}
+            onPress={() => { if (!isBusy) { captureEvent("auth_register_legal_toggled", { accepted: !acceptedLegal }); setAcceptedLegal(v => !v); } }}
+            disabled={isBusy}
+          >
+            <View style={[styles.checkbox, acceptedLegal && styles.checkboxActive]}>
+              {acceptedLegal ? <Ionicons name="checkmark" size={14} color={COLORS.textInverse} /> : null}
+            </View>
+            <Text variant="caption" color="secondary" style={styles.consentText}>
+              KVKK aydınlatma metnini, gizlilik politikasını ve kullanım şartlarını kabul ediyorum.
+            </Text>
+          </Pressable>
+          <View style={styles.legalLinks}>
+            {["KVKK", "Gizlilik", "Şartlar"].map((label, i) => (
+              <TouchableOpacity key={label} onPress={() => router.push(`/legal/${["kvkk","privacy","terms"][i]}`)} disabled={isBusy}>
+                <Text variant="caption" style={styles.legalLink}>{label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-          <Text variant="caption" color="secondary" style={styles.consentText}>
-            KVKK aydinlatma metnini, gizlilik politikasini ve kullanim sartlarini okudum; hesabimin bu kosullarla olusturulmasini kabul ediyorum.
-          </Text>
-        </Pressable>
-        <Button title="Kayit Ol" onPress={handleSubmit} loading={isSubmitting} disabled={isSubmitting} />
-        <Text variant="caption" color="muted" style={styles.legalText}>
-          Onay zamanin hesap kaydinda saklanir; tercihlerini ayarlardan yonetebilirsin.
-        </Text>
-        <View style={styles.legalLinks}>
-          <Button
-            title="KVKK"
-            variant="ghost"
-            onPress={() => openLegalLink("kvkk")}
-            disabled={isSubmitting}
-            style={styles.linkButton}
-          />
-          <Button
-            title="Gizlilik"
-            variant="ghost"
-            onPress={() => openLegalLink("privacy")}
-            disabled={isSubmitting}
-            style={styles.linkButton}
-          />
-          <Button
-            title="Sartlar"
-            variant="ghost"
-            onPress={() => openLegalLink("terms")}
-            disabled={isSubmitting}
-            style={styles.linkButton}
-          />
+
+          <TouchableOpacity style={[styles.primaryBtn, isBusy && styles.disabled]} onPress={() => void handleSubmit()} disabled={isBusy} activeOpacity={0.85}>
+            <Text variant="label" color="inverse">{isSubmitting ? "Hesap oluşturuluyor..." : "Kayıt Ol"}</Text>
+          </TouchableOpacity>
         </View>
-        <Button
-          title="Zaten hesabim var"
-          variant="ghost"
-          onPress={openLogin}
-          disabled={isSubmitting}
-        />
-      </View>
-    </ScrollView>
+
+        <View style={styles.footer}>
+          <Text variant="body" color="muted">Zaten hesabın var mı?</Text>
+          <TouchableOpacity onPress={() => router.push({ pathname: "/(auth)/login", params: returnTo ? { returnTo } : undefined })} disabled={isBusy}>
+            <Text variant="label" style={styles.footerLink}>Giriş yap</Text>
+          </TouchableOpacity>
+        </View>
+
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: COLORS.background,
-    flex: 1,
-  },
-  content: {
-    flexGrow: 1,
-    justifyContent: "center",
-    padding: SPACING.lg,
-    gap: SPACING.sm,
-  },
-  form: {
-    gap: SPACING.md,
-    marginTop: SPACING.xl,
-  },
-  consentRow: {
-    alignItems: "flex-start",
-    flexDirection: "row",
-    gap: SPACING.sm,
-  },
-  checkbox: {
-    alignItems: "center",
-    borderColor: COLORS.border,
-    borderRadius: 6,
-    borderWidth: 1,
-    height: 24,
-    justifyContent: "center",
-    marginTop: 2,
-    width: 24,
-  },
-  checkboxActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  consentText: {
-    flex: 1,
-  },
-  legalText: {
-    textAlign: "center",
-  },
-  legalLinks: {
-    flexDirection: "row",
-    gap: SPACING.sm,
-  },
-  linkButton: {
-    flex: 1,
-    minHeight: 40,
-  },
-  googleButton: {
-    alignItems: "center",
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    flexDirection: "row",
-    gap: SPACING.sm,
-    justifyContent: "center",
-    minHeight: 56,
-  },
-  disabled: {
-    opacity: 0.52,
-  },
+  root: { backgroundColor: COLORS.background, flex: 1 },
+  container: { flex: 1 },
+  content: { flexGrow: 1, justifyContent: "center", padding: SPACING.lg, gap: SPACING.lg },
+  logoSection: { alignItems: "center", flexDirection: "row", gap: SPACING.sm, justifyContent: "center" },
+  logoIcon: { alignItems: "center", backgroundColor: COLORS.primary, borderRadius: 12, height: 48, justifyContent: "center", width: 48 },
+  logoText: { letterSpacing: 0.5 },
+  headingSection: { gap: SPACING.xs },
+  googleBtn: { alignItems: "center", backgroundColor: COLORS.primary, borderRadius: 14, flexDirection: "row", gap: SPACING.sm, justifyContent: "center", minHeight: 54 },
+  form: { gap: SPACING.md },
+  consentRow: { alignItems: "flex-start", flexDirection: "row", gap: SPACING.sm },
+  checkbox: { alignItems: "center", backgroundColor: COLORS.surface, borderColor: COLORS.border, borderRadius: 6, borderWidth: 1.5, height: 22, justifyContent: "center", marginTop: 1, width: 22 },
+  checkboxActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  consentText: { flex: 1 },
+  legalLinks: { flexDirection: "row", gap: SPACING.md },
+  legalLink: { color: COLORS.primary, fontFamily: FONTS.sansMedium, textDecorationLine: "underline" },
+  primaryBtn: { alignItems: "center", backgroundColor: COLORS.primary, borderRadius: 14, justifyContent: "center", minHeight: 54 },
+  footer: { alignItems: "center", flexDirection: "row", gap: SPACING.xs, justifyContent: "center" },
+  footerLink: { color: COLORS.primary, fontFamily: FONTS.sansBold },
+  disabled: { opacity: 0.45 },
 });
