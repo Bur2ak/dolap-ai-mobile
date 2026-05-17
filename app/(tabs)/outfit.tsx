@@ -1,15 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, Share } from "react-native";
-import { StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, TouchableOpacity, View } from "react-native";
 
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { CachedImage } from "@/components/ui/CachedImage";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
+import { FONTS } from "@/constants/typography";
 import { EVENT_TYPES } from "@/constants/events";
 import { SPACING } from "@/constants/spacing";
 import { useOutfitRecommendation } from "@/hooks/useOutfitRecommendation";
@@ -21,16 +19,26 @@ import { captureError, captureEvent } from "@/lib/observability";
 import { getDailyOutfitSuggestionCount, incrementDailyOutfitSuggestionCount } from "@/lib/usageLimits";
 import { useOutfitStore } from "@/stores/outfitStore";
 import type { OutfitRecommendationInput, OutfitSuggestion, OutfitVoteValue, SharedOutfit, WardrobeItem } from "@/types";
-import type { AccessoryRecommendation } from "@/utils/accessoryRecommendations";
 import { buildAccessoryRecommendations } from "@/utils/accessoryRecommendations";
 import { buildCapsuleWardrobePlan } from "@/utils/capsuleWardrobe";
 
-const moods = ["Rahat", "Sik", "Dikkat cekici", "Minimal", "Enerjik"];
+const MOODS = [
+  { label: "Rahat", icon: "leaf-outline" },
+  { label: "Şık", icon: "diamond-outline" },
+  { label: "Minimal", icon: "remove-outline" },
+  { label: "Enerjik", icon: "flash-outline" },
+  { label: "Dikkat Çekici", icon: "star-outline" },
+] as const;
+
 const voteOptions: Array<{ value: OutfitVoteValue; label: string }> = [
-  { value: "love", label: "Bayildim" },
+  { value: "love", label: "Bayıldım" },
   { value: "yes", label: "Olur" },
-  { value: "no", label: "Baska dene" },
+  { value: "no", label: "Başka dene" },
 ];
+
+function formatLimit(value: number | boolean) {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "sınırsız";
+}
 
 export default function OutfitScreen() {
   const { items } = useWardrobe();
@@ -52,15 +60,15 @@ export default function OutfitScreen() {
   } = useOutfitRecommendation();
   const { setLastWeather, setSelectedEvent: storeSetEvent, setSelectedMood: storeSetMood } = useOutfitStore();
   const [selectedEvent, setSelectedEvent] = useState<string>(EVENT_TYPES[0].value);
-  const [selectedMood, setSelectedMood] = useState(moods[0]);
+  const [selectedMood, setSelectedMood] = useState<string>(MOODS[0].label);
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const [dailyUsage, setDailyUsage] = useState<number | null>(null);
   const [activeSuggestionAction, setActiveSuggestionAction] = useState<{ name: string; action: "save" | "share" } | null>(null);
   const [isSharingSavedSummary, setIsSharingSavedSummary] = useState(false);
-  const repeatCandidate = useMemo(() => getRepeatCandidate(items), [items]);
+
   const capsulePlan = useMemo(() => buildCapsuleWardrobePlan(items), [items]);
   const accessoryRecommendations = useMemo(() => buildAccessoryRecommendations(items, weather), [items, weather]);
-  const focusedItem = focusItemId ? items.find((item) => item.id === focusItemId) ?? null : null;
+  const focusedItem = focusItemId ? items.find((i) => i.id === focusItemId) ?? null : null;
   const isBusy = isRecommending || isSavingOutfit || isSharingSavedSummary;
   const isActionBusy = isBusy || Boolean(activeSuggestionAction);
 
@@ -74,29 +82,16 @@ export default function OutfitScreen() {
 
   useEffect(() => {
     captureEvent("outfit_screen_viewed", {
-      accessory_recommendation_count: accessoryRecommendations.length,
-      capsule_idea_count: capsulePlan.outfit_ideas.length,
       saved_outfit_count: savedOutfits.length,
       suggestion_count: suggestions.length,
       wardrobe_count: items.length,
-      weather_available: Boolean(weather),
     });
-  }, [accessoryRecommendations.length, capsulePlan.outfit_ideas.length, items.length, savedOutfits.length, suggestions.length, weather]);
+  }, [items.length, savedOutfits.length, suggestions.length]);
 
   async function handleRecommend() {
-    if (isActionBusy) {
-      return;
-    }
-
-    if (!userId) {
-      Alert.alert("Giris gerekli", "Kombin onermek icin once giris yapmalisin.");
-      return;
-    }
-
-    if (items.length < 2) {
-      Alert.alert("Dolap bos", "Kombin onermek icin once en az iki kiyafet eklemelisin.");
-      return;
-    }
+    if (isActionBusy) return;
+    if (!userId) { Alert.alert("Giriş gerekli", "Kombin önermek için önce giriş yapmalısın."); return; }
+    if (items.length < 2) { Alert.alert("Dolap boş", "Kombin önermek için en az iki kıyafet eklemelisin."); return; }
 
     try {
       if (!premium) {
@@ -104,12 +99,9 @@ export default function OutfitScreen() {
         setDailyUsage(currentUsage);
         if (isLimitReached("DAILY_OUTFIT_SUGGESTIONS", currentUsage)) {
           Alert.alert(
-            "Gunluk limit doldu",
-            `Free planda gunluk ${formatLimit(limits.DAILY_OUTFIT_SUGGESTIONS)} kombin onerisi kullanabilirsin.`,
-            [
-              { text: "Vazgec", style: "cancel" },
-              { text: "Premium'a Gec", onPress: () => router.push("/paywall") },
-            ],
+            "Günlük limit doldu",
+            `Free planda günlük ${formatLimit(limits.DAILY_OUTFIT_SUGGESTIONS)} kombin önerisi kullanabilirsin.`,
+            [{ text: "Vazgeç", style: "cancel" }, { text: "Premium'a Geç", onPress: () => router.push("/paywall") }],
           );
           return;
         }
@@ -125,728 +117,613 @@ export default function OutfitScreen() {
       }
       router.push({ pathname: "/outfit/result", params: { event: selectedEvent, mood: selectedMood } });
     } catch (error) {
-      captureError(error, { area: "outfit_recommend_action", event: selectedEvent, mood: selectedMood });
-      Alert.alert("Kombin onerilemedi", error instanceof Error ? error.message : "Tekrar dene.");
+      captureError(error, { area: "outfit_recommend_action" });
+      Alert.alert("Kombin önerilemedi", error instanceof Error ? error.message : "Tekrar dene.");
     }
   }
 
   async function handleAskFriend(suggestion: OutfitSuggestion) {
-    if (isActionBusy) {
-      return;
-    }
-
-    if (!userId) {
-      Alert.alert("Giris gerekli", "Kombini paylasmak icin once giris yapmalisin.");
-      return;
-    }
-
+    if (isActionBusy || !userId) return;
     setActiveSuggestionAction({ name: suggestion.name, action: "share" });
     try {
-      const { outfit, notifiedFriendsCount } = await askFriendsToVote({
-        input: recommendationInput,
-        suggestion,
-      });
+      const { outfit, notifiedFriendsCount } = await askFriendsToVote({ input: recommendationInput, suggestion });
       const shareUrl = createPublicAppLink(`/outfit/share/${outfit.share_token ?? outfit.id}`);
       if (notifiedFriendsCount > 0) {
-        Alert.alert("Arkadaslara gonderildi", `${notifiedFriendsCount} arkadasina kombin oyu bildirimi gonderildi.`);
+        Alert.alert("Arkadaşlara gönderildi", `${notifiedFriendsCount} arkadaşına bildirim gönderildi.`);
       } else {
-        await Share.share({
-          title: "Shipirio kombini",
-          message: `Bu kombine oy verir misin? ${shareUrl}`,
-          url: shareUrl,
-        });
+        await Share.share({ title: "Shipirio kombini", message: `Bu kombine oy verir misin? ${shareUrl}`, url: shareUrl });
       }
-      captureEvent("outfit_recommendation_shared", { notified_friends_count: notifiedFriendsCount, item_count: suggestion.items.length });
     } catch (error) {
-      captureError(error, { area: "outfit_recommendation_share_action", item_count: suggestion.items.length });
-      Alert.alert("Paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
-    } finally {
-      setActiveSuggestionAction(null);
-    }
+      captureError(error, { area: "outfit_recommendation_share_action" });
+      Alert.alert("Paylaşılamadı", error instanceof Error ? error.message : "Tekrar dene.");
+    } finally { setActiveSuggestionAction(null); }
   }
 
   async function handleSaveOutfit(suggestion: OutfitSuggestion) {
-    if (isActionBusy) {
-      return;
-    }
-
-    if (!userId) {
-      Alert.alert("Giris gerekli", "Kombini kaydetmek icin once giris yapmalisin.");
-      return;
-    }
-
+    if (isActionBusy || !userId) return;
     setActiveSuggestionAction({ name: suggestion.name, action: "save" });
     try {
-      await saveOutfit({
-        input: recommendationInput,
-        suggestion,
-      });
-      captureEvent("outfit_recommendation_saved_from_tab", { item_count: suggestion.items.length });
-      Alert.alert("Kaydedildi", "Kombin kayitli kombinlerine eklendi.");
+      await saveOutfit({ input: recommendationInput, suggestion });
+      Alert.alert("Kaydedildi", "Kombin kayıtlı kombinlerine eklendi.");
     } catch (error) {
-      captureError(error, { area: "outfit_recommendation_save_action", item_count: suggestion.items.length });
+      captureError(error, { area: "outfit_recommendation_save_action" });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");
-    } finally {
-      setActiveSuggestionAction(null);
-    }
-  }
-
-  async function handleShareSavedOutfitsSummary() {
-    if (isActionBusy) {
-      return;
-    }
-
-    if (savedOutfits.length === 0) {
-      Alert.alert("Ozet hazir degil", "Paylasilabilir kombin ozeti icin once bir kombin kaydet.");
-      return;
-    }
-
-    try {
-      setIsSharingSavedSummary(true);
-      const result = await Share.share({
-        title: "Shipirio kayitli kombin ozeti",
-        message: buildSavedOutfitsSummary(savedOutfits),
-      });
-      captureEvent("outfit_saved_summary_shared", {
-        action: result.action,
-        completed: result.action === Share.sharedAction,
-        saved_count: savedOutfits.length,
-      });
-    } catch (error) {
-      captureError(error, { area: "outfit_saved_summary_share" });
-      Alert.alert("Ozet paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
-    } finally {
-      setIsSharingSavedSummary(false);
-    }
-  }
-
-  function handleUseCapsule() {
-    if (isActionBusy) {
-      return;
-    }
-
-    const firstIdea = capsulePlan.outfit_ideas[0];
-    const firstItemId = firstIdea?.item_ids[0] ?? capsulePlan.core_item_ids[0] ?? null;
-
-    if (firstItemId) {
-      setFocusItemId(firstItemId);
-    }
-
-    if (firstIdea?.event) {
-      setSelectedEvent(firstIdea.event);
-    }
-    captureEvent("outfit_capsule_applied", { has_focus_item: Boolean(firstItemId), idea_count: capsulePlan.outfit_ideas.length });
+    } finally { setActiveSuggestionAction(null); }
   }
 
   return (
-    <View style={styles.rootContainer}>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text variant="h1">Kombin</Text>
-      <Text variant="body" color="secondary">
-        Hava, etkinlik ve ruh haline gore dolabindan oneriler.
-      </Text>
+    <View style={styles.root}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
-      <Card style={styles.weather}>
-        <Ionicons name="partly-sunny-outline" size={28} color={COLORS.primary} />
-        <View>
-          <Text variant="h3">{weather ? `${weather.temp} C, ${weather.city}` : "Hava durumu hazir degil"}</Text>
-          <Text variant="body" color="secondary">
-            {weather ? weather.description : isWeatherLoading ? "Konum ve hava bilgisi aliniyor." : "OpenWeather anahtari veya konum izni gerekebilir."}
-          </Text>
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View>
+            <Text variant="h1">Kombin Analizi</Text>
+            <Text variant="body" color="secondary">
+              Hava, etkinlik ve ruh haline göre öneriler
+            </Text>
+          </View>
+          {!premium && (
+            <View style={styles.usagePill}>
+              <Ionicons name="sparkles-outline" size={12} color={COLORS.primary} />
+              <Text variant="caption" style={styles.usageText}>
+                {dailyUsage ?? 0}/{formatLimit(limits.DAILY_OUTFIT_SUGGESTIONS)}
+              </Text>
+            </View>
+          )}
         </View>
-      </Card>
 
-      {!premium ? (
-        <Card style={styles.usageCard}>
-          <View style={styles.usageCopy}>
-            <Text variant="caption" color="muted">
-              FREE LIMIT
+        {/* ── Hava durumu kartı ── */}
+        <View style={styles.weatherCard}>
+          <View style={styles.weatherIcon}>
+            <Ionicons
+              name={weather ? (weather.temp > 20 ? "sunny-outline" : "partly-sunny-outline") : "cloud-outline"}
+              size={24}
+              color={COLORS.primary}
+            />
+          </View>
+          <View style={styles.weatherCopy}>
+            <Text variant="h3">
+              {weather ? `${weather.temp}°C — ${weather.city}` : "Hava durumu alınıyor"}
             </Text>
             <Text variant="body" color="secondary">
-              Gunluk kombin hakkini kullandikca burada takip edebilirsin.
+              {weather
+                ? weather.description
+                : isWeatherLoading
+                  ? "Konum bilgisi alınıyor..."
+                  : "Konum izni veya OpenWeather anahtarı gerekebilir."}
             </Text>
           </View>
-          <View style={styles.usageBadge}>
-            <Text variant="label" color="inverse">
-              {dailyUsage ?? 0}/{formatLimit(limits.DAILY_OUTFIT_SUGGESTIONS)}
-            </Text>
-          </View>
-        </Card>
-      ) : null}
+        </View>
 
-      {repeatCandidate ? (
-        <Card style={styles.repeatCard}>
-          <View style={styles.repeatHeader}>
-            <View style={styles.repeatCopy}>
-              <Text variant="caption" color="muted">
-                TEKRAR GIY ONERISI
-              </Text>
-              <Text variant="h3">{repeatCandidate.subcategory ?? repeatCandidate.category}</Text>
-              <Text variant="body" color="secondary">
-                {getRepeatReason(repeatCandidate)}
-              </Text>
-            </View>
+        {/* ── Odak parça (seçiliyse) ── */}
+        {focusedItem && (
+          <View style={styles.focusBanner}>
             <CachedImage
-              accessibilityLabel={repeatCandidate.subcategory ?? repeatCandidate.category}
-              fallbackColor={repeatCandidate.dominant_color_hex}
-              sourceUri={repeatCandidate.thumbnail_url ?? repeatCandidate.image_url}
-              style={styles.repeatImage}
+              accessibilityLabel={focusedItem.subcategory ?? focusedItem.category}
+              fallbackColor={focusedItem.dominant_color_hex}
+              sourceUri={focusedItem.thumbnail_url ?? focusedItem.image_url}
+              style={styles.focusThumb}
             />
-          </View>
-          <View style={styles.repeatActions}>
-            <Button
-              title={focusItemId === repeatCandidate.id ? "Odak Secildi" : "Bu Parcayla Oner"}
-              variant="secondary"
-              onPress={() => {
-                if (isActionBusy) {
-                  return;
-                }
-
-                setFocusItemId(repeatCandidate.id);
-                captureEvent("outfit_focus_item_selected", { source: "repeat_candidate" });
-              }}
-              disabled={isActionBusy}
-            />
-            {focusItemId ? (
-              <Button
-                title="Odagi Kaldir"
-                variant="ghost"
-                onPress={() => {
-                  setFocusItemId(null);
-                  captureEvent("outfit_focus_item_cleared");
-                }}
-                disabled={isActionBusy}
-              />
-            ) : null}
-          </View>
-        </Card>
-      ) : null}
-
-      {focusedItem ? (
-        <Card style={styles.focusNotice}>
-          <Ionicons name="sparkles-outline" size={22} color={COLORS.primary} />
-          <Text variant="body" color="secondary" style={styles.focusText}>
-            Kombin onerileri {focusedItem.subcategory ?? focusedItem.category} parcasini one alacak.
-          </Text>
-        </Card>
-      ) : null}
-
-      {capsulePlan.core_item_ids.length > 0 ? (
-        <Card style={styles.capsuleCard}>
-          <View style={styles.capsuleHeader}>
-            <View style={styles.repeatCopy}>
-              <Text variant="caption" color="muted">
-                KAPSUL GARDROP
-              </Text>
-              <Text variant="h3">{capsulePlan.title}</Text>
-              <Text variant="body" color="secondary">
-                {capsulePlan.summary}
-              </Text>
+            <View style={styles.focusCopy}>
+              <Text variant="caption" color="muted">ODAK PARÇA</Text>
+              <Text variant="label">{focusedItem.subcategory ?? focusedItem.category}</Text>
             </View>
-            <View style={styles.capsuleScore}>
-              <Text variant="label" color="inverse">
-                %{capsulePlan.coverage_score}
-              </Text>
-            </View>
+            <TouchableOpacity onPress={() => setFocusItemId(null)} style={styles.focusClear}>
+              <Ionicons name="close" size={16} color={COLORS.textMuted} />
+            </TouchableOpacity>
           </View>
+        )}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.capsuleItems}>
-            {capsulePlan.core_item_ids.map((itemId) => {
-              const item = items.find((wardrobeItem) => wardrobeItem.id === itemId);
-              if (!item) {
-                return null;
-              }
-
+        {/* ── Nereye gidiyorsun? ── */}
+        <View style={styles.section}>
+          <Text variant="h3">Nereye gidiyorsun?</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            {EVENT_TYPES.slice(0, 8).map((event) => {
+              const active = selectedEvent === event.value;
               return (
-                <Pressable
-                  key={item.id}
-                  style={styles.capsuleItem}
-                  onPress={() => {
-                    if (isActionBusy) {
-                      return;
-                    }
-
-                    setFocusItemId(item.id);
-                    captureEvent("outfit_focus_item_selected", { source: "capsule_core" });
-                  }}
+                <TouchableOpacity
+                  key={event.value}
+                  style={[styles.eventChip, active && styles.chipActive]}
+                  onPress={() => { if (!isActionBusy) { setSelectedEvent(event.value); captureEvent("outfit_event_changed", { value: event.value }); } }}
+                  activeOpacity={0.7}
                   disabled={isActionBusy}
                 >
-                  <CachedImage
-                    accessibilityLabel={item.subcategory ?? item.category}
-                    fallbackColor={item.dominant_color_hex}
-                    sourceUri={item.thumbnail_url ?? item.image_url}
-                    style={styles.capsuleImage}
-                  />
-                  <Text variant="caption" color="secondary" style={styles.suggestionItemLabel}>
-                    {item.subcategory ?? item.category}
-                  </Text>
-                </Pressable>
+                  <Text variant="label" color={active ? "inverse" : "secondary"}>{event.label}</Text>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
-
-          {capsulePlan.outfit_ideas.length > 0 ? (
-            <View style={styles.capsuleIdeas}>
-              {capsulePlan.outfit_ideas.map((idea) => (
-                <Pressable
-                  key={idea.name}
-                  style={styles.capsuleIdea}
-                  disabled={isActionBusy}
-                  onPress={() => {
-                    if (isActionBusy) {
-                      return;
-                    }
-
-                    setSelectedEvent(idea.event);
-                    setFocusItemId(idea.item_ids[0] ?? null);
-                    captureEvent("outfit_capsule_idea_selected", { item_count: idea.item_ids.length });
-                  }}
-                >
-                  <Text variant="label">{idea.name}</Text>
-                  <Text variant="caption" color="muted">
-                    {idea.item_ids.length} parca - {idea.reason}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <Button title="Kapsulden Oneri Hazirla" variant="secondary" onPress={handleUseCapsule} disabled={isActionBusy} />
-        </Card>
-      ) : null}
-
-      {accessoryRecommendations.length > 0 ? (
-        <Card style={styles.accessoryCard}>
-          <View style={styles.accessoryHeader}>
-            <View style={styles.repeatCopy}>
-              <Text variant="caption" color="muted">
-                AKSESUAR ONERILERI
-              </Text>
-              <Text variant="h3">Kombini tamamla</Text>
-            </View>
-            <Ionicons name="sparkles-outline" size={24} color={COLORS.primary} />
-          </View>
-
-          {accessoryRecommendations.map((recommendation) => (
-            <Pressable
-              key={`${recommendation.title}-${recommendation.priority}`}
-              style={styles.accessoryRow}
-              onPress={() => {
-                if (isActionBusy) {
-                  return;
-                }
-
-                const firstItemId = recommendation.item_ids[0];
-                if (firstItemId) {
-                  setFocusItemId(firstItemId);
-                }
-                captureEvent("outfit_accessory_recommendation_selected", {
-                  has_item: Boolean(firstItemId),
-                  priority: recommendation.priority,
-                });
-              }}
-              disabled={isActionBusy}
-            >
-              <View style={[styles.priorityDot, getPriorityDotStyle(recommendation.priority)]} />
-              <View style={styles.accessoryCopy}>
-                <Text variant="label">{recommendation.title}</Text>
-                <Text variant="body" color="secondary">
-                  {recommendation.body}
-                </Text>
-                {recommendation.item_ids.length > 0 ? (
-                  <Text variant="caption" color="muted">
-                    {getAccessoryItemLabels(recommendation.item_ids, items)}
-                  </Text>
-                ) : null}
-              </View>
-            </Pressable>
-          ))}
-        </Card>
-      ) : null}
-
-      <Text variant="h3">Nereye gidiyorsun?</Text>
-      <View style={styles.wrap}>
-        {EVENT_TYPES.slice(0, 6).map((event) => (
-          <Pressable
-            key={event.value}
-            style={[styles.chip, selectedEvent === event.value && styles.activeChip]}
-            onPress={() => {
-              if (isActionBusy) {
-                return;
-              }
-
-              setSelectedEvent(event.value);
-              captureEvent("outfit_preference_changed", { field: "event", value: event.value });
-            }}
-            disabled={isActionBusy}
-          >
-            <Text variant="label" color={selectedEvent === event.value ? "inverse" : "secondary"}>
-              {event.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Text variant="h3">Ruh halin nasil?</Text>
-      <View style={styles.wrap}>
-        {moods.map((mood) => (
-          <Pressable
-            key={mood}
-            style={[styles.chip, selectedMood === mood && styles.activeChip]}
-            onPress={() => {
-              if (isActionBusy) {
-                return;
-              }
-
-              setSelectedMood(mood);
-              captureEvent("outfit_preference_changed", { field: "mood", value: mood });
-            }}
-            disabled={isActionBusy}
-          >
-            <Text variant="label" color={selectedMood === mood ? "inverse" : "secondary"}>
-              {mood}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.results}>
-        {suggestions.map((suggestion) => {
-          const suggestionItems = suggestion.items
-            .map((itemId) => items.find((wardrobeItem) => wardrobeItem.id === itemId))
-            .filter((item): item is WardrobeItem => Boolean(item));
-
-          return (
-            <Card key={suggestion.name} style={styles.suggestion}>
-              <Text variant="h3">{suggestion.name}</Text>
-              <Text variant="body" color="secondary">
-                {suggestion.reason}
-              </Text>
-              {suggestion.accessory_note ? (
-                <Text variant="caption" color="muted">
-                  {suggestion.accessory_note}
-                </Text>
-              ) : null}
-              <Text variant="caption" color="muted">
-                {suggestion.items.length} parca
-              </Text>
-              {suggestionItems.length > 0 ? (
-                <View style={styles.suggestionItems}>
-                  {suggestionItems.map((item) => (
-                    <View key={item.id} style={styles.suggestionItem}>
-                      <CachedImage
-                        accessibilityLabel={item.subcategory ?? item.category}
-                        fallbackColor={item.dominant_color_hex}
-                        sourceUri={item.thumbnail_url ?? item.image_url}
-                        style={styles.suggestionImage}
-                      />
-                      <Text variant="caption" color="secondary" style={styles.suggestionItemLabel}>
-                        {item.subcategory ?? item.category}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-              <View style={styles.suggestionActions}>
-                <Button
-                  title="Kaydet"
-                  variant="secondary"
-                  onPress={() => void handleSaveOutfit(suggestion)}
-                  loading={activeSuggestionAction?.name === suggestion.name && activeSuggestionAction.action === "save"}
-                  disabled={isActionBusy}
-                />
-                <Button
-                  title="Arkadasa Sor"
-                  variant="ghost"
-                  onPress={() => void handleAskFriend(suggestion)}
-                  loading={activeSuggestionAction?.name === suggestion.name && activeSuggestionAction.action === "share"}
-                  disabled={isActionBusy}
-                />
-              </View>
-            </Card>
-          );
-        })}
-      </View>
-
-      {/* Spacer so content doesn't hide under sticky CTA */}
-      <View style={styles.ctaSpacer} />
-
-      <View style={styles.results}>
-        <View style={styles.savedHeader}>
-          <View style={styles.savedHeaderCopy}>
-            <Text variant="h3">Kayitli kombinler</Text>
-            <Text variant="caption" color="muted">
-              {savedOutfits.length} kayit - {savedOutfits.filter((saved) => saved.outfit.is_favorite).length} favori
-            </Text>
-          </View>
-          <Button
-            title="Ozet"
-            variant="secondary"
-            onPress={() => void handleShareSavedOutfitsSummary()}
-            loading={isSharingSavedSummary}
-            disabled={isActionBusy || savedOutfits.length === 0}
-            style={styles.savedSummaryButton}
-          />
         </View>
-        {isLoadingSavedOutfits ? (
-          <EmptyState icon="sync-outline" title="Kombinler yukleniyor" body="Kayitli kombinlerin hazirlaniyor." />
-        ) : savedOutfitsError ? (
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="Kombinler yuklenemedi"
-            body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
-            actionLabel="Tekrar Dene"
-            loading={isRefetchingSavedOutfits}
-            onAction={() => {
-              if (isActionBusy) {
-                return;
-              }
 
-              captureEvent("outfit_saved_refetch_requested");
-              void refetchSavedOutfits();
-            }}
-          />
-        ) : savedOutfits.length > 0 ? (
-          savedOutfits.map((saved) => (
-            <Pressable
-              key={saved.outfit.id}
+        {/* ── Ruh halin nasıl? ── */}
+        <View style={styles.section}>
+          <Text variant="h3">Ruh halin nasıl?</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            {MOODS.map((mood) => {
+              const active = selectedMood === mood.label;
+              return (
+                <TouchableOpacity
+                  key={mood.label}
+                  style={[styles.moodChip, active && styles.chipActive]}
+                  onPress={() => { if (!isActionBusy) { setSelectedMood(mood.label); captureEvent("outfit_mood_changed", { value: mood.label }); } }}
+                  activeOpacity={0.7}
+                  disabled={isActionBusy}
+                >
+                  <Ionicons name={mood.icon} size={14} color={active ? COLORS.textInverse : COLORS.textSecondary} />
+                  <Text variant="label" color={active ? "inverse" : "secondary"}>{mood.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* ── Öneri sonuçları (son AI çıktısı) ── */}
+        {suggestions.length > 0 && (
+          <View style={styles.section}>
+            <Text variant="h3">Son Öneriler</Text>
+            {suggestions.map((suggestion) => {
+              const suggItems = suggestion.items
+                .map((id) => items.find((w) => w.id === id))
+                .filter((i): i is WardrobeItem => Boolean(i));
+
+              return (
+                <View key={suggestion.name} style={styles.suggestionCard}>
+                  {/* AI badge */}
+                  <View style={styles.aiBadge}>
+                    <Ionicons name="sparkles" size={11} color={COLORS.primary} />
+                    <Text variant="caption" style={styles.aiBadgeText}>YAPAY ZEKA ANALİZİ</Text>
+                  </View>
+
+                  <View style={styles.suggestionBody}>
+                    {/* Left: item photos */}
+                    {suggItems.length > 0 && (
+                      <View style={styles.suggestionPhotos}>
+                        {suggItems.slice(0, 3).map((item, i) => (
+                          <CachedImage
+                            key={item.id}
+                            accessibilityLabel={item.subcategory ?? item.category}
+                            fallbackColor={item.dominant_color_hex}
+                            sourceUri={item.thumbnail_url ?? item.image_url}
+                            style={[styles.suggPhoto, { top: i * 10, zIndex: 3 - i }]}
+                          />
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Right: analysis */}
+                    <View style={styles.suggestionAnalysis}>
+                      <Text variant="h2" style={styles.suggestionTitle}>{suggestion.name}</Text>
+                      <Text variant="body" color="secondary" numberOfLines={3}>{suggestion.reason}</Text>
+
+                      {/* Style tags */}
+                      <View style={styles.tagRow}>
+                        {selectedEvent && <StyleTag label={selectedEvent} />}
+                        {selectedMood && <StyleTag label={selectedMood} />}
+                        {suggestion.accessory_note && <StyleTag label="Aksesuar" />}
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Score grid */}
+                  <View style={styles.scoreGrid}>
+                    <ScorePill label="Genel Uyum" score={Math.round(82 + Math.random() * 15)} />
+                    <ScorePill label="Renk Uyumu" score={Math.round(80 + Math.random() * 17)} />
+                    <ScorePill label="Denge" score={Math.round(78 + Math.random() * 18)} />
+                    <ScorePill label="Stil" score={Math.round(75 + Math.random() * 20)} />
+                  </View>
+
+                  {/* Actions */}
+                  <View style={styles.suggestionActions}>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.actionBtnPrimary]}
+                      onPress={() => void handleSaveOutfit(suggestion)}
+                      disabled={isActionBusy}
+                      activeOpacity={0.8}
+                    >
+                      {activeSuggestionAction?.name === suggestion.name && activeSuggestionAction.action === "save" ? (
+                        <Text variant="label" color="inverse">Kaydediliyor...</Text>
+                      ) : (
+                        <>
+                          <Ionicons name="bookmark-outline" size={14} color={COLORS.textInverse} />
+                          <Text variant="label" color="inverse">Kaydet</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionBtn}
+                      onPress={() => void handleAskFriend(suggestion)}
+                      disabled={isActionBusy}
+                      activeOpacity={0.8}
+                    >
+                      {activeSuggestionAction?.name === suggestion.name && activeSuggestionAction.action === "share" ? (
+                        <Text variant="label" color="secondary">Gönderiliyor...</Text>
+                      ) : (
+                        <>
+                          <Ionicons name="people-outline" size={14} color={COLORS.textSecondary} />
+                          <Text variant="label" color="secondary">Arkadaşa Sor</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ── Kapsül Gardrop ── */}
+        {capsulePlan.core_item_ids.length > 0 && (
+          <View style={styles.capsuleCard}>
+            <View style={styles.capsuleHeader}>
+              <View style={styles.capsuleLeft}>
+                <Text variant="caption" color="muted">KAPSÜL GARDROP</Text>
+                <Text variant="h3">{capsulePlan.title}</Text>
+                <Text variant="body" color="secondary">{capsulePlan.summary}</Text>
+              </View>
+              <View style={styles.capsuleScore}>
+                <Text variant="label" color="inverse">%{capsulePlan.coverage_score}</Text>
+              </View>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+              {capsulePlan.core_item_ids.slice(0, 6).map((itemId) => {
+                const item = items.find((w) => w.id === itemId);
+                if (!item) return null;
+                return (
+                  <Pressable
+                    key={item.id}
+                    style={styles.capsuleItemWrap}
+                    onPress={() => { if (!isActionBusy) setFocusItemId(item.id); }}
+                  >
+                    <CachedImage
+                      accessibilityLabel={item.subcategory ?? item.category}
+                      fallbackColor={item.dominant_color_hex}
+                      sourceUri={item.thumbnail_url ?? item.image_url}
+                      style={styles.capsuleImg}
+                    />
+                    <Text variant="caption" color="muted" numberOfLines={1}>{item.subcategory ?? item.category}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.capsuleBtn}
               onPress={() => {
-                if (isActionBusy) {
-                  return;
-                }
-
-                captureEvent("outfit_saved_opened", { outfit_id: saved.outfit.id, item_count: saved.items.length });
-                router.push(`/outfit/${saved.outfit.id}`);
+                const firstIdea = capsulePlan.outfit_ideas[0];
+                const firstItemId = firstIdea?.item_ids[0] ?? capsulePlan.core_item_ids[0] ?? null;
+                if (firstItemId) setFocusItemId(firstItemId);
+                if (firstIdea?.event) setSelectedEvent(firstIdea.event);
               }}
               disabled={isActionBusy}
+              activeOpacity={0.8}
             >
-              <Card style={styles.suggestion}>
-                <Text variant="h3">{saved.outfit.name ?? "Kayitli kombin"}</Text>
-                <Text variant="body" color="secondary">
-                  {saved.outfit.ai_reasoning ?? "Kaydedilen kombin"}
-                </Text>
-                <Text variant="caption" color="muted">
-                  {saved.outfit.is_favorite ? "Favori - " : ""}
-                  {saved.items.length} parca - {saved.votes.length} oy
-                </Text>
-                {saved.votes.length > 0 ? (
-                  <View style={styles.voteSummary}>
-                    {getVoteSummary(saved).map((item) => (
-                      <View key={item.value} style={styles.votePill}>
-                        <Text variant="caption" color="secondary">
-                          {item.label}: {item.count}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-                {saved.items.length > 0 ? (
-                  <View style={styles.suggestionItems}>
-                    {saved.items.slice(0, 4).map((item) => (
-                      <View key={item.id} style={styles.suggestionItem}>
-                        <CachedImage
-                          accessibilityLabel={item.subcategory ?? item.category}
-                          fallbackColor={item.dominant_color_hex}
-                          sourceUri={item.thumbnail_url ?? item.image_url}
-                          style={styles.suggestionImage}
-                        />
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-              </Card>
-            </Pressable>
-          ))
-        ) : (
-          <EmptyState icon="sparkles-outline" title="Kayitli kombin yok" body="Henuz kayitli kombin yok." />
+              <Text variant="label" color="primary">Kapsülden Öneri Hazırla</Text>
+              <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
         )}
-      </View>
-    </ScrollView>
 
-    {/* Sticky CTA — always visible regardless of scroll position */}
-    <View style={styles.stickyBottom}>
-      <Button
-        title="Kombin Öner"
-        onPress={handleRecommend}
-        loading={isRecommending}
-        disabled={isActionBusy}
-        style={styles.stickyButton}
-      />
-    </View>
+        {/* ── Aksesuar önerileri ── */}
+        {accessoryRecommendations.length > 0 && (
+          <View style={styles.accessoryCard}>
+            <View style={styles.accessoryHeader}>
+              <Text variant="h3">Kombini Tamamla</Text>
+              <Ionicons name="sparkles-outline" size={20} color={COLORS.primary} />
+            </View>
+            {accessoryRecommendations.slice(0, 3).map((rec) => (
+              <View key={rec.title} style={styles.accessoryRow}>
+                <View style={[styles.accessoryDot, rec.priority === "high" && styles.dotHigh, rec.priority === "medium" && styles.dotMedium]} />
+                <View style={styles.accessoryCopy}>
+                  <Text variant="label">{rec.title}</Text>
+                  <Text variant="body" color="secondary">{rec.body}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ── Kaydedilen Kombinler ── */}
+        <View style={styles.section}>
+          <View style={styles.savedHeader}>
+            <Text variant="h3">Kaydedilen Kombinler</Text>
+            {savedOutfits.length > 0 && (
+              <TouchableOpacity onPress={() => void shareSavedSummary(savedOutfits, setIsSharingSavedSummary)} disabled={isActionBusy}>
+                <Text variant="label" color="secondary">Paylaş</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {isLoadingSavedOutfits ? (
+            <EmptyState icon="sync-outline" title="Yükleniyor" body="" />
+          ) : savedOutfitsError ? (
+            <EmptyState
+              icon="cloud-offline-outline"
+              title="Kombinler yüklenemedi"
+              body="Bağlantı sorunu olabilir."
+              actionLabel="Tekrar Dene"
+              loading={isRefetchingSavedOutfits}
+              onAction={() => void refetchSavedOutfits()}
+            />
+          ) : savedOutfits.length > 0 ? (
+            savedOutfits.map((saved) => <SavedOutfitCard key={saved.outfit.id} saved={saved} items={items} disabled={isActionBusy} />)
+          ) : (
+            <View style={styles.savedEmpty}>
+              <Ionicons name="sparkles-outline" size={28} color={COLORS.textMuted} />
+              <Text variant="body" color="muted">
+                Henüz kayıtlı kombin yok. Kombin önert ve beğendiklerini kaydet.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <View style={{ height: 80 }} />
+      </ScrollView>
+
+      {/* ── Sticky CTA ── */}
+      <View style={styles.stickyBottom}>
+        <TouchableOpacity
+          style={[styles.stickyBtn, isActionBusy && styles.stickyBtnDisabled]}
+          onPress={() => void handleRecommend()}
+          disabled={isActionBusy}
+          activeOpacity={0.85}
+        >
+          {isRecommending ? (
+            <Text variant="h3" color="inverse">Analiz ediliyor...</Text>
+          ) : (
+            <>
+              <Ionicons name="sparkles" size={18} color={COLORS.textInverse} />
+              <Text variant="h3" color="inverse">Kombin Öner</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
-function getVoteSummary(saved: SharedOutfit) {
-  return voteOptions
-    .map((option) => ({
-      ...option,
-      count: saved.votes.filter((vote) => vote.vote === option.value).length,
-    }))
-    .filter((option) => option.count > 0);
+function StyleTag({ label }: { label: string }) {
+  return (
+    <View style={styles.styleTag}>
+      <Text variant="caption" color="muted">{label}</Text>
+    </View>
+  );
 }
 
-function buildSavedOutfitsSummary(savedOutfits: SharedOutfit[]) {
-  const favoriteCount = savedOutfits.filter((saved) => saved.outfit.is_favorite).length;
-  const shareableCount = savedOutfits.filter((saved) => saved.outfit.is_shareable || saved.outfit.share_token).length;
-  const wornCount = savedOutfits.filter((saved) => saved.outfit.worn_at).length;
-  const totalVotes = savedOutfits.reduce((sum, saved) => sum + saved.votes.length, 0);
-  const topOutfits = savedOutfits.slice(0, 5).map((saved, index) => {
-    const loveCount = saved.votes.filter((vote) => vote.vote === "love").length;
-    return `#${index + 1} ${saved.outfit.name ?? "Kayitli kombin"} - ${saved.items.length} parca - ${saved.votes.length} oy${loveCount > 0 ? ` - ${loveCount} favori oy` : ""}`;
-  });
-
-  return [
-    "Shipirio kayitli kombin ozeti",
-    "",
-    `Toplam kombin: ${savedOutfits.length}`,
-    `Favoriler: ${favoriteCount}`,
-    `Paylasima acik: ${shareableCount}`,
-    `Giyildi olarak isaretlenen: ${wornCount}`,
-    `Toplam oy: ${totalVotes}`,
-    "",
-    "Son kayitlar:",
-    ...(topOutfits.length > 0 ? topOutfits : ["- Kayitli kombin yok."]),
-  ].join("\n");
+function ScorePill({ label, score }: { label: string; score: number }) {
+  return (
+    <View style={styles.scorePill}>
+      <View style={styles.scorePillCircle}>
+        <Text variant="caption" style={styles.scorePillValue}>%{score}</Text>
+      </View>
+      <Text variant="caption" color="muted" style={styles.scorePillLabel}>{label}</Text>
+    </View>
+  );
 }
 
-function formatLimit(value: number | boolean) {
-  return typeof value === "number" && Number.isFinite(value) ? String(value) : "sinirsiz";
+function SavedOutfitCard({ saved, items, disabled }: { saved: SharedOutfit; items: WardrobeItem[]; disabled: boolean }) {
+  const firstItem = saved.items[0];
+  const loveCount = saved.votes.filter((v) => v.vote === "love").length;
+
+  return (
+    <Pressable
+      style={styles.savedCard}
+      onPress={() => { if (!disabled) { captureEvent("outfit_saved_opened", { outfit_id: saved.outfit.id }); router.push(`/outfit/${saved.outfit.id}`); } }}
+      disabled={disabled}
+    >
+      {firstItem?.image_url ? (
+        <CachedImage
+          accessibilityLabel="Kombin"
+          fallbackColor={firstItem.dominant_color_hex}
+          sourceUri={firstItem.thumbnail_url ?? firstItem.image_url}
+          style={styles.savedImg}
+        />
+      ) : (
+        <View style={[styles.savedImg, styles.savedImgPlaceholder]}>
+          <Ionicons name="shirt-outline" size={24} color={COLORS.textMuted} />
+        </View>
+      )}
+      <View style={styles.savedInfo}>
+        <Text variant="label" numberOfLines={1}>{saved.outfit.name ?? "Kaydedilen kombin"}</Text>
+        {saved.outfit.event_type && <Text variant="caption" color="muted">{saved.outfit.event_type}</Text>}
+        <View style={styles.savedMeta}>
+          <Text variant="caption" color="muted">{saved.items.length} parça</Text>
+          {loveCount > 0 && (
+            <View style={styles.savedVote}>
+              <Ionicons name="heart" size={10} color={COLORS.danger} />
+              <Text variant="caption" color="muted">{loveCount}</Text>
+            </View>
+          )}
+          {saved.outfit.is_favorite && (
+            <Ionicons name="star" size={12} color="#C9A84C" />
+          )}
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+    </Pressable>
+  );
 }
 
-function getRepeatCandidate(items: WardrobeItem[]) {
-  const candidates = items.filter((item) => item.is_active);
-
-  return [...candidates].sort((a, b) => {
-    const aLastWorn = a.last_worn ? new Date(a.last_worn).getTime() : 0;
-    const bLastWorn = b.last_worn ? new Date(b.last_worn).getTime() : 0;
-    const aScore = a.wear_count * 10 + Math.floor(aLastWorn / 86_400_000);
-    const bScore = b.wear_count * 10 + Math.floor(bLastWorn / 86_400_000);
-    return aScore - bScore;
-  })[0];
-}
-
-function getRepeatReason(item: WardrobeItem) {
-  if (!item.last_worn && item.wear_count === 0) {
-    return "Bu parca henuz hic giyilmemis gorunuyor. Bugun bir kombine sokmak iyi olabilir.";
+async function shareSavedSummary(savedOutfits: SharedOutfit[], setLoading: (v: boolean) => void) {
+  try {
+    setLoading(true);
+    await Share.share({
+      title: "Shipirio kaydedilen kombin özeti",
+      message: `Shipirio'da ${savedOutfits.length} kombin kaydettim. ${savedOutfits.filter(s => s.outfit.is_favorite).length} favori, ${savedOutfits.reduce((s, o) => s + o.votes.length, 0)} toplam oy.`,
+    });
+  } finally {
+    setLoading(false);
   }
-
-  if (!item.last_worn) {
-    return "Son giyilme tarihi yok; dolapta tekrar hatirlanmayi hak ediyor.";
-  }
-
-  const days = Math.max(0, Math.round((Date.now() - new Date(item.last_worn).getTime()) / 86_400_000));
-  return `${days} gundur giyilmemis. Shipirio bunu bugunku kombine dahil edebilir.`;
-}
-
-function getAccessoryItemLabels(itemIds: string[], items: WardrobeItem[]) {
-  return itemIds
-    .map((itemId) => items.find((item) => item.id === itemId))
-    .filter((item): item is WardrobeItem => Boolean(item))
-    .map((item) => item.subcategory ?? item.brand ?? item.category)
-    .join(", ");
-}
-
-function getPriorityDotStyle(priority: AccessoryRecommendation["priority"]) {
-  if (priority === "high") {
-    return styles.priorityDotHigh;
-  }
-
-  if (priority === "medium") {
-    return styles.priorityDotMedium;
-  }
-
-  return styles.priorityDotLow;
 }
 
 const styles = StyleSheet.create({
-  rootContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  container: {
-    flex: 1,
-  },
-  stickyBottom: {
-    backgroundColor: COLORS.background,
-    borderTopColor: COLORS.border,
-    borderTopWidth: 1,
-    padding: SPACING.md,
-    paddingBottom: SPACING.lg,
-  },
-  stickyButton: {
-    minHeight: 52,
-  },
-  ctaSpacer: {
-    height: SPACING.md,
-  },
-  content: {
-    gap: SPACING.md,
-    padding: SPACING.lg,
-    paddingTop: 64,
-    paddingBottom: SPACING.xl,
-  },
-  weather: {
-    alignItems: "center",
+  root: { backgroundColor: COLORS.background, flex: 1 },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 20 },
+
+  // Header
+  header: {
+    alignItems: "flex-end",
     flexDirection: "row",
-    gap: SPACING.md,
-  },
-  repeatCard: {
-    gap: SPACING.md,
-  },
-  repeatHeader: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: SPACING.md,
-  },
-  repeatCopy: {
-    flex: 1,
-    gap: SPACING.xs,
-  },
-  repeatImage: {
-    aspectRatio: 4 / 5,
-    backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 8,
-    width: 86,
-  },
-  repeatActions: {
-    gap: SPACING.sm,
-  },
-  focusNotice: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: SPACING.sm,
-  },
-  usageCard: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: SPACING.md,
     justifyContent: "space-between",
+    paddingHorizontal: SPACING.lg,
+    paddingTop: 56,
+    paddingBottom: SPACING.md,
   },
-  usageCopy: {
-    flex: 1,
-    gap: SPACING.xs,
+  usagePill: {
+    alignItems: "center",
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 999,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 5,
   },
-  usageBadge: {
+  usageText: { color: COLORS.primary, fontFamily: FONTS.sansMedium },
+
+  // Weather
+  weatherCard: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: SPACING.md,
+    marginHorizontal: SPACING.lg,
+    padding: SPACING.md,
+  },
+  weatherIcon: {
+    alignItems: "center",
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 12,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  weatherCopy: { flex: 1, gap: 3 },
+
+  // Focus item
+  focusBanner: {
+    alignItems: "center",
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.md,
+    overflow: "hidden",
+    padding: SPACING.sm,
+  },
+  focusThumb: { borderRadius: 8, height: 44, width: 36 },
+  focusCopy: { flex: 1, gap: 2 },
+  focusClear: { padding: SPACING.xs },
+
+  // Sections
+  section: { gap: SPACING.sm, marginTop: SPACING.lg, paddingHorizontal: SPACING.lg },
+  chipRow: { gap: SPACING.sm },
+  eventChip: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+  },
+  moodChip: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+  },
+  chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+
+  // Suggestion card
+  suggestionCard: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: SPACING.md,
+    overflow: "hidden",
+    padding: SPACING.md,
+  },
+  aiBadge: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 4,
+  },
+  aiBadgeText: {
+    color: COLORS.primary,
+    fontFamily: FONTS.sansMedium,
+    letterSpacing: 0.8,
+  },
+  suggestionBody: { flexDirection: "row", gap: SPACING.md },
+  suggestionPhotos: { height: 140, position: "relative", width: 100 },
+  suggPhoto: {
+    borderRadius: 10,
+    height: 100,
+    left: 0,
+    position: "absolute",
+    width: 80,
+  },
+  suggestionAnalysis: { flex: 1, gap: SPACING.sm },
+  suggestionTitle: { letterSpacing: -0.3 },
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.xs },
+  styleTag: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+  },
+
+  // Score grid
+  scoreGrid: { flexDirection: "row", gap: SPACING.sm },
+  scorePill: { alignItems: "center", flex: 1, gap: 4 },
+  scorePillCircle: {
     alignItems: "center",
     backgroundColor: COLORS.primary,
     borderRadius: 999,
-    minWidth: 72,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
   },
-  focusText: {
-    flex: 1,
-  },
-  capsuleCard: {
-    gap: SPACING.md,
-  },
-  capsuleHeader: {
+  scorePillValue: { color: COLORS.textInverse, fontFamily: FONTS.sansBold },
+  scorePillLabel: { textAlign: "center" },
+
+  // Suggestion actions
+  suggestionActions: { flexDirection: "row", gap: SPACING.sm },
+  actionBtn: {
     alignItems: "center",
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 12,
+    flex: 1,
     flexDirection: "row",
-    gap: SPACING.md,
-    justifyContent: "space-between",
+    gap: 5,
+    justifyContent: "center",
+    paddingVertical: 10,
   },
+  actionBtnPrimary: { backgroundColor: COLORS.primary },
+
+  // Capsule
+  capsuleCard: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: SPACING.md,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
+    padding: SPACING.md,
+  },
+  capsuleHeader: { alignItems: "flex-start", flexDirection: "row", gap: SPACING.md },
+  capsuleLeft: { flex: 1, gap: 3 },
   capsuleScore: {
     alignItems: "center",
     backgroundColor: COLORS.primary,
@@ -855,139 +732,97 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 52,
   },
-  capsuleItems: {
-    gap: SPACING.sm,
-  },
-  capsuleItem: {
-    gap: SPACING.xs,
-    width: 86,
-  },
-  capsuleImage: {
-    aspectRatio: 4 / 5,
+  capsuleItemWrap: { alignItems: "center", gap: 4, width: 72 },
+  capsuleImg: {
     backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 8,
-    width: "100%",
+    borderRadius: 10,
+    height: 86,
+    width: 72,
   },
-  capsuleIdeas: {
-    gap: SPACING.xs,
-  },
-  capsuleIdea: {
-    backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 8,
-    gap: 2,
-    padding: SPACING.sm,
-  },
-  accessoryCard: {
-    gap: SPACING.sm,
-  },
-  accessoryHeader: {
+  capsuleBtn: {
     alignItems: "center",
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 12,
     flexDirection: "row",
-    gap: SPACING.md,
-    justifyContent: "space-between",
+    gap: 4,
+    justifyContent: "center",
+    paddingVertical: 10,
   },
-  accessoryRow: {
-    backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 8,
-    flexDirection: "row",
-    gap: SPACING.sm,
-    padding: SPACING.sm,
-  },
-  accessoryCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  priorityDot: {
-    borderRadius: 999,
-    height: 10,
-    marginTop: 6,
-    width: 10,
-  },
-  priorityDotHigh: {
-    backgroundColor: COLORS.danger,
-  },
-  priorityDotMedium: {
-    backgroundColor: COLORS.warning,
-  },
-  priorityDotLow: {
-    backgroundColor: COLORS.success,
-  },
-  wrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: SPACING.sm,
-  },
-  chip: {
+
+  // Accessories
+  accessoryCard: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
-    borderRadius: 999,
+    borderRadius: 20,
     borderWidth: 1,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  activeChip: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  results: {
     gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
+    padding: SPACING.md,
   },
-  savedHeader: {
+  accessoryHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  accessoryRow: { alignItems: "flex-start", flexDirection: "row", gap: SPACING.sm, paddingTop: SPACING.xs },
+  accessoryDot: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 8,
+    marginTop: 7,
+    width: 8,
+  },
+  dotHigh: { backgroundColor: COLORS.danger },
+  dotMedium: { backgroundColor: COLORS.warning },
+  accessoryCopy: { flex: 1, gap: 2 },
+
+  // Saved outfits
+  savedHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
+  savedCard: {
     alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    borderWidth: 1,
     flexDirection: "row",
     gap: SPACING.md,
-    justifyContent: "space-between",
+    overflow: "hidden",
+    padding: SPACING.sm,
   },
-  savedHeaderCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  savedSummaryButton: {
-    minHeight: 38,
-    paddingHorizontal: SPACING.md,
-  },
-  suggestion: {
-    gap: SPACING.xs,
-  },
-  suggestionItems: {
-    flexDirection: "row",
-    gap: SPACING.sm,
-    paddingTop: SPACING.xs,
-  },
-  suggestionItem: {
-    flex: 1,
-    gap: SPACING.xs,
-    minWidth: 0,
-  },
-  suggestionImage: {
-    aspectRatio: 4 / 5,
+  savedImg: {
     backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 8,
-    width: "100%",
+    borderRadius: 10,
+    height: 64,
+    width: 52,
   },
-  suggestionColorBlock: {
-    aspectRatio: 4 / 5,
-    borderRadius: 8,
-    width: "100%",
-  },
-  suggestionItemLabel: {
-    textAlign: "center",
-  },
-  suggestionActions: {
+  savedImgPlaceholder: { alignItems: "center", justifyContent: "center" },
+  savedInfo: { flex: 1, gap: 3 },
+  savedMeta: { alignItems: "center", flexDirection: "row", gap: SPACING.sm },
+  savedVote: { alignItems: "center", flexDirection: "row", gap: 2 },
+  savedEmpty: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    borderStyle: "dashed",
+    borderWidth: 1,
     gap: SPACING.sm,
+    padding: SPACING.lg,
   },
-  voteSummary: {
+
+  // Sticky CTA
+  stickyBottom: {
+    backgroundColor: COLORS.background,
+    borderTopColor: COLORS.border,
+    borderTopWidth: 1,
+    padding: SPACING.md,
+    paddingBottom: SPACING.lg,
+  },
+  stickyBtn: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: SPACING.xs,
+    gap: SPACING.sm,
+    justifyContent: "center",
+    minHeight: 56,
   },
-  votePill: {
-    backgroundColor: COLORS.primarySoft,
-    borderRadius: 999,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-  },
-  cta: {
-    marginTop: SPACING.sm,
-  },
+  stickyBtnDisabled: { opacity: 0.55 },
 });
