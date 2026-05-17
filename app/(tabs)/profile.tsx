@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, Share, StyleSheet, TouchableOpacity, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -11,153 +11,63 @@ import { SPACING } from "@/constants/spacing";
 import { useNotificationInbox } from "@/hooks/useNotificationInbox";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
+import { useOutfitDiary } from "@/hooks/useOutfitDiary";
 import { captureError, captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 import { formatDate } from "@/utils/formatters";
+
+const STYLE_TAGS = ["Minimal", "Zarif", "Dengeli", "Modern", "Doğal"];
 
 export default function ProfileScreen() {
   const { profile, signOut } = useAuthStore();
   const { premium } = useSubscription();
   const { unreadCount } = useNotificationInbox();
   const { items } = useWardrobe();
+  const { entries } = useOutfitDiary();
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [isSharingReadiness, setIsSharingReadiness] = useState(false);
-  const isProfileBusy = isSigningOut || isSharingReadiness;
+  const isProfileBusy = isSigningOut;
+
   const profileIncomplete = Boolean(profile && (!profile.username || !profile.onboarding_completed));
   const legalConsentIncomplete = Boolean(profile && (!profile.kvkk_consent_at || !profile.terms_accepted_at));
-  const quickStartSteps = [
-    {
-      body: items.length > 0 ? `${items.length} kiyafet dolabinda.` : "Ilk parcani ekleyip AI analizini baslat.",
-      done: items.length > 0,
-      label: "Dolap",
-      route: items.length > 0 ? ("/" as const) : ("/item/add" as const),
-      title: items.length > 0 ? "Dolap kuruldu" : "Ilk kiyafeti ekle",
-    },
-    {
-      body: profileIncomplete ? "Kullanici adi ve profil bilgilerini tamamla." : "Sosyal ve destek akislari icin profil hazir.",
-      done: !profileIncomplete,
-      label: "Profil",
-      route: "/settings/account" as const,
-      title: profileIncomplete ? "Profilini tamamla" : "Profil hazir",
-    },
-    {
-      body: legalConsentIncomplete ? "KVKK ve kullanim sartlari onayini tamamla." : "Yasal onaylar hesap kaydinda.",
-      done: !legalConsentIncomplete,
-      label: "Yasal",
-      route: "/settings/account" as const,
-      title: legalConsentIncomplete ? "Yasal onaylari tamamla" : "Yasal onaylar tamam",
-    },
-    {
-      body: premium ? "Premium limitler aktif gorunuyor." : "Premium ozellikleri ve limitleri incele.",
-      done: premium,
-      label: "Plan",
-      route: "/settings/subscription" as const,
-      title: premium ? "Premium aktif" : "Planini kontrol et",
-    },
-  ];
-  const completedQuickStartSteps = quickStartSteps.filter((step) => step.done).length;
-  const readinessSteps = [
-    {
-      body: "Env, push, analytics ve crash ayarlari.",
-      label: "Sistem",
-      route: "/settings/diagnostics" as const,
-      title: "Sistem durumunu kontrol et",
-    },
-    {
-      body: "Gizlilik, destek ve hesap silme yollarini dogrula.",
-      label: "Review",
-      route: "/settings" as const,
-      title: "Store review akislarini ac",
-    },
-    {
-      body: "Premium teklifleri, restore ve limit ekranlarini test et.",
-      label: "Premium",
-      route: "/settings/subscription" as const,
-      title: "Abonelik hazirligini incele",
-    },
-    {
-      body: "Destek baglami, public yasal linkler ve e-posta sablonlari.",
-      label: "Destek",
-      route: "/settings/support" as const,
-      title: "Destek merkezini kontrol et",
-    },
-  ];
+
+  // Style score calculation
+  const wornCount = items.filter((i) => i.wear_count > 0).length;
+  const styleScore = items.length > 0
+    ? Math.min(99, Math.round((wornCount / items.length) * 100 * 0.6 + 40))
+    : 0;
+
+  const styleLabel =
+    styleScore >= 85 ? "Zamansız Minimal" :
+    styleScore >= 70 ? "Dengeli Zarif" :
+    styleScore >= 55 ? "Gelişen Stil" :
+    "Başlangıç";
+
+  const displayName = profile?.full_name ?? profile?.username ?? "Shipirio";
+  const initials = displayName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
 
   useEffect(() => {
     captureEvent("profile_screen_viewed", {
       premium,
-      legal_consent_incomplete: legalConsentIncomplete,
       profile_incomplete: profileIncomplete,
-      deletion_requested: Boolean(profile?.deletion_requested_at),
-      quick_start_completed: completedQuickStartSteps,
       wardrobe_count: items.length,
     });
-  }, [completedQuickStartSteps, items.length, legalConsentIncomplete, premium, profile?.deletion_requested_at, profileIncomplete]);
+  }, [items.length, premium, profileIncomplete]);
 
   function openRoute(route: Parameters<typeof router.push>[0], label: string) {
-    if (isProfileBusy) {
-      return;
-    }
-
+    if (isProfileBusy) return;
     captureEvent("profile_route_opened", { label });
     router.push(route);
   }
 
   function handleSignOut() {
-    if (isProfileBusy) {
-      return;
-    }
-
-    captureEvent("profile_sign_out_prompt_opened");
-    Alert.alert("Cikis yap", "Shipirio hesabindan cikis yapmak istiyor musun?", [
-      { text: "Vazgec", style: "cancel" },
-      {
-        text: "Cikis Yap",
-        style: "destructive",
-        onPress: () => {
-          void performSignOut();
-        },
-      },
+    if (isProfileBusy) return;
+    Alert.alert("Çıkış yap", "Shipirio hesabından çıkış yapmak istiyor musun?", [
+      { text: "Vazgeç", style: "cancel" },
+      { text: "Çıkış Yap", style: "destructive", onPress: () => void performSignOut() },
     ]);
   }
 
-  async function handleShareProfileReadiness() {
-    if (isProfileBusy) {
-      return;
-    }
-
-    try {
-      setIsSharingReadiness(true);
-      const result = await Share.share({
-        title: "Shipirio profil ve yayin hazirlik ozeti",
-        message: buildProfileReadinessSummary({
-          completedQuickStartSteps,
-          itemsCount: items.length,
-          premium,
-          profileName: profile?.full_name ?? "Shipirio kullanicisi",
-          quickStartSteps,
-          readinessSteps,
-          unreadCount,
-        }),
-      });
-      captureEvent("profile_readiness_shared", {
-        action: result.action,
-        completed: result.action === Share.sharedAction,
-        quick_start_completed: completedQuickStartSteps,
-      });
-    } catch (error) {
-      captureError(error, { area: "profile_readiness_share" });
-      Alert.alert("Ozet paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
-    } finally {
-      setIsSharingReadiness(false);
-    }
-  }
-
   async function performSignOut() {
-    if (isSigningOut) {
-      return;
-    }
-
     try {
       setIsSigningOut(true);
       await signOut();
@@ -165,371 +75,340 @@ export default function ProfileScreen() {
       router.replace("/(auth)/onboarding");
     } catch (error) {
       captureError(error, { area: "profile_sign_out" });
-      Alert.alert("Cikis yapilamadi", error instanceof Error ? error.message : "Tekrar dene.");
+      Alert.alert("Çıkış yapılamadı", error instanceof Error ? error.message : "Tekrar dene.");
     } finally {
       setIsSigningOut(false);
     }
   }
 
-  const routeDisabled = isProfileBusy;
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text variant="h1">Profil</Text>
-      <Card style={styles.profileCard}>
-        <View style={styles.avatar}>
-          <Text variant="h2" color="inverse">
-            {(profile?.full_name?.[0] ?? "D").toUpperCase()}
-          </Text>
-        </View>
-        <View>
-          <Text variant="h3">{profile?.full_name ?? "Shipirio kullanicisi"}</Text>
-          <Text variant="body" color="secondary">
-            {premium ? "premium plan" : `${profile?.subscription_tier ?? "free"} plan`}
-          </Text>
-        </View>
-      </Card>
-
-      {profile?.deletion_requested_at ? (
-        <Card style={styles.deletionNotice}>
-          <Text variant="h3">Hesap silme talebi aktif</Text>
-          <Text variant="body" color="secondary">
-            Planlanan silme tarihi: {profile.deletion_scheduled_for ? formatDate(profile.deletion_scheduled_for) : "30 gun icinde"}. Talebi hesap ayarlarindan iptal edebilirsin.
-          </Text>
-          <Button title="Talebi Yonet" variant="secondary" onPress={() => openRoute("/settings/account", "deletion_account")} disabled={routeDisabled} />
-        </Card>
-      ) : null}
-
-      {!premium ? (
-        <Card style={styles.premiumBanner}>
-          <View style={styles.premiumCopy}>
-            <Text variant="h3">Premium'a Gec</Text>
-            <Text variant="body" color="secondary">
-              Sinirsiz dolap, etkinlik planlayici ve gelismis analizleri ac.
-            </Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* === Hero profil kartı === */}
+      <View style={styles.heroCard}>
+        {/* Avatar */}
+        <View style={styles.avatarWrap}>
+          <View style={styles.avatar}>
+            <Text variant="h2" color="inverse">{initials}</Text>
           </View>
-          <Button title="Incele" onPress={() => openRoute("/paywall", "paywall")} disabled={routeDisabled} />
-        </Card>
-      ) : null}
-
-      <Card style={styles.quickStartCard}>
-        <View style={styles.quickStartHeader}>
-          <View style={styles.quickStartCopy}>
-            <Text variant="h3">Baslangic kontrolu</Text>
-            <Text variant="body" color="secondary">
-              {completedQuickStartSteps}/{quickStartSteps.length} adim tamam. Shipirio'yu gunluk kullanima hazirlayan ana aksiyonlar.
-            </Text>
-          </View>
-          <View style={styles.quickStartBadge}>
-            <Text variant="caption" color="primary">
-              {completedQuickStartSteps}/{quickStartSteps.length}
-            </Text>
-          </View>
-        </View>
-        {quickStartSteps.map((step) => (
-          <View key={step.label} style={styles.quickStartRow}>
-            <View style={[styles.stepDot, step.done && styles.stepDotDone]} />
-            <View style={styles.quickStartStepCopy}>
-              <Text variant="label">{step.title}</Text>
-              <Text variant="caption" color="secondary">
-                {step.body}
-              </Text>
+          {premium && (
+            <View style={styles.premiumBadge}>
+              <Ionicons name="star" size={10} color={COLORS.textInverse} />
             </View>
-            <Button title={step.done ? "Ac" : "Basla"} variant="ghost" onPress={() => openRoute(step.route, `quick_start_${step.label}`)} disabled={routeDisabled} style={styles.quickStartButton} />
-          </View>
-        ))}
-      </Card>
+          )}
+        </View>
 
-      {profileIncomplete ? (
-        <Card style={styles.profileNudge}>
-          <Text variant="h3">Profilini tamamla</Text>
-          <Text variant="body" color="secondary">
-            Kullanici adi ekleyince davet linkin daha okunur olur; sosyal akislarda arkadaslarin seni daha kolay bulur.
-          </Text>
-          <Button title="Tamamla" variant="secondary" onPress={() => openRoute("/settings/account", "complete_profile")} disabled={routeDisabled} />
-        </Card>
-      ) : null}
-
-      {unreadCount > 0 ? (
-        <Card style={styles.notificationNudge}>
-          <View style={styles.notificationCopy}>
-            <Text variant="h3">{unreadCount} yeni bildirim</Text>
-            <Text variant="body" color="secondary">
-              Fiyat, sosyal ve kombin aksiyonlarini kacirmadan kontrol et.
-            </Text>
-          </View>
-          <Button title="Ac" variant="secondary" onPress={() => openRoute("/notifications", "notification_nudge")} disabled={routeDisabled} />
-        </Card>
-      ) : null}
-
-      <Card style={styles.releaseCard}>
-        <Text variant="caption" color="muted">
-          YAYIN HAZIRLIK MERKEZI
-        </Text>
-        <Text variant="h3">Store oncesi hizli kontrol</Text>
+        <Text variant="h1" style={styles.displayName}>{displayName}</Text>
         <Text variant="body" color="secondary">
-          App review'a girmeden once en kritik ayar, gizlilik ve abonelik yuzeylerini buradan ac.
+          {premium ? "✨ Premium üye" : "Free plan · Premium'a geç"}
         </Text>
-        {readinessSteps.map((step) => (
-          <View key={step.label} style={styles.releaseRow}>
-            <View style={styles.releaseBadge}>
-              <Text variant="caption" color="primary">
-                {step.label}
-              </Text>
-            </View>
-            <View style={styles.releaseCopy}>
-              <Text variant="label">{step.title}</Text>
-              <Text variant="caption" color="secondary">
-                {step.body}
-              </Text>
-            </View>
-            <Button title="Ac" variant="ghost" onPress={() => openRoute(step.route, `release_${step.label}`)} disabled={routeDisabled} style={styles.releaseButton} />
+
+        {/* Stats row */}
+        <View style={styles.statsRow}>
+          <StatCell label="Analiz" value={entries.length} />
+          <View style={styles.statDivider} />
+          <StatCell label="Parça" value={items.length} />
+          <View style={styles.statDivider} />
+          <StatCell label="Giyildi" value={wornCount} />
+          <View style={styles.statDivider} />
+          <StatCell label="Kayıtlı" value={entries.length} />
+        </View>
+      </View>
+
+      {/* === Stil skoru === */}
+      {items.length > 0 && (
+        <View style={styles.scoreCard}>
+          <View style={styles.scoreCircle}>
+            <Text variant="h2" color="inverse">%{styleScore}</Text>
           </View>
-        ))}
-        <Button title="Hazirlik Ozetini Paylas" variant="secondary" onPress={() => void handleShareProfileReadiness()} loading={isSharingReadiness} disabled={routeDisabled} />
-      </Card>
+          <View style={styles.scoreCopy}>
+            <Text variant="caption" color="muted">STİL SKORU</Text>
+            <Text variant="h2">{styleLabel}</Text>
+            <Text variant="body" color="secondary">
+              {wornCount} parça aktif kullanımda, dolap dengen iyi.
+            </Text>
+            <View style={styles.styleTags}>
+              {STYLE_TAGS.slice(0, 4).map((tag) => (
+                <View key={tag} style={styles.styleTag}>
+                  <Text variant="caption" color="muted">{tag}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      )}
 
-      {/* Grouped menu — replaces 14 individual cards */}
-      <Card style={styles.menuGroup}>
-        <Text variant="caption" color="muted" style={styles.menuGroupLabel}>SOSYAL</Text>
-        <MenuRow label="Arkadaşlarım" icon="people-outline" onPress={() => openRoute("/social/friends", "friends")} disabled={routeDisabled} />
-        <MenuRow label="Stil Panosu" icon="grid-outline" onPress={() => openRoute("/social/feed", "style_feed")} disabled={routeDisabled} />
-        <MenuRow label="Ödünç Takibi" icon="repeat-outline" onPress={() => openRoute("/social/loans", "loans")} disabled={routeDisabled} />
-      </Card>
+      {/* === Uyarılar === */}
+      {profile?.deletion_requested_at && (
+        <View style={styles.alertBanner}>
+          <Ionicons name="warning-outline" size={18} color={COLORS.warning} />
+          <Text variant="label" style={{ color: COLORS.warning, flex: 1 }}>
+            Hesap silme talebi aktif. Silme tarihi: {profile.deletion_scheduled_for ? formatDate(profile.deletion_scheduled_for) : "30 gün içinde"}
+          </Text>
+          <Button title="Yönet" variant="ghost" onPress={() => openRoute("/settings/account", "deletion")} style={styles.alertBtn} />
+        </View>
+      )}
 
-      <Card style={styles.menuGroup}>
-        <Text variant="caption" color="muted" style={styles.menuGroupLabel}>ARAÇLAR</Text>
-        <MenuRow label="Style Asistanı ✨" icon="chatbubble-ellipses-outline" onPress={() => openRoute("/style-chat", "style_chat")} disabled={routeDisabled} />
-        <MenuRow label="Fiyat Takibi" icon="trending-down-outline" onPress={() => openRoute("/price-tracking", "price_tracking")} disabled={routeDisabled} />
-        <MenuRow label="Almalı Mıyım?" icon="bag-check-outline" onPress={() => openRoute("/buy-decision", "buy_decision")} disabled={routeDisabled} />
-        <MenuRow label="Etkinlik Planlayıcı" icon="calendar-outline" onPress={() => openRoute("/event", "event")} disabled={routeDisabled} />
-        <MenuRow label="Giyim Günlüğü" icon="book-outline" onPress={() => openRoute("/outfit-diary", "outfit_diary")} disabled={routeDisabled} />
-        <MenuRow label="Marka Takibi" icon="heart-outline" onPress={() => openRoute("/brand-wishlist", "brand_wishlist")} disabled={routeDisabled} />
-      </Card>
+      {legalConsentIncomplete && (
+        <Pressable style={styles.alertBanner} onPress={() => openRoute("/settings/account", "legal_consent")}>
+          <Ionicons name="document-text-outline" size={18} color={COLORS.primary} />
+          <Text variant="label" style={{ flex: 1 }}>Yasal onayları tamamla (KVKK/Kullanım Şartları)</Text>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </Pressable>
+      )}
 
-      <Card style={styles.menuGroup}>
-        <Text variant="caption" color="muted" style={styles.menuGroupLabel}>HESAP & AYARLAR</Text>
+      {!premium && (
+        <TouchableOpacity
+          style={styles.premiumBannerCard}
+          onPress={() => openRoute("/paywall", "paywall")}
+          activeOpacity={0.85}
+        >
+          <View style={styles.premiumLeft}>
+            <Text variant="h3">Premium'a Geç ✨</Text>
+            <Text variant="body" color="secondary">
+              Sınırsız dolap, etkinlik planlayıcı ve gelişmiş analizler.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
+        </TouchableOpacity>
+      )}
+
+      {/* === Sosyal menü === */}
+      <MenuGroup label="SOSYAL">
+        <MenuRow icon="people-outline" label="Arkadaşlarım" onPress={() => openRoute("/social/friends", "friends")} disabled={isProfileBusy} />
+        <MenuRow icon="grid-outline" label="Stil Panosu" onPress={() => openRoute("/social/feed", "style_feed")} disabled={isProfileBusy} />
+        <MenuRow icon="repeat-outline" label="Ödünç Takibi" onPress={() => openRoute("/social/loans", "loans")} disabled={isProfileBusy} />
+      </MenuGroup>
+
+      {/* === Araçlar === */}
+      <MenuGroup label="ARAÇLAR">
+        <MenuRow icon="chatbubble-ellipses-outline" label="Style Asistanı ✨" onPress={() => openRoute("/style-chat", "style_chat")} disabled={isProfileBusy} />
+        <MenuRow icon="book-outline" label="Giyim Günlüğü" onPress={() => openRoute("/outfit-diary", "outfit_diary")} disabled={isProfileBusy} />
+        <MenuRow icon="heart-outline" label="Marka Takibi" onPress={() => openRoute("/brand-wishlist", "brand_wishlist")} disabled={isProfileBusy} />
+        <MenuRow icon="trending-down-outline" label="Fiyat Takibi" onPress={() => openRoute("/price-tracking", "price_tracking")} disabled={isProfileBusy} />
+        <MenuRow icon="bag-check-outline" label="Almalı Mıyım?" onPress={() => openRoute("/buy-decision", "buy_decision")} disabled={isProfileBusy} />
+        <MenuRow icon="calendar-outline" label="Etkinlik Planlayıcı" onPress={() => openRoute("/event", "event")} disabled={isProfileBusy} />
+      </MenuGroup>
+
+      {/* === Hesap === */}
+      <MenuGroup label="HESAP & AYARLAR">
         <MenuRow
-          label={unreadCount > 0 ? `Bildirimler (${unreadCount})` : "Bildirimler"}
           icon="notifications-outline"
+          label={unreadCount > 0 ? `Bildirimler  (${unreadCount})` : "Bildirimler"}
+          onPress={() => openRoute("/notifications", "notifications")}
+          disabled={isProfileBusy}
           badge={unreadCount > 0}
-          onPress={() => openRoute("/notifications", "notification_inbox")}
-          disabled={routeDisabled}
         />
-        <MenuRow label="Aboneliğim" icon="star-outline" onPress={() => openRoute("/settings/subscription", "subscription")} disabled={routeDisabled} />
-        <MenuRow label="Hesap Ayarları" icon="person-outline" onPress={() => openRoute("/settings/account", "account")} disabled={routeDisabled} />
-        <MenuRow label="Gizlilik" icon="shield-outline" onPress={() => openRoute("/settings/privacy", "privacy")} disabled={routeDisabled} />
-        <MenuRow label="Destek" icon="help-circle-outline" onPress={() => openRoute("/settings/support", "support")} disabled={routeDisabled} />
-      </Card>
+        <MenuRow icon="star-outline" label="Aboneliğim" onPress={() => openRoute("/settings/subscription", "subscription")} disabled={isProfileBusy} />
+        <MenuRow icon="person-outline" label="Hesap Ayarları" onPress={() => openRoute("/settings/account", "account")} disabled={isProfileBusy} />
+        <MenuRow icon="shield-outline" label="Gizlilik" onPress={() => openRoute("/settings/privacy", "privacy")} disabled={isProfileBusy} />
+        <MenuRow icon="help-circle-outline" label="Destek" onPress={() => openRoute("/settings/support", "support")} disabled={isProfileBusy} />
+      </MenuGroup>
 
-      <Button title="Cikis Yap" variant="secondary" onPress={handleSignOut} loading={isSigningOut} disabled={routeDisabled} style={styles.signOut} />
+      <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut} disabled={isSigningOut}>
+        <Ionicons name="log-out-outline" size={18} color={COLORS.danger} />
+        <Text variant="label" style={{ color: COLORS.danger }}>
+          {isSigningOut ? "Çıkış yapılıyor..." : "Çıkış Yap"}
+        </Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
-interface ProfileReadinessSummaryInput {
-  completedQuickStartSteps: number;
-  itemsCount: number;
-  premium: boolean;
-  profileName: string;
-  quickStartSteps: Array<{ done: boolean; label: string; title: string }>;
-  readinessSteps: Array<{ label: string; title: string }>;
-  unreadCount: number;
+function StatCell({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.statCell}>
+      <Text variant="h2">{value}</Text>
+      <Text variant="caption" color="muted">{label}</Text>
+    </View>
+  );
 }
 
-function buildProfileReadinessSummary(input: ProfileReadinessSummaryInput) {
-  return [
-    "Shipirio profil ve yayin hazirlik ozeti",
-    "",
-    `Profil: ${input.profileName}`,
-    `Plan: ${input.premium ? "Premium" : "Free"}`,
-    `Dolap parcasi: ${input.itemsCount}`,
-    `Okunmamis bildirim: ${input.unreadCount}`,
-    `Baslangic kontrolu: ${input.completedQuickStartSteps}/${input.quickStartSteps.length}`,
-    "",
-    "Baslangic adimlari:",
-    ...input.quickStartSteps.map((step) => `- ${step.done ? "OK" : "Eksik"} ${step.title}`),
-    "",
-    "Store oncesi kontrol yuzeyleri:",
-    ...input.readinessSteps.map((step) => `- ${step.label}: ${step.title}`),
-  ].join("\n");
+function MenuGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Card style={styles.menuGroup}>
+      <Text variant="caption" color="muted" style={styles.menuGroupLabel}>{label}</Text>
+      {children}
+    </Card>
+  );
+}
+
+function MenuRow({
+  icon,
+  label,
+  onPress,
+  disabled,
+  badge,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  badge?: boolean;
+}) {
+  return (
+    <Pressable style={styles.menuRow} onPress={onPress} disabled={disabled}>
+      <View style={styles.menuIconWrap}>
+        <Ionicons name={icon} size={18} color={COLORS.primary} />
+      </View>
+      <Text variant="body" style={styles.menuRowLabel}>{label}</Text>
+      {badge && <View style={styles.badgeDot} />}
+      <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    gap: SPACING.md,
-    padding: SPACING.lg,
-    paddingBottom: SPACING.xl,
-    paddingTop: 64,
-  },
-  profileCard: {
+  container: { backgroundColor: COLORS.background, flex: 1 },
+  content: { gap: SPACING.md, paddingBottom: 100 },
+
+  // Hero card
+  heroCard: {
     alignItems: "center",
-    flexDirection: "row",
-    gap: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderBottomColor: COLORS.border,
+    borderBottomWidth: 1,
+    gap: SPACING.sm,
+    paddingBottom: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: 56,
   },
+  avatarWrap: { position: "relative" },
   avatar: {
     alignItems: "center",
     backgroundColor: COLORS.primary,
     borderRadius: 999,
-    height: 56,
+    height: 80,
     justifyContent: "center",
-    width: 56,
+    width: 80,
   },
-  menu: {
-    gap: SPACING.sm,
-  },
-  premiumBanner: {
-    gap: SPACING.md,
-  },
-  quickStartCard: {
-    gap: SPACING.md,
-  },
-  quickStartHeader: {
+  premiumBadge: {
     alignItems: "center",
-    flexDirection: "row",
-    gap: SPACING.md,
-  },
-  quickStartCopy: {
-    flex: 1,
-    gap: SPACING.xs,
-  },
-  quickStartBadge: {
-    alignItems: "center",
-    backgroundColor: COLORS.primarySoft,
+    backgroundColor: "#C9A84C",
     borderRadius: 999,
-    height: 42,
+    bottom: 0,
+    height: 22,
     justifyContent: "center",
-    width: 42,
+    position: "absolute",
+    right: 0,
+    width: 22,
   },
-  quickStartRow: {
+  displayName: { marginTop: SPACING.xs },
+
+  // Stats
+  statsRow: {
     alignItems: "center",
     flexDirection: "row",
-    gap: SPACING.sm,
+    justifyContent: "center",
+    marginTop: SPACING.sm,
   },
-  quickStartStepCopy: {
-    flex: 1,
-    gap: 2,
+  statCell: { alignItems: "center", gap: 2, paddingHorizontal: SPACING.lg },
+  statDivider: {
+    backgroundColor: COLORS.border,
+    height: 32,
+    width: 1,
   },
-  quickStartButton: {
-    minHeight: 40,
-    paddingHorizontal: SPACING.sm,
-  },
-  stepDot: {
-    backgroundColor: COLORS.surfaceMuted,
+
+  // Score
+  scoreCard: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
-    borderRadius: 999,
+    borderRadius: 20,
     borderWidth: 1,
-    height: 14,
-    width: 14,
-  },
-  stepDotDone: {
-    backgroundColor: COLORS.success,
-    borderColor: COLORS.success,
-  },
-  profileNudge: {
-    gap: SPACING.md,
-  },
-  deletionNotice: {
-    borderColor: COLORS.warning,
-    gap: SPACING.md,
-  },
-  notificationNudge: {
-    alignItems: "center",
     flexDirection: "row",
     gap: SPACING.md,
+    marginHorizontal: SPACING.lg,
+    padding: SPACING.md,
   },
-  notificationCopy: {
-    flex: 1,
-    gap: SPACING.xs,
-  },
-  releaseCard: {
-    gap: SPACING.md,
-  },
-  releaseRow: {
+  scoreCircle: {
     alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 999,
+    height: 80,
+    justifyContent: "center",
+    width: 80,
+  },
+  scoreCopy: { flex: 1, gap: SPACING.xs },
+  styleTags: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.xs, marginTop: SPACING.xs },
+  styleTag: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 999,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 3,
+  },
+
+  // Alerts
+  alertBanner: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    borderWidth: 1,
     flexDirection: "row",
     gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    padding: SPACING.md,
   },
-  releaseBadge: {
+  alertBtn: { minHeight: 36, paddingHorizontal: SPACING.sm },
+
+  premiumBannerCard: {
     alignItems: "center",
     backgroundColor: COLORS.primarySoft,
-    borderRadius: 999,
-    justifyContent: "center",
-    minWidth: 70,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    padding: SPACING.md,
   },
-  releaseCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  releaseButton: {
-    minHeight: 40,
-    paddingHorizontal: SPACING.sm,
-  },
-  premiumCopy: {
-    gap: SPACING.xs,
-  },
-  signOut: {
-    marginTop: SPACING.md,
-  },
+  premiumLeft: { flex: 1, gap: 3 },
+
+  // Menu groups
   menuGroup: {
     gap: 0,
-    padding: 0,
+    marginHorizontal: SPACING.lg,
     overflow: "hidden",
+    padding: 0,
   },
   menuGroupLabel: {
+    paddingBottom: SPACING.xs,
     paddingHorizontal: SPACING.md,
     paddingTop: SPACING.md,
-    paddingBottom: SPACING.xs,
   },
   menuRow: {
     alignItems: "center",
     borderTopColor: COLORS.border,
     borderTopWidth: 1,
     flexDirection: "row",
-    gap: SPACING.md,
+    gap: SPACING.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
   },
-  menuRowText: {
-    flex: 1,
+  menuIconWrap: {
+    alignItems: "center",
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 8,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
   },
-  menuBadge: {
+  menuRowLabel: { flex: 1 },
+  badgeDot: {
     backgroundColor: COLORS.danger,
     borderRadius: 999,
     height: 8,
     width: 8,
   },
-});
 
-function MenuRow({
-  label,
-  icon,
-  badge,
-  onPress,
-  disabled,
-}: {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  badge?: boolean;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.menuRow, pressed && { opacity: 0.7 }]}
-      onPress={onPress}
-      disabled={disabled}
-    >
-      <Ionicons name={icon} size={20} color={COLORS.textSecondary} />
-      <Text variant="body" style={styles.menuRowText}>{label}</Text>
-      {badge && <View style={styles.menuBadge} />}
-      <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-    </Pressable>
-  );
-}
+  signOutRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.sm,
+    justifyContent: "center",
+    marginHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+  },
+});

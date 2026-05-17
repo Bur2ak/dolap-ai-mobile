@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 
 import { COLORS } from "@/constants/colors";
+import { FONTS, FONT_SIZE } from "@/constants/typography";
 import { SPACING } from "@/constants/spacing";
 import { Text } from "./Text";
 
@@ -30,9 +31,13 @@ export function Button({ title, variant = "primary", loading = false, disabled, 
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={variant === "primary" ? COLORS.textInverse : COLORS.primary} />
+        <ActivityIndicator size="small" color={variant === "primary" ? COLORS.textInverse : COLORS.primary} />
       ) : (
-        <Text variant="label" color={variant === "primary" ? "inverse" : "primary"} style={styles.title}>
+        <Text
+          variant="label"
+          color={variant === "primary" ? "inverse" : "primary"}
+          style={[styles.title, variant === "ghost" && styles.ghostTitle]}
+        >
           {title}
         </Text>
       )}
@@ -43,14 +48,18 @@ export function Button({ title, variant = "primary", loading = false, disabled, 
 const styles = StyleSheet.create({
   base: {
     alignItems: "center",
-    borderRadius: 8,
+    borderRadius: 12,
     justifyContent: "center",
-    minHeight: 52,
+    minHeight: 50,
     paddingHorizontal: SPACING.lg,
   },
   title: {
     flexShrink: 1,
     textAlign: "center",
+  },
+  ghostTitle: {
+    fontFamily: FONTS.sansMedium,
+    fontSize: FONT_SIZE.label,
   },
   primary: {
     backgroundColor: COLORS.primary,
@@ -62,9 +71,9 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   pressed: {
-    opacity: 0.82,
+    opacity: 0.78,
   },
   disabled: {
-    opacity: 0.52,
+    opacity: 0.45,
   },
 });

@@ -2,6 +2,19 @@ import "react-native-gesture-handler";
 import "react-native-url-polyfill/auto";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  PlayfairDisplay_400Regular,
+  PlayfairDisplay_400Regular_Italic,
+  PlayfairDisplay_700Bold,
+  PlayfairDisplay_700Bold_Italic,
+} from "@expo-google-fonts/playfair-display";
+import {
+  DMSans_400Regular,
+  DMSans_400Regular_Italic,
+  DMSans_500Medium,
+  DMSans_700Bold,
+} from "@expo-google-fonts/dm-sans";
+import { useFonts } from "expo-font";
 import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments, type Href } from "expo-router";
 import * as Linking from "expo-linking";
 import * as Notifications from "expo-notifications";
@@ -25,6 +38,17 @@ void SplashScreen.preventAutoHideAsync();
 initializeObservability();
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    PlayfairDisplay_400Regular,
+    PlayfairDisplay_400Regular_Italic,
+    PlayfairDisplay_700Bold,
+    PlayfairDisplay_700Bold_Italic,
+    DMSans_400Regular,
+    DMSans_400Regular_Italic,
+    DMSans_500Medium,
+    DMSans_700Bold,
+  });
+
   const router = useRouter();
   const pathname = usePathname();
   const params = useGlobalSearchParams();

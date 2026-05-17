@@ -1,620 +1,464 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import { FlashList } from "@shopify/flash-list";
-import { Alert, Pressable, Share, StyleSheet, View } from "react-native";
+import { useEffect } from "react";
+import { Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 
-import { AdBanner } from "@/components/shared/AdBanner";
-import { AddItemSheet } from "@/components/wardrobe/AddItemSheet";
-import { CategoryFilter } from "@/components/wardrobe/CategoryFilter";
-import { SeasonFilter } from "@/components/wardrobe/SeasonFilter";
-import { WardrobeItemCard } from "@/components/wardrobe/WardrobeItemCard";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Input } from "@/components/ui/Input";
+import { CachedImage } from "@/components/ui/CachedImage";
 import { Text } from "@/components/ui/Text";
-import { CATEGORIES } from "@/constants/categories";
 import { COLORS } from "@/constants/colors";
 import { SPACING } from "@/constants/spacing";
+import { useOutfitDiary } from "@/hooks/useOutfitDiary";
 import { useWardrobe } from "@/hooks/useWardrobe";
-import { useImagePicker } from "@/hooks/useImagePicker";
 import { captureEvent } from "@/lib/observability";
-import { useSubscription } from "@/hooks/useSubscription";
-import { useWardrobeStore } from "@/stores/wardrobeStore";
-import type { ClothingCategory, Season, WardrobeItem } from "@/types";
+import { useAuthStore } from "@/stores/authStore";
 
-const seasonFilters: Array<{ label: string; value: Season | "all" }> = [
-  { label: "Tum sezonlar", value: "all" },
-  { label: "Ilkbahar", value: "ilkbahar" },
-  { label: "Yaz", value: "yaz" },
-  { label: "Sonbahar", value: "sonbahar" },
-  { label: "Kis", value: "kis" },
-];
-type SortMode = "newest" | "least_worn" | "most_worn";
-const sortModes: Array<{ label: string; value: SortMode }> = [
-  { label: "Yeni", value: "newest" },
-  { label: "Az giyilen", value: "least_worn" },
-  { label: "Cok giyilen", value: "most_worn" },
-];
+const DESTINATIONS = [
+  { label: "Ofis", icon: "briefcase-outline" },
+  { label: "Kahve", icon: "cafe-outline" },
+  { label: "Alışveriş", icon: "bag-outline" },
+  { label: "Hafta Sonu", icon: "sunny-outline" },
+  { label: "Gece", icon: "moon-outline" },
+  { label: "Spor", icon: "fitness-outline" },
+] as const;
 
-export default function WardrobeScreen() {
-  const { items, error, isLoading, isRefetching, refetch } = useWardrobe();
-  const { category, season, search, setCategory, setSeason, setSearch } = useWardrobeStore();
-  const { premium } = useSubscription();
-  const [sortMode, setSortMode] = useState<SortMode>("newest");
-  const [isSharingSummary, setIsSharingSummary] = useState(false);
-  const [sheetVisible, setSheetVisible] = useState(false);
-  const { takePhoto, pickFromLibrary } = useImagePicker();
-  const normalizedQuery = search.trim().toLowerCase();
-  const hasActiveFilters = category !== "all" || season !== "all" || Boolean(normalizedQuery);
-  const isBusy = isLoading || isRefetching || isSharingSummary;
-  const filteredItems = items.filter((item) => {
-    const categoryMatch = category === "all" || item.category === category;
-    const seasonMatch = season === "all" || item.season.includes(season);
-    const queryMatch =
-      !normalizedQuery ||
-      [item.category, item.subcategory, item.brand, ...item.colors, ...item.season]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(normalizedQuery));
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Günaydın";
+  if (hour < 18) return "İyi öğleden sonralar";
+  return "İyi akşamlar";
+}
 
-    return categoryMatch && seasonMatch && queryMatch;
-  });
-  const sortedItems = [...filteredItems].sort((a, b) => {
-    if (sortMode === "least_worn") {
-      return a.wear_count - b.wear_count || newestFirst(a.created_at, b.created_at);
-    }
+export default function HomeScreen() {
+  const { profile } = useAuthStore();
+  const { items } = useWardrobe();
+  const { entries, todayEntry } = useOutfitDiary();
 
-    if (sortMode === "most_worn") {
-      return b.wear_count - a.wear_count || newestFirst(a.created_at, b.created_at);
-    }
-
-    return newestFirst(a.created_at, b.created_at);
-  });
-  const unwornCount = items.filter((item) => item.wear_count === 0).length;
-  const shareableCount = items.filter((item) => item.is_shareable).length;
-  const metadataMissingCount = items.filter((item) => item.colors.length === 0 || item.season.length === 0 || !item.subcategory).length;
+  const firstName = profile?.username?.split(" ")[0] ?? profile?.username ?? "Hoş geldin";
+  const recentItems = items.slice(0, 6);
+  const recentEntries = entries.slice(0, 3);
 
   useEffect(() => {
-    captureEvent("wardrobe_screen_viewed", {
-      item_count: items.length,
-      filtered_count: sortedItems.length,
-      has_active_filters: hasActiveFilters,
-      sort_mode: sortMode,
-    });
-  }, [hasActiveFilters, items.length, sortMode, sortedItems.length]);
+    captureEvent("home_screen_viewed", { item_count: items.length });
+  }, [items.length]);
 
-  function clearFilters(source: "summary" | "empty") {
-    if (isBusy) {
-      return;
-    }
-
-    setCategory("all");
-    setSeason("all");
-    setSearch("");
-    captureEvent("wardrobe_filters_cleared", { source });
-  }
-
-  function openAddItem() {
-    if (isBusy) {
-      return;
-    }
-    captureEvent("wardrobe_add_item_sheet_opened");
-    setSheetVisible(true);
-  }
-
-  async function handleCameraAdd() {
-    const uri = await takePhoto();
-    if (uri) {
-      captureEvent("wardrobe_add_item_opened", { source: "camera" });
-      router.push({ pathname: "/item/add", params: { imageUri: uri, source: "camera" } });
-    }
-  }
-
-  async function handleLibraryAdd() {
-    const uri = await pickFromLibrary();
-    if (uri) {
-      captureEvent("wardrobe_add_item_opened", { source: "library" });
-      router.push({ pathname: "/item/add", params: { imageUri: uri, source: "library" } });
-    }
-  }
-
-  async function handleShareWardrobeSummary() {
-    if (isBusy) {
-      return;
-    }
-
-    if (items.length === 0) {
-      Alert.alert("Ozet hazir degil", "Dolap ozeti paylasmak icin once bir kiyafet ekleyelim.");
-      return;
-    }
-
-    setIsSharingSummary(true);
-    try {
-      const result = await Share.share({
-        title: "Shipirio dolap ozeti",
-        message: buildWardrobeShareText({
-          filteredCount: sortedItems.length,
-          hasActiveFilters,
-          items,
-          metadataMissingCount,
-          shareableCount,
-          sortMode,
-          unwornCount,
-        }),
-      });
-      captureEvent("wardrobe_summary_shared", {
-        action: result.action,
-        completed: result.action === Share.sharedAction,
-        filtered_count: sortedItems.length,
-        item_count: items.length,
-      });
-    } catch (error) {
-      captureEvent("wardrobe_summary_share_failed", { message: error instanceof Error ? error.message : "unknown" });
-      Alert.alert("Ozet paylasilamadi", error instanceof Error ? error.message : "Tekrar dene.");
-    } finally {
-      setIsSharingSummary(false);
-    }
+  function handleDestinationTap(label: string) {
+    captureEvent("home_destination_tapped", { destination: label });
+    router.push("/(tabs)/outfit");
   }
 
   return (
-    <View style={styles.container}>
-      <AddItemSheet
-        visible={sheetVisible}
-        onClose={() => setSheetVisible(false)}
-        onCamera={() => void handleCameraAdd()}
-        onLibrary={() => void handleLibraryAdd()}
-        disabled={isBusy}
-      />
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text variant="h1">Dolabim</Text>
-          <Text variant="body" color="secondary">
-            {items.length} kiyafet
-          </Text>
+        <View style={styles.logoRow}>
+          <Ionicons name="shirt-outline" size={20} color={COLORS.primary} />
+          <Text variant="h3" style={styles.logoText}>Shipirio</Text>
         </View>
-        <Pressable style={[styles.iconButton, isBusy ? styles.disabledAction : null]} onPress={openAddItem} disabled={isBusy}>
-          <Ionicons name="add" size={28} color={COLORS.surface} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerIcon}
+            onPress={() => router.push("/notifications")}
+          >
+            <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerIcon}
+            onPress={() => router.push("/style-chat")}
+          >
+            <Ionicons name="sparkles-outline" size={22} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <CategoryFilter
-        value={category}
-        onChange={(val) => {
-          if (isBusy) {
-            return;
-          }
-          setCategory(val);
-          captureEvent("wardrobe_filter_changed", { filter: "category", value: val });
-        }}
-        disabled={isBusy}
-      />
-
-      <SeasonFilter
-        value={season}
-        onChange={(val) => {
-          if (isBusy) {
-            return;
-          }
-          setSeason(val);
-          captureEvent("wardrobe_filter_changed", { filter: "season", value: val });
-        }}
-        disabled={isBusy}
-      />
-
-      <Input label="Dolapta ara" value={search} onChangeText={setSearch} placeholder="Marka, renk, sezon veya kategori" autoCapitalize="none" editable={!isBusy} />
-      <View style={styles.sortSection}>
-        <Text variant="caption" color="muted">
-          Siralama
+      {/* Greeting */}
+      <View style={styles.greetingSection}>
+        <Text variant="h1">{getGreeting()}, {firstName} 💜</Text>
+        <Text variant="body" color="secondary">
+          {todayEntry ? "Bugünkü kombin kaydedildi." : "Bugün ne giyeceğini birlikte seçelim."}
         </Text>
-        <View style={styles.sortChips}>
-          {sortModes.map((mode) => {
-            const active = mode.value === sortMode;
-            return (
-              <Pressable
-                key={mode.value}
-                style={[styles.sortChip, active && styles.activeSortChip]}
-                onPress={() => {
-                  if (isBusy) {
-                    return;
-                  }
+      </View>
 
-                  setSortMode(mode.value);
-                  captureEvent("wardrobe_sort_changed", { sort_mode: mode.value });
-                }}
-                disabled={isBusy}
+      {/* Destination chips */}
+      <View style={styles.destinationSection}>
+        <Text variant="label" color="secondary">Bugün nereye gidiyorsun?</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {DESTINATIONS.map((dest) => (
+            <TouchableOpacity
+              key={dest.label}
+              style={styles.destinationChip}
+              onPress={() => handleDestinationTap(dest.label)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name={dest.icon} size={14} color={COLORS.textSecondary} />
+              <Text variant="label" color="secondary">{dest.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Today's outfit / Hero card */}
+      <View style={styles.heroCard}>
+        <View style={styles.heroBadge}>
+          <Text variant="caption" color="muted" style={styles.heroBadgeText}>
+            BUGÜNÜN ÖNERİSİ
+          </Text>
+        </View>
+
+        <View style={styles.heroContent}>
+          {/* Left: outfit image or color swatch */}
+          <View style={styles.heroImageWrap}>
+            {todayEntry && todayEntry.item_ids.length > 0 ? (
+              <View style={styles.heroSwatches}>
+                {todayEntry.item_ids.slice(0, 3).map((id, i) => {
+                  const item = items.find((it) => it.id === id);
+                  return item ? (
+                    <CachedImage
+                      key={id}
+                      accessibilityLabel="Kıyafet"
+                      fallbackColor={item.dominant_color_hex}
+                      sourceUri={item.thumbnail_url ?? item.image_url}
+                      style={[styles.heroItemImg, { marginTop: i * 8, zIndex: 3 - i }]}
+                    />
+                  ) : null;
+                })}
+              </View>
+            ) : recentItems[0] ? (
+              <CachedImage
+                accessibilityLabel="Kombin önerisi"
+                fallbackColor={recentItems[0].dominant_color_hex}
+                sourceUri={recentItems[0].thumbnail_url ?? recentItems[0].image_url}
+                style={styles.heroSingleImg}
+              />
+            ) : (
+              <View style={[styles.heroSingleImg, styles.heroPlaceholder]}>
+                <Ionicons name="shirt-outline" size={32} color={COLORS.textMuted} />
+              </View>
+            )}
+          </View>
+
+          {/* Right: text info */}
+          <View style={styles.heroText}>
+            <Text variant="h2" style={styles.heroTitle}>
+              {todayEntry?.mood ?? "Zamansız Şıklık"}
+            </Text>
+            <View style={styles.heroTags}>
+              {["Minimalist", "Zarif", "Dengeli"].map((tag) => (
+                <View key={tag} style={styles.heroTag}>
+                  <Text variant="caption" color="muted">{tag}</Text>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={styles.heroButton}
+              onPress={() => router.push("/(tabs)/outfit")}
+              activeOpacity={0.8}
+            >
+              <Text variant="label" color="inverse">Kombini Gör</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Uyum skoru */}
+      {items.length > 0 && (
+        <View style={styles.scoreCard}>
+          <View style={styles.scoreCircle}>
+            <Text variant="h2" color="inverse">%{Math.round(Math.min(100, (items.filter(i => i.wear_count > 0).length / items.length) * 100 + 40))}</Text>
+          </View>
+          <View style={styles.scoreCopy}>
+            <Text variant="caption" color="muted">UYUM SKORU</Text>
+            <Text variant="h3">
+              {items.length > 5 ? "Dolabın iyi dengelenmiş" : "Daha fazla parça ekle"}
+            </Text>
+            <Text variant="body" color="secondary">
+              {items.filter(i => i.wear_count > 0).length}/{items.length} parça kullanımda
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Kaydedilen kombinler / Son eklenenler */}
+      {recentItems.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text variant="h3">Son Eklenenler</Text>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/wardrobe")}>
+              <Text variant="label" color="secondary">Tümünü Gör</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.itemsRow}>
+            {recentItems.map((item) => (
+              <Pressable
+                key={item.id}
+                style={styles.itemThumb}
+                onPress={() => router.push(`/item/${item.id}`)}
               >
-                <Text variant="caption" color={active ? "inverse" : "secondary"}>
-                  {mode.label}
+                <CachedImage
+                  accessibilityLabel={item.subcategory ?? item.category}
+                  fallbackColor={item.dominant_color_hex}
+                  sourceUri={item.thumbnail_url ?? item.image_url}
+                  style={styles.itemThumbImg}
+                />
+                <Text variant="caption" color="secondary" numberOfLines={1} style={styles.itemThumbLabel}>
+                  {item.subcategory ?? item.category}
                 </Text>
               </Pressable>
-            );
-          })}
+            ))}
+          </ScrollView>
         </View>
-      </View>
-      {items.length > 0 ? (
-        <View style={styles.summaryPanel}>
-          <View style={styles.wardrobeSignals}>
-            <SummaryPill label={`${unwornCount} giyilmemis`} tone={unwornCount > 0 ? "warning" : "normal"} />
-            <SummaryPill label={`${shareableCount} paylasimda`} tone="normal" />
-            <SummaryPill label={`${metadataMissingCount} eksik metadata`} tone={metadataMissingCount > 0 ? "warning" : "normal"} />
-          </View>
-          <Button
-            title="Dolap Ozetini Paylas"
-            variant="secondary"
-            onPress={() => void handleShareWardrobeSummary()}
-            loading={isSharingSummary}
-            disabled={isBusy}
-            style={styles.summaryShareButton}
-          />
-        </View>
-      ) : null}
-      {hasActiveFilters ? (
-        <View style={styles.filterSummary}>
-          <Text variant="caption" color="muted">
-            {sortedItems.length}/{items.length} kiyafet gosteriliyor
-          </Text>
-          <Pressable
-            onPress={() => {
-              clearFilters("summary");
-            }}
-            disabled={isBusy}
-          >
-            <Text variant="caption" color="primary">
-              Temizle
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {isLoading ? (
-        <WardrobeSkeleton />
-      ) : error && items.length === 0 ? (
-        <EmptyState
-          icon="cloud-offline-outline"
-          title="Dolap yuklenemedi"
-          body="Baglanti veya Supabase tarafinda gecici bir sorun olabilir."
-          actionLabel="Tekrar Dene"
-          loading={isRefetching}
-          onAction={() => {
-            captureEvent("wardrobe_refetch_requested");
-            void refetch();
-          }}
-          style={styles.emptyState}
-        />
-      ) : sortedItems.length > 0 ? (
-        <FlashList<WardrobeItem>
-          data={sortedItems}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          contentContainerStyle={styles.grid}
-          renderItem={({ item }) => <WardrobeItemCard item={item} disabled={isBusy} />}
-          ListFooterComponent={!premium ? <AdBanner /> : null}
-        />
-      ) : (
-        <EmptyState
-          icon={items.length > 0 ? "search-outline" : "shirt-outline"}
-          title={items.length > 0 ? "Aramana uyan kiyafet yok" : "Ilk kiyafetini ekle"}
-          body={
-            items.length > 0
-              ? "Filtreleri sadelestirerek veya aramayi temizleyerek tekrar bakabilirsin."
-              : "Kamera veya galeriden fotograf ekleyince AI metadata formunu hazirlayacak."
-          }
-          actionLabel={items.length > 0 ? "Filtreleri Temizle" : "Kiyafet Ekle"}
-          onAction={
-            items.length > 0
-              ? () => {
-                  clearFilters("empty");
-                }
-              : openAddItem
-          }
-          style={styles.emptyState}
-        />
       )}
-    </View>
+
+      {/* Günlük aktivite / Stil ilhamın */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text variant="h3">Stil İlhamın</Text>
+          <TouchableOpacity onPress={() => router.push("/outfit-diary")}>
+            <Text variant="label" color="secondary">Günlük →</Text>
+          </TouchableOpacity>
+        </View>
+
+        {recentEntries.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            {recentEntries.map((entry) => (
+              <View key={entry.id} style={styles.inspoCard}>
+                <Text variant="label">{entry.worn_at}</Text>
+                {entry.mood ? (
+                  <Text variant="caption" color="muted">{entry.mood}</Text>
+                ) : null}
+                {entry.rating ? (
+                  <Text variant="caption" color="muted">{"★".repeat(entry.rating)}</Text>
+                ) : null}
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <TouchableOpacity
+            style={styles.inspoEmpty}
+            onPress={() => router.push("/outfit-diary")}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="book-outline" size={24} color={COLORS.textMuted} />
+            <Text variant="body" color="muted">Giyim günlüğünü başlat</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Hızlı aksiyonlar */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity
+          style={styles.qaCard}
+          onPress={() => router.push("/item/add")}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add-circle-outline" size={24} color={COLORS.primary} />
+          <Text variant="label" color="primary">Parça Ekle</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.qaCard}
+          onPress={() => router.push("/style-chat")}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="chatbubble-ellipses-outline" size={24} color={COLORS.primary} />
+          <Text variant="label" color="primary">Stil Asistanı</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.qaCard}
+          onPress={() => router.push("/outfit-diary")}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="calendar-outline" size={24} color={COLORS.primary} />
+          <Text variant="label" color="primary">Günlük</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
-}
-
-function SignalPill({ label }: { label: string }) {
-  return (
-    <View style={styles.signalPill}>
-      <Text variant="caption" color="primary">
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function SummaryPill({ label, tone }: { label: string; tone: "normal" | "warning" }) {
-  return (
-    <View style={[styles.summaryPill, tone === "warning" ? styles.summaryPillWarning : null]}>
-      <Text variant="caption" color="secondary">
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function newestFirst(a: string, b: string) {
-  return getSortableTime(b) - getSortableTime(a);
-}
-
-function getSortableTime(value: string) {
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? 0 : time;
-}
-
-function buildWardrobeShareText({
-  filteredCount,
-  hasActiveFilters,
-  items,
-  metadataMissingCount,
-  shareableCount,
-  sortMode,
-  unwornCount,
-}: {
-  filteredCount: number;
-  hasActiveFilters: boolean;
-  items: WardrobeItem[];
-  metadataMissingCount: number;
-  shareableCount: number;
-  sortMode: SortMode;
-  unwornCount: number;
-}) {
-  const totalWearCount = items.reduce((sum, item) => sum + item.wear_count, 0);
-  const topCategories = summarizeValues(items.map((item) => formatCategoryLabel(item.category)));
-  const topColors = summarizeValues(items.flatMap((item) => item.colors));
-  const topSeasons = summarizeValues(items.flatMap((item) => item.season.map(formatSeasonLabel)));
-  const topBrands = summarizeValues(items.map((item) => item.brand).filter(isPresent));
-  const activeFilterLine = hasActiveFilters ? `Aktif filtre sonucu: ${filteredCount}/${items.length} parca` : "Aktif filtre yok";
-
-  return [
-    "Shipirio dolap ozeti",
-    "",
-    `Toplam kiyafet: ${items.length}`,
-    `Toplam giyilme: ${totalWearCount}`,
-    `Hic giyilmemis: ${unwornCount}`,
-    `Paylasima acik: ${shareableCount}`,
-    `Metadata eksigi: ${metadataMissingCount}`,
-    activeFilterLine,
-    `Siralama: ${getSortLabel(sortMode)}`,
-    "",
-    `Kategori agirligi: ${topCategories}`,
-    `Renk paleti: ${topColors}`,
-    `Sezon kapsami: ${topSeasons}`,
-    `Markalar: ${topBrands}`,
-  ].join("\n");
-}
-
-function summarizeValues(values: string[]) {
-  const counts = new Map<string, number>();
-  values.filter(Boolean).forEach((value) => {
-    counts.set(value, (counts.get(value) ?? 0) + 1);
-  });
-
-  const summary = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([label, count]) => `${label} (${count})`)
-    .join(", ");
-
-  return summary || "Veri yok";
-}
-
-function formatCategoryLabel(value: ClothingCategory) {
-  return CATEGORIES.find((category) => category.value === value)?.label ?? value;
-}
-
-function formatSeasonLabel(value: Season) {
-  const labels: Record<Season, string> = {
-    ilkbahar: "Ilkbahar",
-    yaz: "Yaz",
-    sonbahar: "Sonbahar",
-    kis: "Kis",
-  };
-
-  return labels[value];
-}
-
-function getSortLabel(value: SortMode) {
-  return sortModes.find((mode) => mode.value === value)?.label ?? value;
-}
-
-function isPresent(value: string | null): value is string {
-  return Boolean(value);
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    padding: SPACING.lg,
-    paddingTop: 64,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  content: { paddingBottom: 100 },
+
+  // Header
   header: {
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
+    paddingHorizontal: SPACING.lg,
+    paddingTop: 56,
+    paddingBottom: SPACING.sm,
   },
-  iconButton: {
+  logoRow: { alignItems: "center", flexDirection: "row", gap: 6 },
+  logoText: { letterSpacing: 0.5 },
+  headerActions: { flexDirection: "row", gap: SPACING.sm },
+  headerIcon: {
     alignItems: "center",
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
     borderRadius: 999,
-    height: 48,
+    borderWidth: 1,
+    height: 38,
     justifyContent: "center",
-    width: 48,
+    width: 38,
   },
-  filters: {
-    gap: SPACING.sm,
-    paddingTop: SPACING.lg,
+
+  // Greeting
+  greetingSection: {
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
     paddingBottom: SPACING.sm,
   },
-  seasonFilters: {
-    gap: SPACING.sm,
-    paddingBottom: SPACING.md,
-  },
-  filterSummary: {
+
+  // Destinations
+  destinationSection: { gap: SPACING.sm, paddingTop: SPACING.sm },
+  chips: { gap: SPACING.sm, paddingHorizontal: SPACING.lg },
+  destinationChip: {
     alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: SPACING.sm,
-  },
-  sortSection: {
-    gap: SPACING.xs,
-    paddingBottom: SPACING.sm,
-  },
-  sortChips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: SPACING.xs,
-  },
-  sortChip: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
     borderRadius: 999,
     borderWidth: 1,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
-  },
-  activeSortChip: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  summaryPanel: {
-    gap: SPACING.sm,
-    paddingBottom: SPACING.sm,
-  },
-  wardrobeSignals: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: SPACING.xs,
-  },
-  summaryShareButton: {
-    alignSelf: "flex-start",
-    minHeight: 38,
+    gap: 5,
     paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
   },
-  summaryPill: {
-    backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 999,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 6,
-  },
-  summaryPillWarning: {
-    backgroundColor: COLORS.warningSoft,
-  },
-  chip: {
+
+  // Hero card
+  heroCard: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
-    borderRadius: 999,
+    borderRadius: 20,
     borderWidth: 1,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.md,
+    overflow: "hidden",
+    padding: SPACING.md,
   },
-  activeChip: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+  heroBadge: { marginBottom: SPACING.sm },
+  heroBadgeText: { letterSpacing: 1.2 },
+  heroContent: { flexDirection: "row", gap: SPACING.md },
+  heroImageWrap: { width: 110 },
+  heroSwatches: { height: 140, position: "relative" },
+  heroItemImg: {
+    borderRadius: 10,
+    height: 90,
+    left: 0,
+    position: "absolute",
+    width: 80,
   },
-  disabledAction: {
-    opacity: 0.52,
-  },
-  seasonChip: {
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-  },
-  activeSeasonChip: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  emptyState: {
-    marginTop: SPACING.xl,
-  },
-  grid: {
-    gap: SPACING.md,
-    paddingBottom: 120,
-  },
-  gridRow: {
-    gap: SPACING.md,
-  },
-  itemCard: {
-    flex: 1,
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-    minHeight: 168,
-  },
-  itemPressable: {
-    flex: 1,
-  },
-  itemImage: {
-    aspectRatio: 4 / 5,
-    backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 8,
+  heroSingleImg: {
+    borderRadius: 12,
+    height: 140,
     width: "100%",
   },
-  itemSignals: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: SPACING.xs,
+  heroPlaceholder: {
+    alignItems: "center",
+    backgroundColor: COLORS.surfaceMuted,
+    justifyContent: "center",
   },
-  signalPill: {
-    backgroundColor: COLORS.primarySoft,
+  heroText: { flex: 1, gap: SPACING.sm, justifyContent: "center" },
+  heroTitle: { letterSpacing: -0.5 },
+  heroTags: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.xs },
+  heroTag: {
+    backgroundColor: COLORS.surfaceMuted,
     borderRadius: 999,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
   },
-  colorBlock: {
-    borderRadius: 8,
-    height: 96,
-    width: "100%",
+  heroButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    alignSelf: "flex-start",
+    marginTop: SPACING.xs,
   },
-  skeletonGrid: {
-    gap: SPACING.md,
-    paddingBottom: 120,
-  },
-  skeletonRow: {
+
+  // Score card
+  scoreCard: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    borderWidth: 1,
     flexDirection: "row",
     gap: SPACING.md,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.md,
+    padding: SPACING.md,
   },
-  skeletonCard: {
-    flex: 1,
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  skeletonImage: {
-    aspectRatio: 4 / 5,
-    backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 8,
-    width: "100%",
-  },
-  skeletonLine: {
-    backgroundColor: COLORS.surfaceMuted,
+  scoreCircle: {
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
     borderRadius: 999,
-    height: 12,
-    width: "72%",
+    height: 72,
+    justifyContent: "center",
+    width: 72,
   },
-  skeletonLineShort: {
-    width: "48%",
+  scoreCopy: { flex: 1, gap: 3 },
+
+  // Sections
+  section: { gap: SPACING.md, marginTop: SPACING.lg },
+  sectionHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.lg,
+  },
+  itemsRow: { gap: SPACING.sm, paddingHorizontal: SPACING.lg },
+  itemThumb: { gap: SPACING.xs, width: 80 },
+  itemThumbImg: {
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 12,
+    height: 100,
+    width: 80,
+  },
+  itemThumbLabel: { textAlign: "center" },
+
+  // Inspiration
+  inspoCard: {
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 4,
+    minWidth: 120,
+    padding: SPACING.md,
+  },
+  inspoEmpty: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    borderStyle: "dashed",
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    padding: SPACING.md,
+  },
+
+  // Quick actions
+  quickActions: {
+    flexDirection: "row",
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
+  },
+  qaCard: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    flex: 1,
+    gap: SPACING.xs,
+    paddingVertical: SPACING.md,
   },
 });
-
-function WardrobeSkeleton() {
-  return (
-    <View style={styles.skeletonGrid}>
-      {[0, 1, 2].map((row) => (
-        <View key={row} style={styles.skeletonRow}>
-          {[0, 1].map((column) => (
-            <Card key={column} style={styles.skeletonCard}>
-              <View style={styles.skeletonImage} />
-              <View style={styles.skeletonLine} />
-              <View style={[styles.skeletonLine, styles.skeletonLineShort]} />
-            </Card>
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}

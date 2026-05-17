@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { StyleSheet, TextInput, type TextInputProps, View } from "react-native";
 
 import { COLORS } from "@/constants/colors";
+import { FONTS, FONT_SIZE } from "@/constants/typography";
 import { SPACING } from "@/constants/spacing";
 import { Text } from "./Text";
 
@@ -18,7 +19,12 @@ export function Input({ label, error, rightElement, style, ...props }: InputProp
       <View style={styles.inputShell}>
         <TextInput
           placeholderTextColor={COLORS.textMuted}
-          style={[styles.input, rightElement ? styles.inputWithRightElement : null, error ? styles.inputError : null, style]}
+          style={[
+            styles.input,
+            rightElement ? styles.inputWithRightElement : null,
+            error ? styles.inputError : null,
+            style,
+          ]}
           {...props}
         />
         {rightElement ? <View style={styles.rightElement}>{rightElement}</View> : null}
@@ -42,11 +48,12 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     color: COLORS.text,
-    fontSize: 16,
-    minHeight: 52,
+    fontFamily: FONTS.sansRegular,
+    fontSize: FONT_SIZE.body,
+    minHeight: 50,
     paddingHorizontal: SPACING.md,
   },
   inputWithRightElement: {

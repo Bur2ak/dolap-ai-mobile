@@ -1,18 +1,30 @@
 export const COLORS = {
-  background: "#FAF7F2",
-  surface: "#FFFFFF",
-  surfaceMuted: "#F0EBE3",
-  primary: "#12312B",
-  primarySoft: "#D8E7DE",
-  accent: "#B86B3F",
-  text: "#171717",
-  textSecondary: "#5F625D",
-  textMuted: "#8D908A",
-  textInverse: "#FFFFFF",
-  border: "#E4DDD3",
-  danger: "#B3261E",
-  dangerSoft: "#F7DEDA",
-  warning: "#9A6400",
-  warningSoft: "#F4E7C5",
-  success: "#1F7A4D",
+  // Backgrounds
+  background: "#F5EFE8",       // sıcak krem — tasarımdaki zemin
+  surface: "#FFFFFF",           // beyaz kart yüzey
+  surfaceMuted: "#F0E9DF",      // hafif bej — chip, skeleton
+
+  // Brand
+  primary: "#1D2235",           // koyu lacivert — logo rengi
+  primarySoft: "#E8DDD0",       // açık krem — soft badge / secondary button
+
+  // Accent
+  accent: "#8B7355",            // warm terracotta / altın tonu
+
+  // Text
+  text: "#1D2235",              // primary text — lacivert
+  textSecondary: "#6B6860",     // ikincil metin — koyu gri
+  textMuted: "#A09890",         // soluk — caption, placeholder
+  textInverse: "#FFFFFF",       // beyaz metin (koyu arka plan üstünde)
+
+  // Borders
+  border: "#E2D9CF",            // ince warm border
+
+  // Semantic
+  danger: "#C0392B",
+  dangerSoft: "#F5DDD9",
+  warning: "#B8860B",
+  warningSoft: "#F5EDD5",
+  success: "#2E7D52",
+  successSoft: "#D5EDE1",
 } as const;
