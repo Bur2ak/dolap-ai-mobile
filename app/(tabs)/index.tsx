@@ -10,6 +10,7 @@ import { FONTS } from "@/constants/typography";
 import { SPACING } from "@/constants/spacing";
 import { useOutfitRecommendation } from "@/hooks/useOutfitRecommendation";
 import { useWardrobe } from "@/hooks/useWardrobe";
+import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
 import { useWeather } from "@/hooks/useWeather";
 import { captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
@@ -34,14 +35,24 @@ export default function HomeScreen() {
   const { items } = useWardrobe();
   const { weather } = useWeather();
   const { savedOutfits } = useOutfitRecommendation();
+  const { analytics } = useWardrobeAnalytics();
 
   const firstName = (profile?.full_name ?? profile?.username ?? "").split(" ")[0] || "Hoş geldin";
   const recentItems = items.slice(0, 6);
   const heroItem = recentItems[0] ?? null;
 
-  // Style score
-  const wornCount = items.filter(i => i.wear_count > 0).length;
-  const styleScore = items.length > 0 ? Math.min(99, Math.round((wornCount / items.length) * 55 + 40)) : 92;
+  // Uyum skoru: utilization + sustainability ortalaması, dolap yoksa 0 göster
+  const styleScore = items.length > 0
+    ? Math.round((analytics.utilization_score + analytics.sustainability_score) / 2)
+    : 0;
+
+  const scoreLabel = styleScore >= 80
+    ? "Dolabın harika bir uyum içinde! Stil tercihlerinle mükemmel eşleşiyor."
+    : styleScore >= 60
+      ? "Dolabın iyi dengede. Daha fazla giyerek skoru yükseltebilirsin."
+      : styleScore > 0
+        ? "Kıyafetlerini giydikçe uyum skorun artacak."
+        : "Dolabına parça ekle, kişisel uyum skorunu hesaplayalım.";
 
   useEffect(() => {
     captureEvent("home_screen_viewed", { item_count: items.length });
@@ -158,17 +169,15 @@ export default function HomeScreen() {
       {/* ── Uyum Skoru ── */}
       <View style={styles.scoreCard}>
         <View style={styles.scoreCircleWrap}>
-          <View style={styles.scoreCircle}>
-            <Text variant="h2" style={styles.scoreValue}>%{styleScore}</Text>
+          <View style={[styles.scoreCircle, styleScore === 0 && styles.scoreCircleEmpty]}>
+            <Text variant="h2" style={styles.scoreValue}>
+              {styleScore > 0 ? `%${styleScore}` : "–"}
+            </Text>
           </View>
         </View>
         <View style={styles.scoreCopy}>
           <Text variant="caption" style={styles.scoreLabel}>UYUM SKORU</Text>
-          <Text variant="body" color="secondary">
-            {items.length > 0
-              ? "Bu kombin senin stil tercihlerinle ve bugünkü hava durumuyla mükemmel uyum sağlıyor."
-              : "Dolabına parça ekle, kişisel uyum skorunu hesaplayalım."}
-          </Text>
+          <Text variant="body" color="secondary">{scoreLabel}</Text>
         </View>
         <Ionicons name="sparkles-outline" size={20} color={COLORS.accentText} />
       </View>
@@ -412,6 +421,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 64,
   },
+  scoreCircleEmpty: { borderStyle: "dashed", borderColor: COLORS.textMuted },
   scoreValue: { color: COLORS.accentText, fontFamily: FONTS.sansBold, fontSize: 18 },
   scoreLabel: {
     color: COLORS.accentText,
@@ -428,6 +438,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: SPACING.lg,
+    paddingRight: SPACING.lg,
   },
   seeAll: { color: COLORS.primary, fontFamily: FONTS.sansMedium },
 
