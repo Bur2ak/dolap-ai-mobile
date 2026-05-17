@@ -1,24 +1,30 @@
 export const COLORS = {
   // Backgrounds
-  background: "#F5EFE8",       // sıcak krem — tasarımdaki zemin
-  surface: "#FFFFFF",           // beyaz kart yüzey
-  surfaceMuted: "#F0E9DF",      // hafif bej — chip, skeleton
+  background: "#F5EFE8",
+  surface: "#FFFFFF",
+  surfaceMuted: "#F0E9DF",
 
   // Brand
-  primary: "#1D2235",           // koyu lacivert — logo rengi
-  primarySoft: "#E8DDD0",       // açık krem — soft badge / secondary button
+  primary: "#1D2235",
+  primarySoft: "#E8DDD0",
 
-  // Accent
-  accent: "#8B7355",            // warm terracotta / altın tonu
+  // Lavender accent — tasarımdaki mor/lavender vurgu
+  accent: "#8B83C8",
+  accentSoft: "#F0EDFB",
+  accentText: "#6B62A8",
+
+  // Green CTA — tasarımdaki ok butonları
+  cta: "#4A7057",
+  ctaSoft: "#E8F0EB",
 
   // Text
-  text: "#1D2235",              // primary text — lacivert
-  textSecondary: "#6B6860",     // ikincil metin — koyu gri
-  textMuted: "#A09890",         // soluk — caption, placeholder
-  textInverse: "#FFFFFF",       // beyaz metin (koyu arka plan üstünde)
+  text: "#1D2235",
+  textSecondary: "#6B6860",
+  textMuted: "#A09890",
+  textInverse: "#FFFFFF",
 
   // Borders
-  border: "#E2D9CF",            // ince warm border
+  border: "#E2D9CF",
 
   // Semantic
   danger: "#C0392B",

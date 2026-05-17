@@ -45,7 +45,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="outfit"
         options={{
-          title: "Kombin",
+          title: "Kombin Analiz",
           tabBarIcon: ({ color }) => (
             <Ionicons name="sparkles-outline" size={22} color={color} />
           ),

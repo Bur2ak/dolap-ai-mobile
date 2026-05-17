@@ -6,281 +6,273 @@ import { Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from "react
 import { CachedImage } from "@/components/ui/CachedImage";
 import { Text } from "@/components/ui/Text";
 import { COLORS } from "@/constants/colors";
+import { FONTS } from "@/constants/typography";
 import { SPACING } from "@/constants/spacing";
-import { useOutfitDiary } from "@/hooks/useOutfitDiary";
+import { useOutfitRecommendation } from "@/hooks/useOutfitRecommendation";
 import { useWardrobe } from "@/hooks/useWardrobe";
+import { useWeather } from "@/hooks/useWeather";
 import { captureEvent } from "@/lib/observability";
 import { useAuthStore } from "@/stores/authStore";
 
 const DESTINATIONS = [
-  { label: "Ofis", icon: "briefcase-outline" },
-  { label: "Kahve", icon: "cafe-outline" },
-  { label: "Alışveriş", icon: "bag-outline" },
-  { label: "Hafta Sonu", icon: "sunny-outline" },
-  { label: "Gece", icon: "moon-outline" },
-  { label: "Spor", icon: "fitness-outline" },
+  { label: "Ofis", icon: "briefcase-outline" as const },
+  { label: "Kahve", icon: "cafe-outline" as const },
+  { label: "Akşam", icon: "wine-outline" as const },
+  { label: "Hafta Sonu", icon: "sunny-outline" as const },
+  { label: "Spor", icon: "fitness-outline" as const },
 ] as const;
 
 function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Günaydın";
-  if (hour < 18) return "İyi öğleden sonralar";
+  const h = new Date().getHours();
+  if (h < 12) return "Günaydın";
+  if (h < 18) return "İyi öğleden sonralar";
   return "İyi akşamlar";
 }
 
 export default function HomeScreen() {
   const { profile } = useAuthStore();
   const { items } = useWardrobe();
-  const { entries, todayEntry } = useOutfitDiary();
+  const { weather } = useWeather();
+  const { savedOutfits } = useOutfitRecommendation();
 
-  const firstName = profile?.username?.split(" ")[0] ?? profile?.username ?? "Hoş geldin";
+  const firstName = (profile?.full_name ?? profile?.username ?? "").split(" ")[0] || "Hoş geldin";
   const recentItems = items.slice(0, 6);
-  const recentEntries = entries.slice(0, 3);
+  const heroItem = recentItems[0] ?? null;
+
+  // Style score
+  const wornCount = items.filter(i => i.wear_count > 0).length;
+  const styleScore = items.length > 0 ? Math.min(99, Math.round((wornCount / items.length) * 55 + 40)) : 92;
 
   useEffect(() => {
     captureEvent("home_screen_viewed", { item_count: items.length });
   }, [items.length]);
 
-  function handleDestinationTap(label: string) {
-    captureEvent("home_destination_tapped", { destination: label });
-    router.push("/(tabs)/outfit");
-  }
-
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header */}
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+
+      {/* ── Header ── */}
       <View style={styles.header}>
         <View style={styles.logoRow}>
-          <Ionicons name="shirt-outline" size={20} color={COLORS.primary} />
+          <Ionicons name="shirt-outline" size={22} color={COLORS.primary} />
           <Text variant="h3" style={styles.logoText}>Shipirio</Text>
         </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerIcon}
-            onPress={() => router.push("/notifications")}
-          >
-            <Ionicons name="notifications-outline" size={22} color={COLORS.primary} />
+        <View style={styles.headerIcons}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/notifications")} activeOpacity={0.7}>
+            <Ionicons name="notifications-outline" size={20} color={COLORS.primary} />
+            {/* red dot — show when unread */}
+            <View style={styles.notifDot} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerIcon}
-            onPress={() => router.push("/style-chat")}
-          >
-            <Ionicons name="sparkles-outline" size={22} color={COLORS.primary} />
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/style-chat")} activeOpacity={0.7}>
+            <Ionicons name="sparkles-outline" size={20} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Greeting */}
-      <View style={styles.greetingSection}>
+      {/* ── Greeting ── */}
+      <View style={styles.greetingBlock}>
         <Text variant="h1">{getGreeting()}, {firstName} 💜</Text>
-        <Text variant="body" color="secondary">
-          {todayEntry ? "Bugünkü kombin kaydedildi." : "Bugün ne giyeceğini birlikte seçelim."}
-        </Text>
+        <Text variant="body" color="secondary">Bugün stilinle ilham ver.</Text>
       </View>
 
-      {/* Destination chips */}
-      <View style={styles.destinationSection}>
-        <Text variant="label" color="secondary">Bugün nereye gidiyorsun?</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {DESTINATIONS.map((dest) => (
+      {/* ── Destination chips ── */}
+      <View style={styles.destinationBlock}>
+        <Text variant="label" color="secondary" style={styles.destLabel}>Bugün nereye gidiyorsun?</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {DESTINATIONS.map(d => (
             <TouchableOpacity
-              key={dest.label}
-              style={styles.destinationChip}
-              onPress={() => handleDestinationTap(dest.label)}
+              key={d.label}
+              style={styles.destChip}
+              onPress={() => router.push("/(tabs)/outfit")}
               activeOpacity={0.7}
             >
-              <Ionicons name={dest.icon} size={14} color={COLORS.textSecondary} />
-              <Text variant="label" color="secondary">{dest.label}</Text>
+              <Ionicons name={d.icon} size={13} color={COLORS.textSecondary} />
+              <Text variant="label" color="secondary">{d.label}</Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity style={[styles.destChip, styles.filterChip]} onPress={() => router.push("/(tabs)/outfit")} activeOpacity={0.7}>
+            <Ionicons name="options-outline" size={14} color={COLORS.textSecondary} />
+          </TouchableOpacity>
         </ScrollView>
       </View>
 
-      {/* Today's outfit / Hero card */}
-      <View style={styles.heroCard}>
-        <View style={styles.heroBadge}>
-          <Text variant="caption" color="muted" style={styles.heroBadgeText}>
-            BUGÜNÜN ÖNERİSİ
+      {/* ── Hero card "BUGÜNKÜ ÖNERİN" ── */}
+      <TouchableOpacity style={styles.heroCard} onPress={() => router.push("/(tabs)/outfit")} activeOpacity={0.95}>
+        {/* Left: outfit photo */}
+        <View style={styles.heroPhotoWrap}>
+          {heroItem?.image_url ? (
+            <CachedImage
+              accessibilityLabel="Kombin önerisi"
+              fallbackColor={heroItem.dominant_color_hex}
+              sourceUri={heroItem.thumbnail_url ?? heroItem.image_url}
+              style={styles.heroPhoto}
+            />
+          ) : (
+            <View style={[styles.heroPhoto, styles.heroPhotoPlaceholder]}>
+              <Ionicons name="shirt-outline" size={36} color={COLORS.textMuted} />
+            </View>
+          )}
+          {/* AI badge */}
+          <View style={styles.heroAiBadge}>
+            <Ionicons name="sparkles" size={12} color={COLORS.accentText} />
+          </View>
+        </View>
+
+        {/* Right: text */}
+        <View style={styles.heroText}>
+          <Text variant="caption" style={styles.heroLabel}>BUGÜNKÜ ÖNERİN</Text>
+          <Text variant="h1" style={styles.heroTitle}>Zamansız{"\n"}Şıklık</Text>
+
+          {/* Weather + city row */}
+          <View style={styles.heroMeta}>
+            {weather ? (
+              <>
+                <Ionicons name="partly-sunny-outline" size={13} color={COLORS.textMuted} />
+                <Text variant="caption" color="muted">{weather.temp}°</Text>
+              </>
+            ) : null}
+            {weather?.city ? (
+              <>
+                <View style={styles.metaDot} />
+                <Ionicons name="location-outline" size={13} color={COLORS.textMuted} />
+                <Text variant="caption" color="muted">{weather.city}</Text>
+              </>
+            ) : null}
+          </View>
+
+          {/* Style tags */}
+          <View style={styles.heroTags}>
+            {["Minimal", "Zarif", "Dengeli"].map(tag => (
+              <View key={tag} style={styles.heroTag}>
+                <Text variant="caption" color="secondary">{tag}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Arrow CTA */}
+          <View style={styles.heroArrow}>
+            <Ionicons name="arrow-forward" size={18} color={COLORS.textInverse} />
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {/* ── Uyum Skoru ── */}
+      <View style={styles.scoreCard}>
+        <View style={styles.scoreCircleWrap}>
+          <View style={styles.scoreCircle}>
+            <Text variant="h2" style={styles.scoreValue}>%{styleScore}</Text>
+          </View>
+        </View>
+        <View style={styles.scoreCopy}>
+          <Text variant="caption" style={styles.scoreLabel}>UYUM SKORU</Text>
+          <Text variant="body" color="secondary">
+            {items.length > 0
+              ? "Bu kombin senin stil tercihlerinle ve bugünkü hava durumuyla mükemmel uyum sağlıyor."
+              : "Dolabına parça ekle, kişisel uyum skorunu hesaplayalım."}
           </Text>
         </View>
-
-        <View style={styles.heroContent}>
-          {/* Left: outfit image or color swatch */}
-          <View style={styles.heroImageWrap}>
-            {todayEntry && todayEntry.item_ids.length > 0 ? (
-              <View style={styles.heroSwatches}>
-                {todayEntry.item_ids.slice(0, 3).map((id, i) => {
-                  const item = items.find((it) => it.id === id);
-                  return item ? (
-                    <CachedImage
-                      key={id}
-                      accessibilityLabel="Kıyafet"
-                      fallbackColor={item.dominant_color_hex}
-                      sourceUri={item.thumbnail_url ?? item.image_url}
-                      style={[styles.heroItemImg, { marginTop: i * 8, zIndex: 3 - i }]}
-                    />
-                  ) : null;
-                })}
-              </View>
-            ) : recentItems[0] ? (
-              <CachedImage
-                accessibilityLabel="Kombin önerisi"
-                fallbackColor={recentItems[0].dominant_color_hex}
-                sourceUri={recentItems[0].thumbnail_url ?? recentItems[0].image_url}
-                style={styles.heroSingleImg}
-              />
-            ) : (
-              <View style={[styles.heroSingleImg, styles.heroPlaceholder]}>
-                <Ionicons name="shirt-outline" size={32} color={COLORS.textMuted} />
-              </View>
-            )}
-          </View>
-
-          {/* Right: text info */}
-          <View style={styles.heroText}>
-            <Text variant="h2" style={styles.heroTitle}>
-              {todayEntry?.mood ?? "Zamansız Şıklık"}
-            </Text>
-            <View style={styles.heroTags}>
-              {["Minimalist", "Zarif", "Dengeli"].map((tag) => (
-                <View key={tag} style={styles.heroTag}>
-                  <Text variant="caption" color="muted">{tag}</Text>
-                </View>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={styles.heroButton}
-              onPress={() => router.push("/(tabs)/outfit")}
-              activeOpacity={0.8}
-            >
-              <Text variant="label" color="inverse">Kombini Gör</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <Ionicons name="sparkles-outline" size={20} color={COLORS.accentText} />
       </View>
 
-      {/* Uyum skoru */}
-      {items.length > 0 && (
-        <View style={styles.scoreCard}>
-          <View style={styles.scoreCircle}>
-            <Text variant="h2" color="inverse">%{Math.round(Math.min(100, (items.filter(i => i.wear_count > 0).length / items.length) * 100 + 40))}</Text>
-          </View>
-          <View style={styles.scoreCopy}>
-            <Text variant="caption" color="muted">UYUM SKORU</Text>
-            <Text variant="h3">
-              {items.length > 5 ? "Dolabın iyi dengelenmiş" : "Daha fazla parça ekle"}
-            </Text>
-            <Text variant="body" color="secondary">
-              {items.filter(i => i.wear_count > 0).length}/{items.length} parça kullanımda
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Kaydedilen kombinler / Son eklenenler */}
-      {recentItems.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text variant="h3">Son Eklenenler</Text>
-            <TouchableOpacity onPress={() => router.push("/(tabs)/wardrobe")}>
-              <Text variant="label" color="secondary">Tümünü Gör</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.itemsRow}>
-            {recentItems.map((item) => (
-              <Pressable
-                key={item.id}
-                style={styles.itemThumb}
-                onPress={() => router.push(`/item/${item.id}`)}
-              >
-                <CachedImage
-                  accessibilityLabel={item.subcategory ?? item.category}
-                  fallbackColor={item.dominant_color_hex}
-                  sourceUri={item.thumbnail_url ?? item.image_url}
-                  style={styles.itemThumbImg}
-                />
-                <Text variant="caption" color="secondary" numberOfLines={1} style={styles.itemThumbLabel}>
-                  {item.subcategory ?? item.category}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Günlük aktivite / Stil ilhamın */}
+      {/* ── Kaydedilen Kombinler ── */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text variant="h3">Stil İlhamın</Text>
-          <TouchableOpacity onPress={() => router.push("/outfit-diary")}>
-            <Text variant="label" color="secondary">Günlük →</Text>
+          <Text variant="h3">Kaydedilen Kombinler</Text>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/outfit")} activeOpacity={0.7}>
+            <Text variant="label" style={styles.seeAll}>Tümünü Gör &gt;</Text>
           </TouchableOpacity>
         </View>
 
-        {recentEntries.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {recentEntries.map((entry) => (
-              <View key={entry.id} style={styles.inspoCard}>
-                <Text variant="label">{entry.worn_at}</Text>
-                {entry.mood ? (
-                  <Text variant="caption" color="muted">{entry.mood}</Text>
-                ) : null}
-                {entry.rating ? (
-                  <Text variant="caption" color="muted">{"★".repeat(entry.rating)}</Text>
-                ) : null}
-              </View>
-            ))}
-          </ScrollView>
-        ) : (
-          <TouchableOpacity
-            style={styles.inspoEmpty}
-            onPress={() => router.push("/outfit-diary")}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="book-outline" size={24} color={COLORS.textMuted} />
-            <Text variant="body" color="muted">Giyim günlüğünü başlat</Text>
-          </TouchableOpacity>
-        )}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.kombinRow}>
+          {savedOutfits.length > 0 ? (
+            savedOutfits.slice(0, 4).map(saved => (
+              <Pressable
+                key={saved.outfit.id}
+                style={styles.kombinCard}
+                onPress={() => router.push(`/outfit/${saved.outfit.id}`)}
+              >
+                {saved.items[0]?.image_url ? (
+                  <CachedImage
+                    accessibilityLabel="Kombin"
+                    fallbackColor={saved.items[0].dominant_color_hex}
+                    sourceUri={saved.items[0].thumbnail_url ?? saved.items[0].image_url}
+                    style={styles.kombinPhoto}
+                  />
+                ) : (
+                  <View style={[styles.kombinPhoto, styles.kombinPhotoPlaceholder]}>
+                    <Ionicons name="shirt-outline" size={20} color={COLORS.textMuted} />
+                  </View>
+                )}
+                <View style={styles.kombinHeart}>
+                  <Ionicons name={saved.outfit.is_favorite ? "heart" : "heart-outline"} size={14} color={saved.outfit.is_favorite ? COLORS.danger : COLORS.textInverse} />
+                </View>
+                <Text variant="caption" color="secondary" numberOfLines={2} style={styles.kombinName}>
+                  {saved.outfit.name ?? "Kombin"}
+                </Text>
+              </Pressable>
+            ))
+          ) : (
+            // Empty placeholders matching design
+            ["Ofis Zarafeti", "Minimal Günler", "Akşam Işıltısı", "Hafta Sonu Rahatlığı"].map(name => (
+              <TouchableOpacity
+                key={name}
+                style={styles.kombinCard}
+                onPress={() => router.push("/(tabs)/outfit")}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.kombinPhoto, styles.kombinPhotoPlaceholder]}>
+                  <Ionicons name="sparkles-outline" size={18} color={COLORS.textMuted} />
+                </View>
+                <View style={styles.kombinHeart}>
+                  <Ionicons name="heart-outline" size={14} color={COLORS.textInverse} />
+                </View>
+                <Text variant="caption" color="secondary" numberOfLines={2} style={styles.kombinName}>
+                  {name}
+                </Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
       </View>
 
-      {/* Hızlı aksiyonlar */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.qaCard}
-          onPress={() => router.push("/item/add")}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add-circle-outline" size={24} color={COLORS.primary} />
-          <Text variant="label" color="primary">Parça Ekle</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.qaCard}
-          onPress={() => router.push("/style-chat")}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="chatbubble-ellipses-outline" size={24} color={COLORS.primary} />
-          <Text variant="label" color="primary">Stil Asistanı</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.qaCard}
-          onPress={() => router.push("/outfit-diary")}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="calendar-outline" size={24} color={COLORS.primary} />
-          <Text variant="label" color="primary">Günlük</Text>
-        </TouchableOpacity>
-      </View>
+      {/* ── Stil İlhamın ── */}
+      <TouchableOpacity style={styles.inspoCard} onPress={() => router.push("/social/feed")} activeOpacity={0.9}>
+        <View style={styles.inspoLeft}>
+          <Ionicons name="sparkles-outline" size={22} color={COLORS.accentText} />
+          <View style={styles.inspoCopy}>
+            <Text variant="h3">Stil İlhamın</Text>
+            <Text variant="body" color="secondary">
+              Bugün senin için seçtiğimiz stil ilham panosuna göz at.
+            </Text>
+          </View>
+        </View>
+        {/* Mini photo grid */}
+        <View style={styles.inspoPhotos}>
+          {recentItems.slice(0, 4).map((item, i) => (
+            item.thumbnail_url || item.image_url ? (
+              <CachedImage
+                key={item.id}
+                accessibilityLabel=""
+                fallbackColor={item.dominant_color_hex}
+                sourceUri={item.thumbnail_url ?? item.image_url}
+                style={[styles.inspoThumb, i === 1 && styles.inspoThumbRight]}
+              />
+            ) : (
+              <View key={item.id} style={[styles.inspoThumb, i === 1 && styles.inspoThumbRight, { backgroundColor: item.dominant_color_hex ?? COLORS.surfaceMuted }]} />
+            )
+          ))}
+        </View>
+        <View style={styles.inspoArrow}>
+          <Ionicons name="arrow-forward" size={16} color={COLORS.textInverse} />
+        </View>
+      </TouchableOpacity>
+
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { paddingBottom: 100 },
+  content: { paddingBottom: 110 },
 
   // Header
   header: {
@@ -289,34 +281,36 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SPACING.lg,
     paddingTop: 56,
-    paddingBottom: SPACING.sm,
+    paddingBottom: SPACING.md,
   },
   logoRow: { alignItems: "center", flexDirection: "row", gap: 6 },
-  logoText: { letterSpacing: 0.5 },
-  headerActions: { flexDirection: "row", gap: SPACING.sm },
-  headerIcon: {
-    alignItems: "center",
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
+  logoText: { fontFamily: FONTS.sansBold, letterSpacing: 0.3 },
+  headerIcons: { alignItems: "center", flexDirection: "row", gap: SPACING.sm },
+  iconBtn: { alignItems: "center", justifyContent: "center", padding: 4, position: "relative" },
+  notifDot: {
+    backgroundColor: COLORS.danger,
+    borderColor: COLORS.background,
     borderRadius: 999,
-    borderWidth: 1,
-    height: 38,
-    justifyContent: "center",
-    width: 38,
+    borderWidth: 1.5,
+    height: 8,
+    position: "absolute",
+    right: 2,
+    top: 2,
+    width: 8,
   },
 
   // Greeting
-  greetingSection: {
+  greetingBlock: {
     gap: SPACING.xs,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.sm,
+    paddingBottom: SPACING.md,
   },
 
   // Destinations
-  destinationSection: { gap: SPACING.sm, paddingTop: SPACING.sm },
-  chips: { gap: SPACING.sm, paddingHorizontal: SPACING.lg },
-  destinationChip: {
+  destinationBlock: { gap: SPACING.sm, paddingBottom: SPACING.md },
+  destLabel: { paddingHorizontal: SPACING.lg },
+  chipRow: { gap: SPACING.sm, paddingHorizontal: SPACING.lg },
+  destChip: {
     alignItems: "center",
     backgroundColor: COLORS.surface,
     borderColor: COLORS.border,
@@ -327,6 +321,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: 8,
   },
+  filterChip: { paddingHorizontal: 10 },
 
   // Hero card
   heroCard: {
@@ -334,74 +329,96 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: 20,
     borderWidth: 1,
+    flexDirection: "row",
     marginHorizontal: SPACING.lg,
-    marginTop: SPACING.md,
     overflow: "hidden",
-    padding: SPACING.md,
+    minHeight: 200,
   },
-  heroBadge: { marginBottom: SPACING.sm },
-  heroBadgeText: { letterSpacing: 1.2 },
-  heroContent: { flexDirection: "row", gap: SPACING.md },
-  heroImageWrap: { width: 110 },
-  heroSwatches: { height: 140, position: "relative" },
-  heroItemImg: {
-    borderRadius: 10,
-    height: 90,
-    left: 0,
-    position: "absolute",
-    width: 80,
-  },
-  heroSingleImg: {
-    borderRadius: 12,
-    height: 140,
-    width: "100%",
-  },
-  heroPlaceholder: {
+  heroPhotoWrap: { position: "relative", width: "42%" },
+  heroPhoto: { height: "100%", width: "100%" },
+  heroPhotoPlaceholder: {
     alignItems: "center",
     backgroundColor: COLORS.surfaceMuted,
     justifyContent: "center",
   },
-  heroText: { flex: 1, gap: SPACING.sm, justifyContent: "center" },
-  heroTitle: { letterSpacing: -0.5 },
-  heroTags: { flexDirection: "row", flexWrap: "wrap", gap: SPACING.xs },
+  heroAiBadge: {
+    alignItems: "center",
+    backgroundColor: COLORS.surface,
+    borderRadius: 999,
+    height: 28,
+    justifyContent: "center",
+    left: SPACING.sm,
+    position: "absolute",
+    top: SPACING.sm,
+    width: 28,
+  },
+  heroText: {
+    flex: 1,
+    gap: SPACING.xs,
+    justifyContent: "center",
+    padding: SPACING.md,
+  },
+  heroLabel: {
+    color: COLORS.accentText,
+    fontFamily: FONTS.sansMedium,
+    letterSpacing: 0.8,
+  },
+  heroTitle: {
+    fontFamily: FONTS.displayBold,
+    fontSize: 26,
+    letterSpacing: -0.3,
+    lineHeight: 30,
+  },
+  heroMeta: { alignItems: "center", flexDirection: "row", gap: 3 },
+  metaDot: { backgroundColor: COLORS.border, borderRadius: 999, height: 3, width: 3 },
+  heroTags: { flexDirection: "row", flexWrap: "wrap", gap: 5 },
   heroTag: {
     backgroundColor: COLORS.surfaceMuted,
     borderRadius: 999,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  heroButton: {
+  heroArrow: {
     alignItems: "center",
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    alignSelf: "flex-start",
+    alignSelf: "flex-end",
+    backgroundColor: COLORS.cta,
+    borderRadius: 999,
+    height: 32,
+    justifyContent: "center",
     marginTop: SPACING.xs,
+    width: 32,
   },
 
   // Score card
   scoreCard: {
     alignItems: "center",
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.accentSoft,
     borderRadius: 20,
-    borderWidth: 1,
     flexDirection: "row",
     gap: SPACING.md,
     marginHorizontal: SPACING.lg,
     marginTop: SPACING.md,
     padding: SPACING.md,
   },
+  scoreCircleWrap: { alignItems: "center", justifyContent: "center" },
   scoreCircle: {
     alignItems: "center",
-    backgroundColor: COLORS.primary,
+    borderColor: COLORS.accent,
     borderRadius: 999,
-    height: 72,
+    borderStyle: "dashed",
+    borderWidth: 2.5,
+    height: 64,
     justifyContent: "center",
-    width: 72,
+    width: 64,
   },
-  scoreCopy: { flex: 1, gap: 3 },
+  scoreValue: { color: COLORS.accentText, fontFamily: FONTS.sansBold, fontSize: 18 },
+  scoreLabel: {
+    color: COLORS.accentText,
+    fontFamily: FONTS.sansMedium,
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  scoreCopy: { flex: 1, gap: 2 },
 
   // Sections
   section: { gap: SPACING.md, marginTop: SPACING.lg },
@@ -411,54 +428,54 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SPACING.lg,
   },
-  itemsRow: { gap: SPACING.sm, paddingHorizontal: SPACING.lg },
-  itemThumb: { gap: SPACING.xs, width: 80 },
-  itemThumbImg: {
+  seeAll: { color: COLORS.primary, fontFamily: FONTS.sansMedium },
+
+  // Saved outfits
+  kombinRow: { gap: SPACING.sm, paddingHorizontal: SPACING.lg },
+  kombinCard: { gap: SPACING.xs, position: "relative", width: 110 },
+  kombinPhoto: {
     backgroundColor: COLORS.surfaceMuted,
-    borderRadius: 12,
-    height: 100,
-    width: 80,
+    borderRadius: 14,
+    height: 130,
+    width: 110,
   },
-  itemThumbLabel: { textAlign: "center" },
+  kombinPhotoPlaceholder: { alignItems: "center", justifyContent: "center" },
+  kombinHeart: {
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
+    borderRadius: 999,
+    height: 26,
+    justifyContent: "center",
+    position: "absolute",
+    right: 6,
+    top: 6,
+    width: 26,
+  },
+  kombinName: { paddingHorizontal: 2, textAlign: "center" },
 
-  // Inspiration
+  // Inspiration card
   inspoCard: {
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 4,
-    minWidth: 120,
+    alignItems: "center",
+    backgroundColor: COLORS.surfaceMuted,
+    borderRadius: 20,
+    flexDirection: "row",
+    gap: SPACING.md,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.md,
+    overflow: "hidden",
     padding: SPACING.md,
   },
-  inspoEmpty: {
+  inspoLeft: { alignItems: "flex-start", flex: 1, flexDirection: "row", gap: SPACING.sm },
+  inspoCopy: { flex: 1, gap: 3 },
+  inspoPhotos: { flexDirection: "row", flexWrap: "wrap", gap: 3, width: 70 },
+  inspoThumb: { backgroundColor: COLORS.border, borderRadius: 8, height: 32, width: 32 },
+  inspoThumbRight: { marginLeft: 3 },
+  inspoArrow: {
     alignItems: "center",
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    borderStyle: "dashed",
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: SPACING.sm,
-    marginHorizontal: SPACING.lg,
-    padding: SPACING.md,
-  },
-
-  // Quick actions
-  quickActions: {
-    flexDirection: "row",
-    gap: SPACING.sm,
-    marginHorizontal: SPACING.lg,
-    marginTop: SPACING.lg,
-  },
-  qaCard: {
-    alignItems: "center",
-    backgroundColor: COLORS.surface,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    flex: 1,
-    gap: SPACING.xs,
-    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.cta,
+    borderRadius: 999,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
   },
 });
