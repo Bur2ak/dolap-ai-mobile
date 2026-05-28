@@ -233,6 +233,7 @@ export default function ProfileScreen() {
       {/* === Araçlar === */}
       <MenuGroup label="ARAÇLAR">
         <MenuRow icon="chatbubble-ellipses-outline" label="Style Asistanı ✨" onPress={() => openRoute("/style-chat", "style_chat")} disabled={isProfileBusy} />
+        <MenuRow icon="color-palette-outline" label="Renk DNA ✨" onPress={() => openRoute("/color-dna", "color_dna")} disabled={isProfileBusy} />
         <MenuRow icon="book-outline" label="Giyim Günlüğü" onPress={() => openRoute("/outfit-diary", "outfit_diary")} disabled={isProfileBusy} />
         <MenuRow icon="heart-outline" label="Marka Takibi" onPress={() => openRoute("/brand-wishlist", "brand_wishlist")} disabled={isProfileBusy} />
         <MenuRow icon="trending-down-outline" label="Fiyat Takibi" onPress={() => openRoute("/price-tracking", "price_tracking")} disabled={isProfileBusy} />
