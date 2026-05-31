@@ -158,6 +158,40 @@ export async function scheduleOutfitReminder(plan?: SmartNotificationPlan): Prom
   });
 }
 
+/**
+ * Akşam giyim günlüğü hatırlatması (streak korumak için).
+ * Her gün 20:00'de "bugün ne giydin?" hatırlatır → günlük alışkanlık + retention.
+ */
+export async function scheduleDiaryStreakReminder(currentStreak: number): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+
+  await cancelDiaryStreakReminder();
+
+  const body = currentStreak > 0
+    ? `🔥 ${currentStreak} günlük serin var! Bugünü kaydetmeyi unutma, seriyi koru.`
+    : "Bugün ne giydin? Giyim günlüğüne ekle, stil alışkanlığını oluştur.";
+
+  return Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Giyim günlüğün seni bekliyor",
+      body,
+      data: { screen: "/outfit-diary", type: "diary_streak_reminder" },
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
+      hour: 20,
+      minute: 0,
+    },
+  });
+}
+
+export async function cancelDiaryStreakReminder(): Promise<void> {
+  if (Platform.OS === "web") return;
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const reminders = scheduled.filter((n) => n.content.data?.type === "diary_streak_reminder");
+  await Promise.all(reminders.map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier)));
+}
+
 export async function scheduleSeasonTransitionReminders(): Promise<void> {
   if (Platform.OS === "web") return;
 

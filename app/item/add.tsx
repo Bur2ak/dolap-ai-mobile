@@ -199,7 +199,19 @@ export default function AddItemScreen() {
         embedding: analysis.embedding ?? null,
       });
       captureEvent("wardrobe_add_flow_completed", { category: analysis.category });
-      router.replace("/(tabs)");
+      // Aha moment: 2+ parça olduysa ilk kombini öner
+      if (items.length + 1 >= 2) {
+        Alert.alert(
+          "Eklendi! ✨",
+          "Şimdi dolabındaki parçalarla sana özel bir kombin önerelim mi?",
+          [
+            { text: "Sonra", style: "cancel", onPress: () => router.replace("/(tabs)") },
+            { text: "Kombinimi Gör", onPress: () => { captureEvent("aha_moment_outfit_from_add"); router.replace("/(tabs)/outfit"); } },
+          ],
+        );
+      } else {
+        router.replace("/(tabs)");
+      }
     } catch (error) {
       captureError(error, { area: "wardrobe_add_save" });
       Alert.alert("Kaydedilemedi", error instanceof Error ? error.message : "Tekrar dene.");

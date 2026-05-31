@@ -133,11 +133,25 @@ export default function SmartScanScreen() {
 
     const saved = toSave.length - errors;
     captureEvent("smart_scan_completed", { saved, errors });
-    Alert.alert(
-      "Eklendi 🎉",
-      `${saved} kıyafet dolabına eklendi${errors > 0 ? `, ${errors} başarısız` : ""}.`,
-      [{ text: "Harika", onPress: () => router.replace("/(tabs)") }],
-    );
+
+    // Aha moment: yeterli parça eklendiyse hemen ilk kombin önerisine yönlendir
+    const totalAfter = items.length + saved;
+    if (saved > 0 && totalAfter >= 2) {
+      Alert.alert(
+        "Harika başlangıç! 🎉",
+        `${saved} parça eklendi. Şimdi bunlarla sana özel ilk kombinini görelim mi?`,
+        [
+          { text: "Sonra", style: "cancel", onPress: () => router.replace("/(tabs)") },
+          { text: "Kombinimi Gör ✨", onPress: () => { captureEvent("aha_moment_outfit_from_scan"); router.replace("/(tabs)/outfit"); } },
+        ],
+      );
+    } else {
+      Alert.alert(
+        "Eklendi 🎉",
+        `${saved} kıyafet dolabına eklendi${errors > 0 ? `, ${errors} başarısız` : ""}.\n\nBirkaç parça daha ekleyince AI sana kombin önermeye başlar.`,
+        [{ text: "Harika", onPress: () => router.replace("/(tabs)") }],
+      );
+    }
   }
 
   return (

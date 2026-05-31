@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { deleteDiaryEntry, fetchDiaryEntries, fetchTodayDiaryEntry, upsertDiaryEntry, type CreateDiaryEntryInput } from "@/lib/api/outfitDiary";
 import { captureError } from "@/lib/observability";
+import { scheduleDiaryStreakReminder } from "@/lib/notifications";
 import { useAuthStore } from "@/stores/authStore";
+import { calculateStreak } from "@/utils/streak";
 
 export function useOutfitDiary() {
   const queryClient = useQueryClient();
@@ -27,6 +29,10 @@ export function useOutfitDiary() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["outfit-diary", userId] });
       void queryClient.invalidateQueries({ queryKey: ["outfit-diary-today", userId] });
+      // Kayıt sonrası streak hesapla, akşam hatırlatmasını güncelle (retention)
+      const dates = (entriesQuery.data ?? []).map((e) => e.worn_at);
+      const streak = calculateStreak([...dates, new Date().toISOString().slice(0, 10)]);
+      void scheduleDiaryStreakReminder(streak.current);
     },
     onError: (err) => captureError(err, { area: "outfit_diary_upsert" }),
   });

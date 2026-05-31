@@ -15,6 +15,7 @@ import { useWardrobe } from "@/hooks/useWardrobe";
 import { captureEvent } from "@/lib/observability";
 import type { DiaryEntry } from "@/lib/api/outfitDiary";
 import { formatDate } from "@/utils/formatters";
+import { calculateStreak } from "@/utils/streak";
 
 const MOODS = ["😊 Güzel", "💪 Enerjik", "😌 Rahat", "🔥 Kendinden emin", "😐 Sıradan"];
 const RATINGS = [1, 2, 3, 4, 5];
@@ -29,6 +30,7 @@ export default function OutfitDiaryScreen() {
   }, [entries.length, todayEntry]);
 
   const grouped = groupByMonth(entries);
+  const streak = calculateStreak(entries.map((e) => e.worn_at));
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -37,6 +39,29 @@ export default function OutfitDiaryScreen() {
         <Text variant="h2">Giyim Günlüğü</Text>
         <View style={styles.spacer} />
       </View>
+
+      {/* Streak banner */}
+      {streak.current > 0 && (
+        <View style={styles.streakCard}>
+          <View style={styles.streakFlame}>
+            <Ionicons name="flame" size={26} color="#E8743B" />
+          </View>
+          <View style={styles.streakCopy}>
+            <Text variant="h2" style={styles.streakNumber}>{streak.current} gün</Text>
+            <Text variant="body" color="secondary">
+              {streak.loggedToday
+                ? "Bugünü kaydettin, seri devam ediyor! 🔥"
+                : "Bugünü de kaydet, seriyi koru!"}
+            </Text>
+          </View>
+          {streak.longest > streak.current && (
+            <View style={styles.streakBest}>
+              <Text variant="caption" color="muted">En uzun</Text>
+              <Text variant="label">{streak.longest}g</Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Weekly calendar */}
       <WeeklyCalendar entries={entries} />
@@ -227,6 +252,27 @@ function groupByMonth(entries: DiaryEntry[]): Record<string, DiaryEntry[]> {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
+  streakCard: {
+    alignItems: "center",
+    backgroundColor: "#FFF1E8",
+    borderColor: "#F5D9C8",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: SPACING.md,
+    padding: SPACING.md,
+  },
+  streakFlame: {
+    alignItems: "center",
+    backgroundColor: "#FFE3D2",
+    borderRadius: 999,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+  },
+  streakCopy: { flex: 1, gap: 2 },
+  streakNumber: { color: "#E8743B" },
+  streakBest: { alignItems: "center", gap: 2 },
   content: { gap: SPACING.md, padding: SPACING.lg, paddingTop: 56, paddingBottom: 120 },
   header: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   spacer: { width: 72 },
