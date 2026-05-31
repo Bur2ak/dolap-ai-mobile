@@ -24,6 +24,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+
 import { COLORS } from "@/constants/colors";
 import { syncSupabaseSessionFromUrl } from "@/lib/authLinks";
 import { getNotificationRoute } from "@/lib/notifications";
@@ -233,14 +235,16 @@ export default function RootLayout() {
   }, [isLoading, params, pathname, router, segments, session]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <StatusBar style="dark" backgroundColor={COLORS.background} />
-          <Stack screenOptions={{ headerShown: false }} />
-        </QueryClientProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            <StatusBar style="dark" backgroundColor={COLORS.background} />
+            <Stack screenOptions={{ headerShown: false }} />
+          </QueryClientProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
 

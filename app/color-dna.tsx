@@ -41,6 +41,20 @@ export default function ColorDnaScreen() {
 
   function handlePickPhoto() {
     if (isAnalyzing) return;
+    // KVKK: selfie analizi öncesi açık rıza
+    Alert.alert(
+      "Fotoğraf İşleme Onayı",
+      "Selfie'n yalnızca ten tonu ve renk paleti analizi için yapay zekâya gönderilir. " +
+      "Fotoğrafın sunucularımızda saklanmaz, biyometrik kimlik verisi olarak işlenmez ve analiz sonrası silinir. " +
+      "Devam etmek istiyor musun?",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        { text: "Onaylıyorum", onPress: () => { captureEvent("color_dna_consent_given"); openPicker(); } },
+      ],
+    );
+  }
+
+  function openPicker() {
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         { options: ["Vazgeç", "Fotoğraf Çek", "Galeriden Seç"], cancelButtonIndex: 0 },

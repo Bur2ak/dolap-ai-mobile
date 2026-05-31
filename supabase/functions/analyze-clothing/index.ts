@@ -1,9 +1,14 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { requireAuth } from "../_shared/auth.ts";
+import { enforceDailyLimit, enforceRateLimit } from "../_shared/limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const DAILY_AI_VISION_LIMIT = 60;
+const RATE_PER_MINUTE = 20;
 
 const geminiMaxAttempts = 3;
 const geminiBaseDelayMs = 700;
@@ -20,6 +25,15 @@ serve(async (req) => {
   }
 
   try {
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
+    const rate = await enforceRateLimit(auth.userId, RATE_PER_MINUTE);
+    if (rate.error) return rate.error;
+
+    const limit = await enforceDailyLimit(auth.userId, "daily_ai_vision", DAILY_AI_VISION_LIMIT);
+    if (limit.error) return limit.error;
+
     const { imageBase64, mimeType } = await req.json();
     const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     const safeMimeType = typeof mimeType === "string" && allowedMimeTypes.has(mimeType) ? mimeType : "image/jpeg";

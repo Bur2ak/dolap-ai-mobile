@@ -1,9 +1,14 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { requireAuth } from "../_shared/auth.ts";
+import { enforceDailyLimit, enforceRateLimit } from "../_shared/limits.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const DAILY_BG_LIMIT = 60;
+const RATE_PER_MINUTE = 20;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -15,6 +20,15 @@ serve(async (req) => {
   }
 
   try {
+    const auth = await requireAuth(req);
+    if (auth.error) return auth.error;
+
+    const rate = await enforceRateLimit(auth.userId, RATE_PER_MINUTE);
+    if (rate.error) return rate.error;
+
+    const limit = await enforceDailyLimit(auth.userId, "daily_bg_removal", DAILY_BG_LIMIT);
+    if (limit.error) return limit.error;
+
     const apiKey = Deno.env.get("REMOVE_BG_API_KEY");
     if (!apiKey) {
       return json({ imageBase64: null, mimeType: null, skipped: true, reason: "REMOVE_BG_API_KEY is missing" });
