@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { fetchUserWardrobe, json, requireAuth } from "../_shared/auth.ts";
+import { getCached, hashKey, setCached } from "../_shared/cache.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,6 +36,15 @@ serve(async (req) => {
     const safeEvent = getPromptText(event, "kombin", 80);
     const safeMood = getPromptText(mood, "rahat", 80);
     const safeFocusItemId = typeof focus_item_id === "string" && focus_item_id.trim() ? focus_item_id.trim().slice(0, 80) : null;
+
+    // Cache kontrolü — aynı parametreler + aynı gardrop imzası ise Gemini'yi atla
+    const weatherBucket = weather?.temp != null ? Math.round(Number(weather.temp) / 5) * 5 : "na";
+    const wardrobeSignature = `${wardrobe.length}:${wardrobe.map((w: { id?: string }) => w.id ?? "").sort().join(",").slice(0, 400)}`;
+    const cacheKey = await hashKey(["outfit", auth.userId, safeEvent, safeMood, weatherBucket, safeFocusItemId, wardrobeSignature]);
+    const cached = await getCached(cacheKey);
+    if (cached) {
+      return json(cached);
+    }
 
     const prompt = `Sen Shipirio'sin. Turkce konusan pratik bir stilist asistansin.
 
@@ -77,7 +87,10 @@ Format:
       return json(fallbackOutfits(wardrobe, event, mood, focus_item_id));
     }
 
-    return json(normalizeOutfitSuggestions(JSON.parse(match[0]), wardrobe, safeFocusItemId));
+    const suggestions = normalizeOutfitSuggestions(JSON.parse(match[0]), wardrobe, safeFocusItemId);
+    // Başarılı sonucu cache'e yaz (fire-and-forget)
+    void setCached(cacheKey, auth.userId, "outfit", suggestions);
+    return json(suggestions);
   } catch (error) {
     return json(fallbackOutfits([], "kombin", "rahat", null));
   }
