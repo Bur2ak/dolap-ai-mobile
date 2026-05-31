@@ -18,6 +18,7 @@ import { usePriceTracking } from "@/hooks/usePriceTracking";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWardrobe } from "@/hooks/useWardrobe";
 import { useWardrobeAnalytics } from "@/hooks/useWardrobeAnalytics";
+import { applyAffiliate } from "@/lib/affiliate";
 import { captureError, captureEvent } from "@/lib/observability";
 import type { DistributionPoint, MissingWardrobePiece, StyleProfile, UpdateWardrobeItemInput, WardrobeAnalytics, WardrobeGoal, WardrobeItem } from "@/types";
 import { formatCurrency, formatNumber, getCostPerWearLabel } from "@/utils/formatters";
@@ -652,7 +653,7 @@ function DetoxItemList({
         { text: "Vazgeç", style: "cancel" },
         {
           text: "Dolap'ı Aç",
-          onPress: () => void openMarketSearch("https://dolap.com/urun-ekle"),
+          onPress: () => void openMarketSearch(applyAffiliate("https://dolap.com/urun-ekle", "Dolap")),
         },
       ],
     );

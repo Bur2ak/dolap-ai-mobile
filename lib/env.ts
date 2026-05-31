@@ -9,7 +9,9 @@ type PublicEnvKey =
   | "EXPO_PUBLIC_SENTRY_DSN"
   | "EXPO_PUBLIC_POSTHOG_API_KEY"
   | "EXPO_PUBLIC_POSTHOG_HOST"
-  | "EXPO_PUBLIC_R2_PUBLIC_URL";
+  | "EXPO_PUBLIC_R2_PUBLIC_URL"
+  | "EXPO_PUBLIC_TRENDYOL_AFFILIATE_ID"
+  | "EXPO_PUBLIC_DOLAP_PARTNER_ID";
 
 const placeholderValues = new Set([
   "https://your-project.supabase.co",
@@ -25,6 +27,7 @@ const placeholderValues = new Set([
 const explicitSiteUrl = normalizePublicUrlEnv("EXPO_PUBLIC_SITE_URL", process.env.EXPO_PUBLIC_SITE_URL);
 
 export const publicEnv = {
+  dolapPartnerId: normalizePublicEnv("EXPO_PUBLIC_DOLAP_PARTNER_ID", process.env.EXPO_PUBLIC_DOLAP_PARTNER_ID),
   easProjectId: normalizePublicEnv("EXPO_PUBLIC_EAS_PROJECT_ID", process.env.EXPO_PUBLIC_EAS_PROJECT_ID),
   openWeatherApiKey: normalizePublicEnv("EXPO_PUBLIC_OPENWEATHER_API_KEY", process.env.EXPO_PUBLIC_OPENWEATHER_API_KEY),
   posthogApiKey: normalizePublicEnv("EXPO_PUBLIC_POSTHOG_API_KEY", process.env.EXPO_PUBLIC_POSTHOG_API_KEY),
@@ -37,6 +40,7 @@ export const publicEnv = {
   siteUrlConfigured: Boolean(explicitSiteUrl),
   supabaseAnonKey: normalizePublicEnv("EXPO_PUBLIC_SUPABASE_ANON_KEY", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY),
   supabaseUrl: normalizePublicUrlEnv("EXPO_PUBLIC_SUPABASE_URL", process.env.EXPO_PUBLIC_SUPABASE_URL),
+  trendyolAffiliateId: normalizePublicEnv("EXPO_PUBLIC_TRENDYOL_AFFILIATE_ID", process.env.EXPO_PUBLIC_TRENDYOL_AFFILIATE_ID),
 };
 
 export function getMissingRequiredPublicEnv() {

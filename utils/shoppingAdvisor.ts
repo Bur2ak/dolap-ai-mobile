@@ -1,3 +1,4 @@
+import { applyAffiliate } from "@/lib/affiliate";
 import type { MissingWardrobePiece, PriceTracking, WardrobeItem } from "@/types";
 
 export interface PriceHistoryPoint {
@@ -207,7 +208,7 @@ export function buildShoppingSearchTargets(query: string): ShoppingSearchTarget[
     monetization: target.monetization,
     note: target.note,
     placement_label: target.placement_label,
-    url: `${target.baseUrl}${encodedQuery}`,
+    url: applyAffiliate(`${target.baseUrl}${encodedQuery}`, target.label),
   }));
 }
 

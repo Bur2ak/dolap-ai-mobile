@@ -72,7 +72,7 @@ export default function InviteScreen() {
       setIsSharing(true);
       const result = await Share.share({
         title: "Shipirio daveti",
-        message: `Shipirio'da arkadas olalim. Davet linkim: ${inviteUrl}`,
+        message: `Shipirio'da arkadaşım ol, ikimiz de 30 gün Premium kazanalım! 🎁\n\nAI gardırop asistanı — kombin önerileri, stil DNA'n ve daha fazlası.\n\nDavet linkim: ${inviteUrl}`,
         url: inviteUrl,
       });
       captureEvent("invite_link_shared", { completed: result.action === Share.sharedAction });
