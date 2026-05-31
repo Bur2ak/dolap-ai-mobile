@@ -268,14 +268,37 @@ export default function WardrobeScreen() {
           }
         />
       ) : (
-        <EmptyState
-          icon="shirt-outline"
-          title="İlk parçanı ekle"
-          body="Kamera veya galeriden fotoğraf ekle, AI analizi başlasın."
-          actionLabel="Parça Ekle"
-          onAction={() => setSheetVisible(true)}
-          style={styles.emptyState}
-        />
+        <ScrollView contentContainerStyle={styles.onboardWrap} showsVerticalScrollIndicator={false}>
+          <View style={styles.onboardIcon}>
+            <Ionicons name="sparkles" size={32} color={COLORS.accentText} />
+          </View>
+          <Text variant="h2" style={styles.onboardTitle}>En sevdiğin{"\n"}5 parçayla başla</Text>
+          <Text variant="body" color="secondary" style={styles.onboardBody}>
+            Tüm dolabını eklemene gerek yok. Sadece birkaç favori parçanı ekle,
+            Shipirio sana hemen kombin önersin.
+          </Text>
+
+          {/* Progress hint */}
+          <View style={styles.progressHint}>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: "0%" }]} />
+            </View>
+            <Text variant="caption" color="muted">Dolabın %0 hazır — 5 parça eklersen AI öneriler başlar</Text>
+          </View>
+
+          {/* Primary: Smart scan */}
+          <TouchableOpacity style={styles.onboardPrimary} onPress={() => router.push("/item/smart-scan")} activeOpacity={0.85}>
+            <Ionicons name="scan-outline" size={20} color={COLORS.textInverse} />
+            <View style={styles.onboardPrimaryCopy}>
+              <Text variant="label" color="inverse">Akıllı Tarama ile Başla</Text>
+              <Text variant="caption" style={styles.onboardPrimarySub}>Tek fotoğrafla birden fazla parça</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.onboardSecondary} onPress={() => setSheetVisible(true)} activeOpacity={0.7}>
+            <Text variant="label" color="secondary">Tek tek eklemeyi tercih et</Text>
+          </TouchableOpacity>
+        </ScrollView>
       )}
     </View>
   );
@@ -441,6 +464,24 @@ const styles = StyleSheet.create({
   },
 
   emptyState: { marginTop: SPACING.xl },
+  onboardWrap: { alignItems: "center", gap: SPACING.md, paddingHorizontal: SPACING.lg, paddingTop: SPACING.xl },
+  onboardIcon: {
+    alignItems: "center", backgroundColor: COLORS.accentSoft, borderRadius: 20,
+    height: 72, justifyContent: "center", width: 72,
+  },
+  onboardTitle: { textAlign: "center" },
+  onboardBody: { textAlign: "center", maxWidth: 320 },
+  progressHint: { gap: SPACING.xs, width: "100%", maxWidth: 340, alignItems: "center" },
+  progressBar: { backgroundColor: COLORS.surfaceMuted, borderRadius: 999, height: 6, overflow: "hidden", width: "100%" },
+  progressFill: { backgroundColor: COLORS.accent, borderRadius: 999, height: "100%" },
+  onboardPrimary: {
+    alignItems: "center", backgroundColor: COLORS.primary, borderRadius: 16,
+    flexDirection: "row", gap: SPACING.sm, justifyContent: "center",
+    marginTop: SPACING.sm, maxWidth: 340, minHeight: 56, paddingHorizontal: SPACING.lg, width: "100%",
+  },
+  onboardPrimaryCopy: { alignItems: "flex-start" },
+  onboardPrimarySub: { color: "rgba(255,255,255,0.7)" },
+  onboardSecondary: { padding: SPACING.sm },
 
   // Footer sections
   footerSections: { gap: SPACING.md, padding: SPACING.md, paddingBottom: 100 },
